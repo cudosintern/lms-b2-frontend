@@ -1,0 +1,17 @@
+{
+  "workbench.colorCustomizations": {
+    "titleBar.activeBackground": "#437d8a", // Change title bar color
+    "titleBar.activeForeground": "#FFFFFF", // Change title text color
+    "activityBar.background": "#3c6169", // Change sidebar color
+    "editor.lineHighlightBackground": "#1E1E1E"
+  },
+  "editor.fontFamily": "'Fira Code', 'Consolas', 'Courier New', monospace",
+  "editor.fontLigatures": true,
+  "editor.tabSize": 2,
+  "files.autoSave": "afterDelay",
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "eslint.validate": ["javascript", "javascriptreact", "typescript", "typescriptreact"],
+  "typescript.preferences.importModuleSpecifier": "relative",
+  "cSpell.words": ["responceinterface"]
+}

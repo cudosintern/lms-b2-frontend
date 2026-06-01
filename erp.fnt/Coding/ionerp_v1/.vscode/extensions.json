@@ -1,0 +1,18 @@
+{
+    "recommendations": [
+      "dbaeumer.vscode-eslint",                 // ESLint for code linting
+      "esbenp.prettier-vscode",                  // Prettier for code formatting
+      "streetsidesoftware.code-spell-checker",   // Spell checker for better code quality
+      "ms-vscode.vscode-typescript-next",        // Latest TypeScript support
+      "eamodio.gitlens",                          // GitLens for enhanced Git capabilities
+      "dsznajder.es7-react-js-snippets",         // ES7+ React/Redux snippets
+      "formulahendry.auto-rename-tag",            // Auto rename paired HTML/JSX tags
+      "xabikos.javascriptsnippets",               // JavaScript snippets
+      "mgmcdermott.vscode-language-babel",        // Babel syntax highlighting
+      "wix.vscode-import-cost",                   // Display import sizes
+      "pkief.material-icon-theme",                // Material icons for better UI
+      "jpoissonnier.vscode-styled-components",     // Styled Components support
+      "gruntfuggly.todo-tree"                      // Highlight TODO comments
+    ]
+  }
+  
