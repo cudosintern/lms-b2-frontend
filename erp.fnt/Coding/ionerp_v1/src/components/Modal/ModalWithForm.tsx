@@ -13,9 +13,17 @@ interface ModalWithFormProps {
   size?: "sm" | "md" | "lg" | "xl" | "full";
   columnLayout?: 1 | 2 | 3 | 4;
   initialValues?: any;
-  onValidDataChange?: (data: any) => void;
+  onValidDataChange?: (data: string, setValue: (name: string, value: any) => void) => void;
   submitbuttonName?: string;
   closebuttonName?: string;
+  resetbuttonName?: string;
+  submitButtonIcon?: React.ReactNode;
+  resetButtonIcon?: React.ReactNode;
+  closeButtonIcon?: React.ReactNode;
+  submitButtonClassName?: string;
+  resetButtonClassName?: string;
+  closeButtonClassName?: string;
+  children?: React.ReactNode;
 }
 
 const ModalWithForm: React.FC<ModalWithFormProps> = ({
@@ -31,6 +39,14 @@ const ModalWithForm: React.FC<ModalWithFormProps> = ({
   onValidDataChange,
   submitbuttonName = "Save",
   closebuttonName = "Cancel",
+  resetbuttonName,
+  submitButtonIcon,
+  resetButtonIcon,
+  closeButtonIcon,
+  submitButtonClassName,
+  resetButtonClassName,
+  closeButtonClassName,
+  children,
 }) => {
   const sizeClasses = {
     sm: "max-w-sm",
@@ -105,8 +121,17 @@ const ModalWithForm: React.FC<ModalWithFormProps> = ({
                   initialValues={initialValues}
                   submitbuttonName={submitbuttonName}
                   closebuttonName={closebuttonName}
+                  resetbuttonName={resetbuttonName}
+                  submitButtonIcon={submitButtonIcon}
+                  resetButtonIcon={resetButtonIcon}
+                  closeButtonIcon={closeButtonIcon}
+                  submitButtonClassName={submitButtonClassName}
+                  resetButtonClassName={resetButtonClassName}
+                  closeButtonClassName={closeButtonClassName}
                   onValidDataChange={onValidDataChange}
-                />
+                >
+                  {children}
+                </DynamicFormBuilder>
               </div>
             </div>
           </Transition.Child>

@@ -34,8 +34,12 @@ const MenuItem: React.FC<MenuItemProps> = ({ item, level = 0 }) => {
   const hasChildren =
     item.subItems &&
     item.subItems.length > 0 &&
-    !item.subItems.some(
-      (subItem) => subItem.name === "" || subItem.name === "Create" || subItem.name === "Update",
+    item.subItems.some(
+      (subItem) =>
+        subItem.name !== "" &&
+        !subItem.hidden &&
+        subItem.name !== "Create" &&
+        subItem.name !== "Update"
     );
 
   const toggleSubmenu = (e: React.MouseEvent) => {
@@ -62,6 +66,39 @@ const MenuItem: React.FC<MenuItemProps> = ({ item, level = 0 }) => {
       (item.subItems?.some((subItem: any) => shouldHighlight(subItem)) ?? false)
     );
   };
+
+  if (item.name === "" || item.hidden) return null; // Don't render invisible items
+
+  // Logic for items that have both an href (link) and children (dropdown)
+  if (item.href && hasChildren) {
+    return (
+      <div className='w-full'>
+        <div className={`flex items-center justify-between font-normal my-1 rounded-md transition-colors w-full ${level > 0 ? "ml-2" : ""} ${shouldHighlight(item) ? "button-bg dark:panel-bg text-white" : "text-color-1 hover:bg-[#75b9c2] hover:text-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-200"}`}>
+          <Link to={item.href} className="flex-1 px-3 py-1 flex items-center text-sm">
+            {item.icon && <span className='mr-1.5'>{item.icon}</span>}
+            {item.name}
+          </Link>
+          <button onClick={toggleSubmenu} className="px-3 py-1 flex items-center justify-center">
+             <ChevronRight className={`transform transition-transform ${isOpen ? "rotate-90" : ""}`} size={14} />
+          </button>
+        </div>
+        
+        {isOpen && (
+          <div className='ml-2 relative'>
+            <div className='menu-root-line' />
+            <div className=''>
+              {item?.subItems?.map(
+                (child, index) =>
+                  child.name !== "" && !child.hidden && (
+                    <MenuItem key={`${child.name}-${index}`} item={child} level={level + 1} />
+                  ),
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className='w-full'>
@@ -92,7 +129,7 @@ const MenuItem: React.FC<MenuItemProps> = ({ item, level = 0 }) => {
           <div className=''>
             {item?.subItems?.map(
               (child, index) =>
-                child.name !== "" && (
+                child.name !== "" && !child.hidden && (
                   <MenuItem key={`${child.name}-${index}`} item={child} level={level + 1} />
                 ),
             )}
@@ -213,7 +250,7 @@ const VerticalLayout: React.FC = () => {
           {routesForRole &&
             Array.isArray(routesForRole) &&
             routesForRole
-              .filter((item) => item.href !== "/change_password")
+              .filter((item) => item.href !== "/change_password" && !item.hidden)
               .map((item, index) => <MenuItem key={`${item.name}-${index}`} item={item} />)}
         </nav>
 

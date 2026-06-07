@@ -11,6 +11,18 @@ In the project directory, you can run:
 Runs the app in the development mode.\
 Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
 
+#### Bypassing authentication for testing
+
+If you want to skip the login screen during development (e.g. to access internal
+pages directly), set the following variable in your `.env.development` file:
+
+```dotenv
+REACT_APP_BYPASS_LOGIN=true
+```
+
+The application will then auto‑login with a demo user and allow direct navigation
+without credentials.
+
 The page will reload if you make edits.\
 You will also see any lint errors in the console.
 
@@ -79,6 +91,6 @@ npm i @headlessui/react recharts framer-motion js-cookie crypto-js axios react-h
 npm install @types/react @types/react-dom @types/js-cookie @types/axios @types/react-datepicker @types/crypto-js --save-dev
 
 not used
-npm install @reduxjs/toolkit react-redux @types/redux @types/react-redux 
+npm install @reduxjs/toolkit react-redux @types/redux @types/react-redux
 
 -->

@@ -4,6 +4,8 @@ import { EMSROUTE } from "./emsRoute";
 // import { TRANSPORTROUTE } from "./transportRoute";
 // import { HOSTELROUTE } from "./hostelRoute";
 import { MAINROUTE } from "./mainRoute";
+// import { CUDOSROUTE } from "./cudosRoute";
+import PLACEMENTROUTE from "./placementRoute";
 
 export interface RouteItem {
   name: string;
@@ -12,6 +14,7 @@ export interface RouteItem {
   element: ComponentType<any>;
   subItems?: RouteItem[];
   roles?: string[];
+  hidden?: boolean;
 }
 
 export interface RoleRoutes {
@@ -19,9 +22,11 @@ export interface RoleRoutes {
 }
 
 export const roleRoutes: RoleRoutes = {
-  main: MAINROUTE,
+  main: [...MAINROUTE],
   ionems: EMSROUTE,
+  // ioncudos: CUDOSROUTE,
   // ionadmission: ADMISSIONROUTE,
   // iontransport: TRANSPORTROUTE,
   // ionhostel: HOSTELROUTE,
+  ionplacement: PLACEMENTROUTE,
 };

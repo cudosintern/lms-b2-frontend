@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useImperativeHandle, forwardRef } from "react";
 import {
   useForm,
   Controller,
@@ -17,7 +17,7 @@ import SingleDatePicker from "./fields/SingleDatePicker";
 import DateRangePicker from "./fields/DateRangePicker";
 import RadioButton from "./fields/RadioGroup";
 import ToggleSwitch from "./fields/Switch";
-import TextArea from "./fields/Textarea";
+import Textarea from "./fields/Textarea";
 import TimePickerComponent from "./fields/TimeInput";
 import UIButton from "./fields/Button";
 import FileUploadComponent from "./fields/FileUpload";
@@ -27,24 +27,24 @@ import YearPicker from "./fields/YearPicker";
 
 export interface Field {
   type:
-    | "text"
-    | "password"
-    | "phone"
-    | "email"
-    | "select"
-    | "checkbox"
-    | "multiselect"
-    | "number"
-    | "radio"
-    | "singledate"
-    | "daterange"
-    | "switch"
-    | "textarea"
-    | "time"
-    | "qrcode"
-    | "image"
-    | "year"
-    | string;
+  | "text"
+  | "password"
+  | "phone"
+  | "email"
+  | "singularSelect"
+  | "multiselect"
+  | "checkbox"
+  | "number"
+  | "radio"
+  | "singledate"
+  | "daterange"
+  | "switch"
+  | "textarea"
+  | "time"
+  | "qrcode"
+  | "image"
+  | "year"
+  | string;
   name: string;
   label: string;
   value?: any;
@@ -79,35 +79,57 @@ interface DynamicFormProps {
   submitbuttonName: string;
   closebuttonName?: string;
   resetbuttonName?: string;
+  submitButtonIcon?: React.ReactNode;
+  resetButtonIcon?: React.ReactNode;
+  closeButtonIcon?: React.ReactNode;
+  submitButtonClassName?: string;
+  resetButtonClassName?: string;
+  closeButtonClassName?: string;
   innerFormButtonModel?: () => void;
   columnLayout?: 1 | 2 | 3 | 4;
   initialValues?: Record<string, any>;
-  onValidDataChange?: (fieldName: string, fieldValue: any) => void;
+  onValidDataChange?: (data: string, setValue: (name: string, value: any) => void) => void;
   children?: React.ReactNode;
   onReset?: () => void;
 }
 
-const DynamicFormBuilder = ({
-  fields,
-  schema,
-  onSubmit,
-  onClose,
-  loading,
-  submitbuttonName,
-  closebuttonName,
-  resetbuttonName,
-  innerFormButtonModel,
-  columnLayout = 1,
-  initialValues = {},
-  onValidDataChange,
-  children,
-  submitbuttonposition,
-  onReset,
-}: DynamicFormProps) => {
+export interface DynamicFormHandle {
+  setError: (name: string, error: { type?: string; message: string }) => void;
+  reset: (values?: Record<string, any>) => void;
+  getValues: () => any;
+}
+
+const DynamicFormBuilder = forwardRef<DynamicFormHandle, DynamicFormProps>((props, ref) => {
+  const {
+    fields,
+    schema,
+    onSubmit,
+    onClose,
+    loading,
+    submitbuttonName,
+    closebuttonName,
+    resetbuttonName,
+    submitButtonIcon,
+    resetButtonIcon,
+    closeButtonIcon,
+    submitButtonClassName,
+    resetButtonClassName,
+    closeButtonClassName,
+    innerFormButtonModel,
+    columnLayout = 1,
+    initialValues = {},
+    onValidDataChange,
+    children,
+    submitbuttonposition,
+    onReset,
+  } = props;
+
   const {
     control,
     handleSubmit,
     setValue,
+    setError,
+    getValues,
     formState: { errors, isSubmitting },
     reset,
   } = useForm({
@@ -117,23 +139,27 @@ const DynamicFormBuilder = ({
     defaultValues: initialValues,
   });
 
+  useImperativeHandle(ref, () => ({
+    setError: (name: any, error: any) => {
+      setError(name, error);
+    },
+    reset: (values: any) => {
+      reset(values);
+    },
+    getValues: () => {
+      return getValues();
+    }
+  }));
+
   const initialValuesRef = useRef(initialValues);
 
   useEffect(() => {
-    if (initialValues && Object.keys(initialValues).length > 0) {
-      // Check if initialValues have changed by comparing references
-      const hasChanged = !Object.keys(initialValues).every(
-        (key) => initialValues[key] === initialValuesRef.current[key]
-      );
-      // console.log("Setting initial values: 0", initialValues, hasChanged);
-      if (hasChanged) {
-        // console.log("Setting initial values: 1", initialValues);
-        reset(initialValues);
-        initialValuesRef.current = initialValues;
-      }
+    if (JSON.stringify(initialValues) !== JSON.stringify(initialValuesRef.current)) {
+      reset(initialValues);
+      initialValuesRef.current = initialValues;
     }
-    // console.log("----------, initialValues");
   }, [initialValues, reset]);
+
 
   const [optionsState, setOptionsState] = React.useState<
     Record<string, { label: string; value: string | number }[]>
@@ -146,7 +172,7 @@ const DynamicFormBuilder = ({
     new Set(
       fields
         .flatMap((group) => group.fields)
-        .filter((field) => field.type === "select" && field.dependsOn)
+        .filter((field) => (field.type === "select" || field.type === "multiselect") && field.dependsOn)
         .map((field) => field.dependsOn)
         .filter((dependsOn): dependsOn is string => dependsOn !== undefined)
     )
@@ -191,7 +217,7 @@ const DynamicFormBuilder = ({
   React.useEffect(() => {
     fields.forEach((group) => {
       group.fields.forEach((field) => {
-        if (field.type === "select" || field.type === "multiselect") {
+        if (field.type === "select") {
           // Check if options have already been loaded for this field
           if (!field.dependsOn && field.loadOptions) {
             // Always load options if editing
@@ -205,17 +231,6 @@ const DynamicFormBuilder = ({
                 // console.error(`Error loading options for ${field.name}:`, error);
                 setOptionsState((prev) => ({ ...prev, [field.name]: [] }));
               });
-          } else {
-            // setOptionsLoaded((prev) => ({ ...prev, [field.name]: true }));
-            setValue(field.name, ""); // Reset the current field value when dependency changes
-            // Reset fields dependent on this field dynamically
-            // group.fields
-            //   .filter((dependentField: any) => dependentField?.dependsOn === field.name)
-            //   .forEach((dependentField) => {
-            //     resetField(dependentField.name);
-            //     setValue(dependentField.name, null);
-            //     setOptionsState((prev) => ({ ...prev, [dependentField.name]: [] }));
-            //   });
           }
         }
       });
@@ -228,7 +243,7 @@ const DynamicFormBuilder = ({
 
   React.useEffect(() => {
     if (onValidDataChange) {
-      onValidDataChange(JSON.stringify(watchedFields), null);
+      onValidDataChange(JSON.stringify(watchedFields), setValue);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watchedFields]);
@@ -260,7 +275,7 @@ const DynamicFormBuilder = ({
       case "email":
         return <TextInput {...commonProps} type={field.type} />;
       case "year":
-        return <YearPicker {...commonProps}  value={commonProps.value}  />;
+        return <YearPicker {...commonProps} value={commonProps.value} />;
       case "select":
         return (
           <Select
@@ -271,12 +286,7 @@ const DynamicFormBuilder = ({
       case "checkbox":
         return <Checkbox {...commonProps} />;
       case "multiselect":
-        return (
-          <MultiSelect
-            {...commonProps}
-            options={options as { label: string; value: string }[]}
-          />
-        );
+        return <MultiSelect {...commonProps} options={options} isMulti={field.isMulti} />;
       case "number":
         return <NumberInput {...commonProps} />;
       case "radio":
@@ -293,7 +303,7 @@ const DynamicFormBuilder = ({
       case "switch":
         return <ToggleSwitch {...commonProps} />;
       case "textarea":
-        return <TextArea {...commonProps} />;
+        return <Textarea {...commonProps} />;
       case "time":
         return <TimePickerComponent {...commonProps} />;
       case "file":
@@ -349,8 +359,10 @@ const DynamicFormBuilder = ({
                   renderField({
                     ...field,
                     onChange: (val) => {
-                      onChange(val);
-                      field.onChange?.(val);
+                      // For checkboxes, map boolean to numeric 0/1 to match backend/schema expectation
+                      const finalVal = field.type === "checkbox" ? (val.target?.checked ? 1 : 0) : val;
+                      onChange(finalVal);
+                      field.onChange?.(finalVal);
                     },
                     onBlur: () => {
                       onBlur();
@@ -368,14 +380,15 @@ const DynamicFormBuilder = ({
 
       {children && <div>{children}</div>}
 
-      <div className={`flex justify-{${submitbuttonposition}} space-x-2`}>
+      <div className={`flex justify-${submitbuttonposition || "start"} space-x-2`}>
         {submitbuttonName && (
           <button
             type="submit"
             disabled={isSubmitting}
-            className="px-4 py-2 button-bg text-sm text-white rounded hover:pannel-bg-1 focus:outline-none "
+            className={`flex items-center space-x-2 px-4 py-2 text-sm text-white rounded focus:outline-none ${submitButtonClassName || "button-bg hover:pannel-bg-1"}`}
           >
-            {loading ? "Loading..." : submitbuttonName}
+            {submitButtonIcon && <span>{submitButtonIcon}</span>}
+            <span>{loading ? "Loading..." : submitbuttonName}</span>
           </button>
         )}
         {resetbuttonName && (
@@ -386,22 +399,25 @@ const DynamicFormBuilder = ({
               reset();
             }}
             className="px-4 py-2 bg-yellow-600 text-sm text-white rounded hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2"
+
           >
-            {resetbuttonName}
+            {resetButtonIcon && <span>{resetButtonIcon}</span>}
+            <span>{resetbuttonName}</span>
           </button>
         )}
         {closebuttonName && (
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 bg-red-600 text-sm text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+            className={`flex items-center space-x-2 px-4 py-2 text-sm text-white rounded focus:outline-none ${closeButtonClassName || "bg-red-600 hover:bg-red-700 focus:ring-2 focus:ring-red-500 focus:ring-offset-2"}`}
           >
-            {closebuttonName}
+            {closeButtonIcon && <span>{closeButtonIcon}</span>}
+            <span>{closebuttonName}</span>
           </button>
         )}
       </div>
     </form>
   );
-};
+});
 
 export default DynamicFormBuilder;

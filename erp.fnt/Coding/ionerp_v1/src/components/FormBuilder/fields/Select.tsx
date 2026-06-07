@@ -9,7 +9,7 @@ export interface SelectProps {
   required?: boolean;
   disabled?: boolean;
   value?: string | number;
-  onChange?: (event: React.ChangeEvent<HTMLSelectElement>) => void;
+  onChange?: (value: string | number) => void;
   onBlur?: (event: React.FocusEvent<HTMLSelectElement>) => void;
   placeholder?: string;
   leftIcon?: React.ReactNode;
@@ -58,18 +58,22 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
             required={required}
             disabled={disabled}
             value={value ?? ""}
-            onChange={onChange}
+            onChange={(e) => {
+              const selectedOption = options.find(option => option.value == e.target.value);
+              const val = selectedOption ? selectedOption.value : e.target.value;
+              onChange?.(val);
+            }}
             onBlur={onBlur}
             className={`
-              w-full 
-              px-3 
-              py-2 
-              border 
-              rounded-md 
-              shadow-sm 
-              focus:outline-none 
-              focus:ring-2 
-              transition 
+              w-full
+              px-3
+              py-2
+              border
+              rounded-md
+              shadow-sm
+              focus:outline-none
+              focus:ring-2
+              transition
               duration-300
               appearance-none
               ${leftIcon ? 'pl-10' : ''}

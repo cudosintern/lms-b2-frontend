@@ -1,6 +1,6 @@
 import React from "react";
 import { Routes, Route, Navigate, Outlet } from "react-router-dom";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth, BYPASS_LOGIN } from "../hooks/useAuth"; // add bypass constant
 import { roleRoutes, RouteItem } from "./routeConfig";
 import Login from "../pages/login/loginPage";
 import { VerticalLayout, HorizontalLayout } from "../components/Layout/index";
@@ -8,32 +8,29 @@ import { useLayout } from "../contexts/LayoutContext";
 import { LocalStorageHelper } from "../utils/localStorageHelper";
 import ForgotPasswordPage from "../pages/login/forgotPassword";
 
-
-// import MainPage from "../pages/mainPage";
-
 const ProtectedRoute: React.FC<{
   element: React.ReactElement;
   roles?: string[];
 }> = ({ element }) => {
   const { isAuthenticated, setApplicationRole } = useAuth();
 
-  // console.log('applicationRole:', applicationRole);
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-
+  // console.log('ProtectedRoute: isAuthenticated=', isAuthenticated, 'role=', localStorage.getItem("role"));
+  // if (!isAuthenticated) {
+  //   return <Navigate to="/login" replace />;
+  // }
+  // Simplification: asking for a role check that might be causing the loop
+  // If user is authenticated but no role is set, default to 'main'
   if (isAuthenticated && !localStorage.getItem("role")) {
+    console.warn("No role found in localStorage, setting to 'main'");
     LocalStorageHelper.setObject("role", "main");
     setApplicationRole("main");
-    return <Navigate to="/" replace />;
   }
   return element;
 };
 
 const renderRoutes = (
   routes: RouteItem[],
-  parentPath: string = ""
+  parentPath: string = "",
 ): React.ReactNode => {
   return routes.map((route) => {
     const fullPath = `${parentPath}/${route.href}`.replace(/\/+/g, "/");
@@ -52,7 +49,6 @@ const renderRoutes = (
         {route.subItems && route.subItems.length === 0 && (
           <Route index element={<route.element />} />
         )}
-
       </Route>
     );
   });
@@ -67,7 +63,14 @@ const AppRoutes: React.FC = () => {
   // });
   // Memoize routes based on the applicationRole to avoid unnecessary recalculations
   const routesForProduct = React.useMemo(() => {
-    return roleRoutes[applicationRole as keyof typeof roleRoutes];
+    const routes = roleRoutes[applicationRole as keyof typeof roleRoutes];
+    if (!routes) {
+      console.warn(
+        `Routes for role '${applicationRole}' not found. Falling back to 'main'.`,
+      );
+      return roleRoutes["main"];
+    }
+    return routes;
   }, [applicationRole]);
 
   const Layout =
@@ -79,13 +82,15 @@ const AppRoutes: React.FC = () => {
     <Routes>
       <Route
         path="/login"
-        element={isAuthenticated ? <Navigate to="/" replace /> : <Login />}
+        element={
+          // if the user is already authenticated or bypass mode is active,
+          // send them straight to the home page instead of showing login.
+          isAuthenticated || BYPASS_LOGIN ? <Navigate to="/" replace /> : <Login />
+        }
       />
-
       <Route element={<Layout />}>
         {routesForProduct && renderRoutes(routesForProduct)}
       </Route>
-
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>

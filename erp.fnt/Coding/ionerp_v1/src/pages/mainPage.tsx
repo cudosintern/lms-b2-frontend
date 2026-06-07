@@ -40,11 +40,13 @@ const MainPage: React.FC = () => {
 
   const { isAuthenticated, setApplicationRole } = useAuth();
 
+  const bypass = process.env.REACT_APP_BYPASS_LOGIN === "true";
+
   React.useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated && !bypass) {
       navigator("/login");
     }
-  }, [isAuthenticated, navigator]);
+  }, [isAuthenticated, navigator, bypass]);
 
   // Map icon names from JSON to actual React Icon components
   const iconMapping: { [key: string]: React.ComponentType<IconBaseProps> } = {

@@ -59,7 +59,7 @@ const MenuItem: React.FC<{
       item.subItems &&
       item.subItems.length > 0 &&
       !item.subItems.some(
-        (subItem) => subItem.name === "" || subItem.name === "Create" || subItem.name === "Update",
+        (subItem) => subItem.name === "" || subItem.hidden || subItem.name === "Create" || subItem.name === "Update",
       );
 
     const menuRef = useRef<HTMLDivElement>(null);
@@ -196,7 +196,7 @@ const MenuItem: React.FC<{
           <div className='py-0.5'>
             {item.subItems?.map(
               (child, index) =>
-                child.name !== "" && (
+                child.name !== "" && !child.hidden && (
                   <div
                     key={`${child.name}-${index}`}
                     className={`
@@ -313,7 +313,7 @@ const HorizontalLayout: React.FC = () => {
             {routesForRole &&
               Array.isArray(routesForRole) &&
               routesForRole
-                .filter((item) => item.href !== "/change_password")
+                .filter((item) => item.href !== "/change_password" && !item.hidden)
                 .map((item, index) => (
                   <MenuItem
                     key={`${item.name}-${index}`}
@@ -426,7 +426,7 @@ const HorizontalLayout: React.FC = () => {
                 </button>
               </div>
               <nav className='px-2 py-3 h-[calc(100vh-64px)] overflow-x-hidden overflow-y-auto'>
-                {routesForRole.map((item, index) => (
+                {routesForRole.filter((item) => !item.hidden).map((item, index) => (
                   <MenuItem
                     key={`${item.name}-${index}`}
                     item={item}

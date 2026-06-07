@@ -27,15 +27,21 @@ const UIButton: React.FC<ButtonProps> = ({
     lg: "px-4 py-2 text-base",
   };
 
+  const hasBg = className.includes("bg-") || className.includes("button-bg") || className.includes("panel-bg");
+  const hasTextColor = className.includes("text-") || className.includes("text-color") || className.includes("main-page-text-color");
+
   return (
     <button
       type={type}
       onClick={onClick}
       {...props}
       disabled={isLoading || isDisabled}
-      className={`mr-1 rounded-md shadow px-4 py-2 text-sm font-medium button-bg dark:button-bg text-white  focus:outline-none focus:ring-2 focus:ring-ring-light dark:focus:ring-ring-dark
-        ${isDisabled || isLoading ? "bg-gray-400 dark:bg-gray-600 cursor-not-allowed" : ""}
+      className={`mr-1 rounded-md shadow text-sm font-medium inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-ring-light dark:focus:ring-ring-dark
+        ${!hasBg ? "button-bg dark:button-bg" : ""}
+        ${!hasTextColor ? "text-white" : ""}
+        ${isDisabled || isLoading ? "bg-gray-400 dark:bg-gray-600 cursor-not-allowed opacity-50" : ""}
         ${sizeClasses[size]} ${className}`}
+      style={{ padding: size === "sm" ? "0.25rem 0.5rem" : "0.5rem 1rem", ...props.style }}
     >
       {isLoading ? "Loading..." : children}
     </button>

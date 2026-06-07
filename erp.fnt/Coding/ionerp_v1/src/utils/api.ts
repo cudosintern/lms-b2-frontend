@@ -6,8 +6,10 @@ import { toast } from "react-toastify";
 const AUTH_COOKIE_KEY = "auth_state";
 const AUTH_COOKIE_ORG_KEY = "auth_org_state";
 
+const baseURL = process.env.REACT_APP_API_URL?.endsWith('/') ? process.env.REACT_APP_API_URL : `${process.env.REACT_APP_API_URL}/`;
+
 const axiosInstance = axios.create({
-  baseURL: process.env.REACT_APP_API_URL,
+  baseURL,
   timeout: 10000,
   withCredentials: true,
   headers: {
@@ -28,8 +30,9 @@ axiosInstance.interceptors.request.use(
       config.headers.Authorization = `Bearer ${authState.access_token}`;
     }
     // console.log('a-asd-asd-asd',authState, authOrg)
-    if (authOrg && authOrg?.value) {
-      config.headers["org-id"] = authOrg?.value;
+   if (authOrg && authOrg?.value) {
+      const orgId = (authOrg as any)?.value?.value ?? (authOrg as any)?.value;
+      config.headers["org-id"] = orgId;
     }
     return config;
   },
@@ -45,7 +48,8 @@ axiosInstance.interceptors.response.use(
   (error) => {
     if (error.response) {
       if (error.response.status === 404) {
-        toast.error(error.response.data?.message || "Resource not found");
+        console.error(`Resource not found (404): ${error.config.url}`, error.response);
+        toast.error(error.response.data?.message || `Resource not found: ${error.config.url}`);
         return Promise.reject(error);
       }
       if (error.response.status === 401) {
