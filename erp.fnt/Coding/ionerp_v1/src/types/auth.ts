@@ -18,7 +18,6 @@ export interface commonAPiResponse {
 export interface commonAPi {
   departments: Department[]
   program_types: ProgramType[]
-  outcomes: Outcome[]
 }
 
 export interface Department {
@@ -31,11 +30,4 @@ export interface ProgramType {
   pgmtype_id: number
   pgmtype_name: string
   program_type_code: string
-}
-
-export interface Outcome {
-  po_id: number
-  po_type: string
-  po_description: string
-  status: number
 }

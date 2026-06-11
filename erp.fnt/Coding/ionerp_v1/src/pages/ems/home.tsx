@@ -452,7 +452,6 @@ const Home: React.FC = () => {
     loader: true,
     payload: { show_all: 1 },
     shouldFetch: true,
-    withCredentials: false,
   });
 
   // Memoize the API call function

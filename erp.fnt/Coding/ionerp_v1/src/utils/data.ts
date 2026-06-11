@@ -49,4 +49,11 @@ export const MainPageCards: CardItem[] = [
     keyname: "ionhostel",
     description: "",
   },
+  {
+    name: "Mentor Mentee Program",
+    url: "/mentoring",
+    iconName: "mentoring",
+    keyname: "main",
+    description: "Manage configurations, mentors, and mentee assignments.",
+  },
 ];

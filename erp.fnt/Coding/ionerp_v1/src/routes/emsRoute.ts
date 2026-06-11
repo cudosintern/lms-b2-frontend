@@ -1,28 +1,15 @@
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Home from "../pages/ems/home";
-// import Bos from "../pages/ioncudos/configuration/bos/Bos";
-// import AddExistingUser from "../pages/ioncudos/configuration/bos/AddExistingUser";
-// import AddNewMember from "../pages/ioncudos/configuration/bos/AddNewMember";
-// import GenericPOPage from "../pages/ioncudos/configuration/genericPO/genericPOPage";
-// import ProgramMode from "../pages/ioncudos/configuration/program_mode/ProgramMode";
-// import PeoPage from "../pages/ioncudos/curriculum/peo";
-// import PsoPage from "../pages/ioncudos/curriculum/pso";
-// import AssessmentPage from "../pages/ioncudos/assessment/manage_mte_qp";
-// import UploadMteQpPage from "../pages/ioncudos/assessment/manage_mte_qp/UploadMteQpPage";
-// import CreateMteQpPage from "../pages/ioncudos/assessment/manage_mte_qp/CreateMteQpPage";
-// import ManageMteDetailsPage from "../pages/ioncudos/assessment/manage_mte_qp/ManageMteDetailsPage";
-// import DefineRubricsPage from "../pages/ioncudos/assessment/manage_mte_qp/DefineRubricsPage";
-// import AttainmentThresholdLevelsPage from "../pages/ioncudos/attainment/attainment_threshold_levels";
-// import PsoFormPage from "../pages/ioncudos/curriculum/pso/PsoFormPage";
+import Bos from "../pages/ioncudos/configuration/bos/Bos";
+import AddExistingUser from "../pages/ioncudos/configuration/bos/AddExistingUser";
+import AddNewMember from "../pages/ioncudos/configuration/bos/AddNewMember";
 
 // import Masters from "../pages/ems/configuration/masters/mastersPage";
 // import UserRolePage from "../pages/ems/configuration/userRole/userRolePage";
 // import UserMasterPage from "../pages/ems/configuration/userMaster/userMasterPage";
 // import UserAccessPage from "../pages/ems/configuration/userAccess/userAccessPage";
 import DepartmentPage from "../pages/ems/configuration/departmentDetail/departmentPage";
-// import BloomDomainPage from "../pages/ioncudos/configuration/bloomDomain/bloomDomainPage";
-// import OutcomePage from "../pages/ioncudos/configuration/program/outcomePage";
-// import MapLevelWeightagePage from "../pages/ioncudos/configuration/mapLevelWeightage/mapLevelWeightagePage";
-// import DeliveryMethodPage from "../pages/ioncudos/curriculum/deliveryMethod/deliveryMethodPage";
+import BloomDomainPage from "../pages/ioncudos/configuration/bloomDomain/bloomDomainPage";
 // import ProgramTypePage from "../pages/ems/configuration/programType/programTypePage";
 // import ProgramPage from "../pages/ems/configuration/program/programPage";
 // import AcademicCalendarPage from "../pages/ems/academics/academicCalendar/academicCalendarPage";
@@ -107,39 +94,6 @@ import { Outlet } from "react-router-dom";
 // import EligibilityListReport from "../pages/ems/reports/EligibilityListReport/EligibilityListReport";
 // import AnalysisReport from "../pages/ems/reports/AnalysisReport/AnalysisReport";
 import ChangePasswordPage from "../pages/changepassword";
-// import genericKPPage from "../pages/ioncudos/configuration/generickp/genericKPPage";
-// import GenericPOForm from "../pages/ioncudos/configuration/genericPO/GenericPOForm";
-// import LabCategoryPage from "../pages/ioncudos/configuration/labCategory/labCategoryPage";
-// import CurriculumPage from "../pages/ioncudos/curriculum/curriculum/CurriculumPage";
-// import CurriculumForm from "../pages/ioncudos/curriculum/curriculum/CurriculumForm";
-// import ManageKnowledgeProfile from "../pages/ioncudos/curriculum/manageKnowledgeProfile/ManageKnowledgeProfile";
-// import ManageKnowledgeProfileForm from "../pages/ioncudos/curriculum/manageKnowledgeProfile/ManageKnowledgeProfileForm";
-// import PoPeoMappingPage from "../pages/ioncudos/curriculum/poPeoMapping/PoPeoMappingPage";
-//import CurriculumSettingsPage from "../pages/ioncudos/curriculum/curriculumSettings/CurriculumSettingsPage";
-// import BloomLevel from "../pages/ioncudos/configuration/bloomLevel/BloomLevel";
-// import CurriculumSettingsPage from "../pages/ioncudos/curriculum/curriculumSettings/CurriculumSettingsPage";
-// import PoPeoMappingPage from "../pages/ioncudos/curriculum/poPeoMapping/PoPeoMappingPage";
-//import CurriculumSettingsPage from "../pages/ioncudos/curriculum/curriculumSettings/curriculumSettingsPage";
-// import CourseOutcomePage from "../pages/ioncudos/curriculum/courseOutcome/CourseOutcomePage";
-
-// import CompetenciesAndPIsPage from "../pages/ioncudos/curriculum/competenciesAndPIs/CompetenciesAndPIsPage";
-// import CoPoMapPage from "../pages/ioncudos/curriculum/co_po_map";
-// import ManageTopicsPage from "../pages/ioncudos/curriculum/manageTopics/ManageTopicsPage";
-// import CiaList from "../pages/ioncudos/assessment/cia/CiaList";
-// import CceDataImportList from "../pages/ioncudos/attainment/cceDataImport/CceDataImportList";
-// import CiaQpList from "../pages/ioncudos/assessment/manage_cia_qp_rubrics/CiaQpList";
-// import CiaQpEditor from "../pages/ioncudos/assessment/manage_cia_qp_rubrics/CiaQpEditor";
-// import ManageModelQPPage from "../pages/ioncudos/assessment/manageModelQP/ManageModelQPPage";
-// import SeeCourseWiseImport from "../pages/ioncudos/attainment/seeCourseWiseImport/SeeCourseWiseImport";
-// import MteDataImportPage from "../pages/ioncudos/attainment/mtedataimport/MteDataImportPage";
-// import MTEImportReviewPage from "../pages/ioncudos/attainment/mtedataimport/mteImportReview/MTEImportReviewPage";
-// import ManageMTEMarksPage from "../pages/ioncudos/attainment/mtedataimport/ManageMTEMarksPage";
-// import MTEUploadPage from "../pages/ioncudos/attainment/mtedataimport/mteUpload/MTEUploadPage";
-// import ManageQuestionTypePage from "../pages/ioncudos/survey/manage-survey-question-type/ManageQuestionTypePage";
-// import ManageResponseTemplatePage from "../pages/ioncudos/survey/manage-response-template/ManageResponseTemplatePage";
-// import ManageStakeholderGroupPage from "../pages/ioncudos/survey/manage-stakeholder-group/ManageStakeholderGroupPage";
-// import ManageStakeholderPage from "../pages/ioncudos/survey/manage-stakeholder/ManageStakeholderPage";
-// import ManageSurveyTemplatePage from "../pages/ioncudos/survey/manage-survey-template/ManageSurveyTemplatePage";
 
 export const EMSROUTE = [
   {
@@ -149,7 +103,6 @@ export const EMSROUTE = [
     roles: [],
     subItems: [],
   },
-
   {
     name: "Change Password",
     href: "/change_password",
@@ -157,9 +110,23 @@ export const EMSROUTE = [
     roles: [],
     subItems: [],
   },
+  {
+    name: "",
+    href: "/bos/add-existing",
+    element: AddExistingUser,
+    roles: [],
+    subItems: [],
+  },
+  {
+    name: "",
+    href: "/bos/add-new",
+    element: AddNewMember,
+    roles: [],
+    subItems: [],
+  },
 
   {
-    name: "Configuration",
+    name: "Configurations",
     href: "",
     element: Outlet,
     roles: [],
@@ -199,114 +166,23 @@ export const EMSROUTE = [
       //     ],
       //   },
       {
-        name: "Department",
+        name: "Department1",
         href: "department",
         roles: [],
         element: DepartmentPage,
       },
-
-      // {
-      //   name: "Program Mode",
-      //   href: "program_mode",
-      //   element: ProgramMode,
-      //   roles: [],
-      // },
-
-      // {
-      //   name: "BoS Members",
-      //   href: "bos",
-      //   roles: [],
-      //   element: Bos,
-      // },
-      // {
-      //   name: "",
-      //   href: "bos/add-existing",
-      //   element: AddExistingUser,
-      //   roles: [],
-      // },
-      // {
-      //   name: "",
-      //   href: "bos/add-new",
-      //   element: AddNewMember,
-      //   roles: [],
-      // },
-      // {
-      //   name: "",
-      //   href: "bos/edit/:id",
-      //   element: AddNewMember,
-      //   roles: [],
-      // },
-      // {
-      //   name: "Program Outcome (PO) Type",
-      //   href: "program_outcome",
-      //   element: OutcomePage,
-      //   roles: [],
-      // },
-
-      // {
-      //   name: "Generic Program Outcomes (POs)",
-      //   href: "po",
-      //   element: Outlet,
-      //   roles: [],
-      //   subItems: [
-      //     {
-      //       name: "",
-      //       href: "",
-      //       element: GenericPOPage,
-      //       roles: [],
-      //     },
-      //     {
-      //       name: "Add",
-      //       href: "create",
-      //       element: GenericPOForm,
-      //       roles: [],
-      //       hidden: true,
-      //     },
-      //     {
-      //       name: "Edit",
-      //       href: "edit/:id",
-      //       element: GenericPOForm,
-      //       roles: [],
-      //       hidden: true,
-      //     },
-      //   ],
-      // },
-      // {
-      //   name: "Generic Knowledge and Attitude Profile (KPs)",
-      //   href: "knowledge_profile",
-      //   element: genericKPPage,
-      //   roles: [],
-      // },
-      // {
-      //   name: "Delivery Method",
-      //   href: "delivery_method",
-      //   roles: [],
-      //   element: DeliveryMethodPage,
-      // },
-      // {
-      //   name: "Lab Category",
-      //   href: "labCategory",
-      //   element: LabCategoryPage,
-      //   roles: [],
-      // },
-      // {
-      //   name: "Bloom's Domain",
-      //   href: "bloom_domain",
-      //   roles: [],
-      //   element: BloomDomainPage,
-      // },
-      // {
-      //   name: "Bloom's Level",
-      //   href: "bloom_level",
-      //   roles: [],
-      //   element: BloomLevel,
-      // },
-      // {
-      //   name: "Map Level Weightage",
-      //   href: "map_level_weightage",
-      //   roles: [],
-      //   element: MapLevelWeightagePage,
-      // },
+      {
+        name: "Bloom's Domain",
+        href: "bloom_domain",
+        roles: [],
+        element: BloomDomainPage,
+      },
+      {
+        name: "BoS Members",
+        href: "bos",
+        roles: [],
+        element: Bos
+      },
 
       //   { name: "Program Type", href: "program_type", roles: [], element: ProgramTypePage },
       //   { name: "Program", href: "program", roles: [], element: ProgramPage },
@@ -318,7 +194,6 @@ export const EMSROUTE = [
       //   },
     ],
   },
-
   // {
   //   name: "Academics",
   //   href: "",
@@ -801,294 +676,4 @@ export const EMSROUTE = [
   //     { name: "Transcript", href: "transcript_report", roles: [], element: Transcript },
   //   ],
   // },
-
-  // {
-  //   name: "Curriculum",
-  //   href: "",
-  //   element: Outlet,
-  //   roles: [],
-  //   subItems: [
-  //     {
-  //       name: "Manage Knowledge and Attitude Profile",
-  //       href: "/curriculum/manage_knowledge_profile",
-  //       element: ManageKnowledgeProfile,
-  //       roles: [],
-  //     },
-  //     {
-  //       name: "Curriculum",
-  //       href: "/curriculum",
-  //       element: CurriculumPage,
-  //       roles: [],
-  //     },
-  //     {
-  //       name: "", // Hidden
-  //       href: "/curriculum/create",
-  //       element: CurriculumForm,
-  //       roles: [],
-  //     },
-  //     {
-  //       name: "", // Hidden
-  //       href: "/curriculum/edit/:id",
-  //       element: CurriculumForm,
-  //       roles: [],
-  //     },
-
-  //     {
-  //       name: "", // Hidden
-  //       href: "/curriculum/manage_knowledge_profile/create",
-  //       element: ManageKnowledgeProfileForm,
-  //       roles: [],
-  //     },
-  //     {
-  //       name: "", // Hidden
-  //       href: "/curriculum/manage_knowledge_profile/edit/:id",
-  //       element: ManageKnowledgeProfileForm,
-  //       roles: [],
-  //     },
-  //     {
-  //       name: "Program Educational Objectives (PEO)",
-  //       href: "/curriculum/program_educational_objectives",
-  //       element: PeoPage,
-  //       roles: [],
-  //       subItems: [],
-  //     },
-
-  //     {
-  //       name: "POs / PSOs",
-  //       href: "/curriculum/program_outcomes",
-  //       element: Outlet,
-  //       roles: [],
-  //       subItems: [
-  //         {
-  //           name: "",
-  //           href: "",
-  //           element: PsoPage,
-  //           roles: [],
-  //         },
-  //         {
-  //           name: "Add PO / PSO",
-  //           href: "create",
-  //           element: PsoFormPage,
-  //           roles: [],
-  //           hidden: true,
-  //         },
-  //         {
-  //           name: "Edit PO / PSO",
-  //           href: "edit/:id",
-  //           element: PsoFormPage,
-  //           roles: [],
-  //           hidden: true,
-  //         },
-  //       ],
-  //     },
-  //     {
-  //       name: "PO to PEO Mapping",
-  //       href: "/curriculum/po_peo_mapping",
-  //       element: PoPeoMappingPage,
-  //       roles: [],
-  //     },
-
-  //     {
-  //       name: "Curriculum Settings",
-  //       href: "/curriculum/curriculum_settings",
-  //       element: CurriculumSettingsPage,
-  //       roles: [],
-  //     },
-  //     {
-  //       href: "/curriculum/competencies_and_pis",
-  //       name: "Competencies and PIs",
-  //       element: CompetenciesAndPIsPage,
-  //       roles: [],
-  //     },
-  //     {
-  //       name: "Course Outcomes (COs)",
-  //       href: "/curriculum/course_outcomes",
-  //       element: CourseOutcomePage,
-  //       roles: [],
-  //     },
-  //     {
-  //       name: "CO–PO Mapping",
-  //       href: "/curriculum/co_po_mapping",
-  //       element: CoPoMapPage,
-  //       roles: [],
-  //     },
-
-  //     {
-  //       name: "Manage Topics & TLOs",
-  //       href: "/curriculum/manage_topics",
-  //       element: ManageTopicsPage,
-  //       roles: [],
-  //     },
-  //   ],
-  // },
-  // {
-  //   name: "Assessment",
-  //   href: "",
-  //   element: Outlet, // or TempAssessment if you created one
-  //   roles: [],
-  //   subItems: [
-  //     {
-  //       name: "Manage CIA Occasions",
-  //       href: "/assessment/manage_cia_occasion",
-  //       element: CiaList,
-  //       roles: [],
-  //     },
-  //     {
-  //       name: "Manage CIA QP & Rubrics",
-  //       href: "/assessment/manage_cia_qp",
-  //       element: CiaQpList,
-  //       roles: [],
-  //     },
-  //     {
-  //       name: "", // Hidden route for editor
-  //       href: "/assessment/manage_cia_qp/edit/:ao_id",
-  //       element: CiaQpEditor,
-  //       roles: [],
-  //     },
-  //     {
-  //       name: "Manage MTE QP",
-  //       href: "/assessment/manage_mte_qp",
-  //       element: AssessmentPage,
-  //       roles: [],
-  //     },
-  //     {
-  //       name: "Upload MTE QP",
-  //       href: "/assessment/manage_mte_qp/import",
-  //       element: UploadMteQpPage,
-  //       roles: [],
-  //       hidden: true,
-  //     },
-  //     {
-  //       name: "Create New MTE",
-  //       href: "/assessment/manage_mte_qp/create",
-  //       element: CreateMteQpPage,
-  //       roles: [],
-  //       hidden: true,
-  //     },
-  //     {
-  //       name: "Manage MTE Details",
-  //       href: "/assessment/manage_mte_qp/details",
-  //       element: ManageMteDetailsPage,
-  //       roles: [],
-  //       hidden: true,
-  //     },
-  //     {
-  //       name: "Define Rubrics",
-  //       href: "/assessment/manage_mte_qp/rubrics",
-  //       element: DefineRubricsPage,
-  //       roles: [],
-  //       hidden: true,
-  //     },
-  //     {
-  //       name: "Manage Model QP",
-  //       href: "/assessment/manage_model_qp",
-  //       element: ManageModelQPPage,
-  //       roles: [],
-  //     },
-  //   ],
-  // },
-  // {
-  //   name: "Attainment",
-  //   href: "",
-  //   element: Outlet,
-  //   roles: [],
-  //   subItems: [
-  //     {
-  //       name: "Attainment - Threshold / Levels",
-  //       href: "/attainment/attainment_threshold_levels",
-  //       element: AttainmentThresholdLevelsPage,
-  //       roles: [],
-  //     },
-  //     {
-  //       name: "CCE Data Entry / Import",
-  //       href: "/attainment/cce_data_import",
-  //       element: CceDataImportList,
-  //       roles: [],
-  //     },
-  //     {
-  //       name: "MTE Data Import",
-  //       href: "/attainment/mte_data_import",
-  //       element: MteDataImportPage,
-  //       roles: [],
-  //     },
-  //     {
-  //       name: "",
-  //       href: "/attainment/mte_data_import/manage/:courseId",
-  //       element: ManageMTEMarksPage,
-  //       roles: [],
-  //     },
-  //     {
-  //       name: "",
-  //       href: "/attainment/mte_data_import/review/:occasionId",
-  //       element: MTEImportReviewPage,
-  //       roles: [],
-  //     },
-  //     {
-  //       name: "",
-  //       href: "/attainment/mte_data_import/upload/:occasionId",
-  //       element: MTEUploadPage,
-  //       roles: [],
-  //     },
-  //     {
-  //       name: "SEE Data Import",
-  //       href: "/attainment/see_data_import",
-  //       element: SeeCourseWiseImport,
-  //       roles: [],
-  //     },
-  //   ],
-  // },
-  // {
-  //   name: "Attainment",
-  //   href: "",
-  //   element: Outlet,
-  //   roles: [],
-  //   subItems: [
-  //     {
-  //       name: "Attainment - Threshold / Levels",
-  //       href: "/attainment/attainment_threshold_levels",
-  //       element: AttainmentThresholdLevelsPage,
-  //       roles: [],
-  //     },
-  //   ],
-  // }
-  // {
-  //   name: "Survey",
-  //   href: "",
-  //   element: Outlet,
-  //   roles: [],
-  //   subItems: [
-  //     {
-  //       name: "Manage Question Paper Type",
-  //       href: "/survey/manage-survey-question-type",
-  //       element: ManageQuestionTypePage,
-  //       roles: [],
-  //     },
-  //     {
-  //       name: "Manage Response Template",
-  //       href: "/survey/manage-response-template",
-  //       element: ManageResponseTemplatePage,
-  //       roles: [],
-  //     },
-  //     {
-  //       name: "Manage Stakeholder Group",
-  //       href: "/survey/manage-stakeholder-group",
-  //       element: ManageStakeholderGroupPage,
-  //       roles: [],
-  //     },
-  //     {
-  //       name: "Manage Stakeholder",
-  //       href: "/survey/manage-stakeholder",
-  //       element: ManageStakeholderPage,
-  //       roles: [],
-  //     },
-  //     {
-  //       name: "Manage Survey Templates",
-  //       href: "/survey/manage-survey-templates",
-  //       element: ManageSurveyTemplatePage,
-  //       roles: [],
-  //     },
-  //   ],
-  // },
 ];
-
-export default EMSROUTE;

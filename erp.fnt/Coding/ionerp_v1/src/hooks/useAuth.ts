@@ -10,9 +10,6 @@ import {
 import { ApiEndpoint } from "../utils/ApiEndpoint/emsapiEndpoint";
 import { toast } from "react-toastify";
 import { commonAPiResponse } from "../types/auth";
-
-// when set to true (e.g. via .env.development), the app will auto-login with demo credentials
-export const BYPASS_LOGIN = process.env.REACT_APP_BYPASS_LOGIN === "true";
 // import { useModalWithForm } from "../contexts/ModelFormContext";
 
 export const AUTH_COOKIE_KEY = "auth_state";
@@ -44,9 +41,6 @@ export const useAuth = () => {
   });
   // const { handleOpenOrgModal } = useModalWithForm()
 
-  // NOTE: bypass logic has been moved below declaration of `login` to avoid
-  // using a block-scoped variable before it's defined. See further down.
-
   const { loading, refetch, customApiCall } = useAxios<loginPayload, loginData>(
     ApiEndpoint.login,
     {
@@ -57,9 +51,17 @@ export const useAuth = () => {
   );
 
   useEffect(() => {
+    console.log("Current Role:", applicationRole);
+    const role = LocalStorageHelper.getObject<string>(AUTH_APPLICATION_ROLE);
+    if (authState && applicationRole !== role) {
+      window.location.reload();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [LocalStorageHelper.getObject<string>(AUTH_APPLICATION_ROLE)]);
+
+  useEffect(() => {
     // Listener for LocalStorage changes
     const handleStorageChange = (event: StorageEvent) => {
-      // Only listen to cross-tab changes for now to prevent infinite loops within the same tab
       if (event.storageArea === localStorage) {
         switch (event.key) {
           case AUTH_COOKIE_KEY:
@@ -93,10 +95,20 @@ export const useAuth = () => {
 
     window.addEventListener("storage", handleStorageChange);
 
+    // Effect to sync state with LocalStorage
+    if (authState && authState.access_token) {
+      LocalStorageHelper.setObject(AUTH_COOKIE_KEY, authState);
+      LocalStorageHelper.setObject(AUTH_COOKIE_ORG_KEY, currentOrg);
+      LocalStorageHelper.setObject(AUTH_COOKIE_OPTIONData_KEY, optionList);
+      LocalStorageHelper.setObject(AUTH_APPLICATION_ROLE, applicationRole);
+    } else {
+      LocalStorageHelper.removeAll();
+    }
+
     return () => {
       window.removeEventListener("storage", handleStorageChange);
     };
-  }, []);
+  }, [applicationRole, authState, currentOrg, optionList]);
 
   const logout = useCallback(() => {
     setAuthState(null);
@@ -266,18 +278,6 @@ export const useAuth = () => {
     },
     [deptList, logout, refetch, setApplicationRole],
   );
-
-  // If bypass flag is enabled, automatically perform a demo login when the
-  // component mounts and there is no existing auth state. This allows the
-  // rest of the application to behave as if a user is already authenticated
-  // without requiring manual interaction with the login page.
-  useEffect(() => {
-    if (BYPASS_LOGIN && !authState) {
-      // we don't await here because the effect doesn't need to block rendering;
-      // login() will update state once it resolves.
-      login("main", "demo", "demo@123");
-    }
-  }, [BYPASS_LOGIN, authState, login]);
 
   const setCurrentOrgData = useCallback(
     (selectOrgID: string) => {

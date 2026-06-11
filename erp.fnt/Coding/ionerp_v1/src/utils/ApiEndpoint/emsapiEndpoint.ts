@@ -1,7 +1,7 @@
 export const ApiEndpoint = {
-  login: "auth/login",
-  change_password: "auth/change-password",
-  FORGOT_PASSWORD: "auth/forgot-password",
+  login: "api/v1/auth/login",
+  change_password: "api/v1/auth/change-password",
+  FORGOT_PASSWORD: "api/v1/auth/forgot-password",
   master_soft_delete: "comman_function/soft_delete",
 
   dashboard_info: "dashboard_info_route/dashboard_info",
@@ -38,12 +38,11 @@ export const ApiEndpoint = {
     is_cycle: "comman_function/is_cycle",
     grade_cardno_sem: "comman_function/get_gc_sem",
     fetch_backlog_course: "comman_function/fetch_backlog_course",
-    school_department_list: "comman_function/school_department_list",
+    school_department_list: "/comman_function/school_department_list",
     fetch_gc_sem: "comman_function/get_gc_sem",
     upload_gc_csv: "grade_card_no/upload_gc_csv",
     fetch_gc: "grade_card_no/fetch_gc",
-  },
-  allMaster: {
+  }, allMaster: {
     get_all_masters_list: "all_master/all_masters_list",
     get_all_org_info: "",
     parents_occupation_master_list: "all_master/parents_occupation_master_list",
@@ -71,70 +70,5 @@ export const ApiEndpoint = {
     grade_type_details: "academic_batch/grade_type_details",
     getTabledata: "comman_function/academic_batch_list",
     saveAcadamicBatch: "academic_batch/save_academic_batch",
-  },
-
-  program: {
-    outcome_list: "program_outcome/",
-    outcome_create: "program_outcome/",
-    outcome_update: "program_outcome/",
-    outcome_delete: "program_outcome/",
-  },
-
-  program_mode: {
-    list: "program_mode/",
-    create: "program_mode/",
-    update: "program_mode/",
-    delete: "program_mode/",
-    get: "program_mode/",
-  },
-
-  knowledge_profile: {
-    list: "knowledge-profile/",
-    create: "knowledge-profile/",
-    update: "knowledge-profile/",
-    delete: "knowledge-profile/",
-  },
-
-  peo: {
-    curriculum_list: "cudos/peo/get_curriculum_dropdown",
-    list: "cudos/peo/get_peos_by_curriculum",
-    create: "cudos/peo/create_peo",
-    update: "cudos/peo/update_peo",
-    delete: "cudos/peo/delete_peo",
-    po_types: "cudos/peo/get_po_types",
-    users_dropdown: "cudos/peo/get_users_dropdown",
-  },
-
-  cudos: {
-    delivery_method: "cudos/delivery-method/",
-    board_of_studies: "cudos/board-of-studies/",
-    map_level_weightage: "cudos/map-level-weightage/",
-    generic_po: "cudos/generic-program-outcome/",
-    lab_category: "cudos/lab-category/",
-    course_specialization: "curriculum/course_specialization",
-    curriculum_delivery_method: "curriculum/delivery_method",
-    bloom_domain_list: "bloom_domain/bloom_domain_list",
-  },
-  assessment: {
-    schools: "/assessments/manage_cia_occasion/schools",
-    programs: "/assessments/manage_cia_occasion/programs",
-    curriculum: "/assessments/manage_cia_occasion/curriculum",
-    terms: "/assessments/manage_cia_occasion/terms",
-    course_dropdown: "/assessments/manage_cia_occasion/course-dropdown",
-    sections: "/assessments/manage_cia_occasion/sections",
-    courses: "/assessments/manage_cia_occasion/courses",
-  },
-
-  survey: {
-    stakeholder: {
-      base: "/cudos/survey/stakeholder",
-      groups: "/cudos/survey/stakeholder_group/list",
-      schools: "/assessments/manage_cia_occasion/schools",
-      programs: "/assessments/manage_cia_occasion/programs",
-      curriculum: "/assessments/manage_cia_occasion/curriculum",
-    },
-    template: {
-      base: "/cudos/survey/template",
-    },
   },
 } as const;

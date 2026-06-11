@@ -9,7 +9,7 @@ interface BreadcrumbProps {
 
 const findRouteName = (pathname: string, routes: RouteItem[]): string | null => {
   for (const route of routes) {
-    if (route.href === pathname || route.href === "/" + pathname || route.href.endsWith("/" + pathname)) {
+    if (route.href === pathname) {
       return route.name;
     }
     if (pathname === "change_password") {
