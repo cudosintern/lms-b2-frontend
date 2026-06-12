@@ -15,13 +15,8 @@ import DataTable from "../../../../components/Table/DataTable";
 import { SchemaColumnDefs } from "./questionnaireSchema";
 import { useAxios } from "../../../../hooks/useAxios";
 import { getQuestionnaireList } from "./responseInterface";
+import { ApiEndpoint } from "../../../../utils/ApiEndpoint/emsapiEndpoint";
 
-const ApiEndpoint = {
-  master_soft_delete: "comman_function/soft_delete",
-  questionnaire: {
-    questionnaire_list: "comman_function/questionnaire_list",
-  },
-};
 
 const QuestionnairePage: React.FC = () => {
   const navigate = useNavigate();
@@ -29,25 +24,15 @@ const QuestionnairePage: React.FC = () => {
   const [confirmMessage, setConfirmMessage] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState<string>("");
 
-  const axiosPayload = useMemo(
-    () => ({
-      show_delete: 1,
-      equal_or_not_equal: 0,
-      no_batch: 1,
-    }),
-    [],
-  );
-
+  
   const axiosOptions = useMemo(
-    () => ({
-      method: "post" as const,
-      loader: true,
-      payload: axiosPayload,
-      shouldFetch: true,
-    }),
-    [axiosPayload],
-  );
-
+  () => ({
+    method: "get" as const,
+    loader: true,
+    shouldFetch: true,
+  }),
+  [],
+);
   const { responseData, addItem, refetch } = useAxios<any, getQuestionnaireList[]>(
     ApiEndpoint.questionnaire.questionnaire_list,
     axiosOptions,

@@ -14,6 +14,11 @@ export const ApiEndpoint = {
     department_list: "comman_function/department_list",
   },
 
+  questionnaire: {
+   questionnaire_list: "lms_mmp_questionnaire/get_questionnaire_list",
+},
+
+
   bos: {
     list: "bos_members/list",
     save: "bos_members/save",
