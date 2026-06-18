@@ -15,7 +15,6 @@
  */
 
 import { z } from "zod";
-import { OPTION_QUESTION_TYPES } from "./questionnaireConstants";
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -184,8 +183,8 @@ export const SchemaColumnDefs = [
     cellStyle: { textAlign: "center", padding: "0 5px" },
   },
   {
-    headerName: "Quiz Title", // Column title in table header
-    field: "quiz_title", // Matches API response field name
+    headerName: "Questionnaire Name",
+    field: "questionnaire_name",
     sortable: true, // User can sort by clicking header
     filter: true, // User can search/filter this column
     editable: false, // Display only, user can't edit in table
@@ -193,8 +192,8 @@ export const SchemaColumnDefs = [
     maxWidth: 200,
   },
   {
-    headerName: "Description",
-    field: "quiz_description",
+    headerName: "Message to Mentees",
+    field: "message_to_mentees",
     sortable: true,
     filter: true,
     editable: false,
@@ -210,77 +209,43 @@ export const SchemaColumnDefs = [
     },
   },
   {
-    headerName: "Duration (min)",
-    field: "duration",
+    headerName: "Access Level",
+    field: "access_level",
     sortable: true,
     filter: true,
     editable: false,
     width: 120,
     cellStyle: { textAlign: "center" },
   },
-  {
-    headerName: "Shuffle Q",
-    field: "shuffle_questions",
-    sortable: true,
-    filter: true,
-    editable: false,
-    width: 100,
-    cellStyle: { textAlign: "center" },
-  },
 ];
 
 const optionSchema = z.object({
-  option_text: z.string().min(1, { message: "Option text is required" }),
+  questionnaire_options_id: z.number().nullable().optional(),
+  que_option: z.string().min(1, { message: "Option text is required" }),
   specify_flag: z.boolean(),
 });
 
-const questionSchema = z
-  .object({
-    question_text: z.string().min(1, { message: "Question text is required" }),
-    question_type: z.enum(["MCQ", "Checkbox", "Descriptive", "Rating"]),
-    questionnaire_type: z
-      .string()
-      .min(1, { message: "Questionnaire type is required" }),
-    is_mandatory: z.boolean(),
-    options: z.array(optionSchema),
-    rating_min: z.number().min(1),
-    rating_max: z.number().min(2),
-    rating_step: z.number().min(1),
-  })
-  .superRefine((data, ctx) => {
-    if (OPTION_QUESTION_TYPES.includes(data.question_type)) {
-      if (data.options.length < 2) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "At least 2 options are required",
-          path: ["options"],
-        });
-      }
-    }
-    if (data.question_type === "Rating" && data.rating_max <= data.rating_min) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Max rating must be greater than min rating",
-        path: ["rating_max"],
-      });
-    }
-  });
+const questionSchema = z.object({
+  questionnaire_que_id: z.number().nullable().optional(),
+  que_type_id: z.number().min(1),
+  que_no: z.number().min(1),
+  question: z.string().min(1, { message: "Question text is required" }),
+  questionnaire_type_id: z.number().min(1),
+  que_is_mandatory: z.boolean(),
+  options: z.array(optionSchema),
+});
 
 export const questionnaireBuilderSchema = z.object({
-  quiz_id: z.number().nullable(),
-  quiz_title: z
+  questionnaire_id: z.number().nullable(),
+  questionnaire_name: z
     .string()
     .min(3, { message: "Title is required (min 3 characters)" }),
-  quiz_description: z
-    .string()
-    .min(10, { message: "Description is required (min 10 characters)" }),
-  quiz_instruction: z.string().optional(),
-  duration: z.number().min(1).max(480),
-  shuffle_questions: z.boolean(),
-  shuffle_options: z.boolean(),
-  practice_quiz: z.boolean(),
+  message_to_mentees: z.string().optional(),
+  access_level: z.number().min(0),
+  parent_id: z.number().nullable(),
   field_settings: z.object({
-    save_mode: z.enum(["create_copy", "continue_existing"]),
+    field_setting_id: z.number().nullable(),
+    field_setting_desc: z.string().optional(),
   }),
   questions: z
     .array(questionSchema)

@@ -8,33 +8,44 @@ import {
 import UIButton from "../../../../../components/FormBuilder/fields/Button";
 import QuestionBlock from "./QuestionBlock";
 import { createDefaultQuestion } from "../questionnaireDefaults";
-import { QuestionnaireBuilderFormValues } from "../responseInterface";
+import { QuestionnaireBuilderFormValues, LookupOption } from "../responseInterface";
 
 interface QuestionBlockListProps {
   control: Control<QuestionnaireBuilderFormValues>;
   errors: FieldErrors<QuestionnaireBuilderFormValues>;
   setValue: UseFormSetValue<QuestionnaireBuilderFormValues>;
+  questionTypes: LookupOption[];
+  questionnaireTypes: LookupOption[];
+  onDeleteSavedOption?: (
+    questionIndex: number,
+    optionIndex: number,
+    questionnaireOptionsId: number,
+  ) => void;
 }
 
 const QuestionBlockList: React.FC<QuestionBlockListProps> = ({
   control,
   errors,
   setValue,
+  questionTypes,
+  questionnaireTypes,
+  onDeleteSavedOption,
 }) => {
   const { fields, append, remove } = useFieldArray({
     control,
     name: "questions",
   });
+  const nextQuestion = () => ({
+    ...createDefaultQuestion(),
+    que_no:
+      fields.reduce(
+        (highest, question) => Math.max(highest, Number(question.que_no) || 0),
+        0,
+      ) + 1,
+  });
 
   return (
     <section className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-color-1">Questions</h3>
-        <UIButton type="button" onClick={() => append(createDefaultQuestion())}>
-          + Add Question
-        </UIButton>
-      </div>
-
       {errors.questions?.message && (
         <p className="text-sm text-red-600">{String(errors.questions.message)}</p>
       )}
@@ -46,10 +57,20 @@ const QuestionBlockList: React.FC<QuestionBlockListProps> = ({
           questionIndex={index}
           errors={errors}
           setValue={setValue}
+          onAdd={() => append(nextQuestion())}
           onRemove={() => remove(index)}
-          canRemove={fields.length > 1}
+          isFirst={index === 0}
+          questionTypes={questionTypes}
+          questionnaireTypes={questionnaireTypes}
+          onDeleteSavedOption={onDeleteSavedOption}
         />
       ))}
+
+      <div className="flex justify-end">
+        <UIButton type="button" onClick={() => append(nextQuestion())}>
+          + Add Question
+        </UIButton>
+      </div>
     </section>
   );
 };

@@ -29,7 +29,7 @@ const OptionRow: React.FC<OptionRowProps> = ({
       <div className="flex items-start gap-3">
         <div className="flex-1">
           <Controller
-            name={`questions.${questionIndex}.options.${optionIndex}.option_text`}
+            name={`questions.${questionIndex}.options.${optionIndex}.que_option`}
             control={control}
             render={({ field }) => (
               <TextInput
@@ -38,7 +38,7 @@ const OptionRow: React.FC<OptionRowProps> = ({
                 value={field.value}
                 onChange={field.onChange}
                 onBlur={field.onBlur}
-                error={optionErrors?.option_text}
+                error={optionErrors?.que_option}
                 required
               />
             )}

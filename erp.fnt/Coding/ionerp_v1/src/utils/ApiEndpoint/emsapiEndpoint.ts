@@ -15,9 +15,31 @@ export const ApiEndpoint = {
   },
 
   questionnaire: {
-   questionnaire_list: "lms_mmp_questionnaire/get_questionnaire_list",
-},
+    questionnaire_list: "lms_mmp_questionnaire/get_questionnaire_list",
+    questionnaire_full: "lms_mmp_questionnaire/get_questionnaire_full",
+    save_questionnaire: "lms_mmp_questionnaire/save_questionnaire",
+    delete_questionnaire: "lms_mmp_questionnaire/delete_questionnaire",
+    delete_question: "lms_mmp_questionnaire/delete_question",
+    delete_option: "lms_mmp_questionnaire/delete_option",
+    field_setting_list:
+      "lms_questionnaire_field_setting/get_questionnaire_field_setting",
+  },
 
+  question_type: {
+    get_question_type_list: "lms_question_type/get_question_type_list",
+    get_questionnaire_type_list: "lms_questionnaire_type/get_questionnaire_type_list",
+  },
+
+  mentorMentee: {
+    group_list: "lms_mentor_group/get_mentors_group_list",
+    save_group: "lms_mentor_group/save_mentors_group",
+    dropdowns: "lms_mentor_group/get_mmp_dropdowns",
+    terms: "lms_mentor_group_term/get_mentors_group_terms",
+    save_mentors: "lms_group_mentor/save_group_mentor",
+    mentors: "lms_group_mentor/get_group_mentors",
+    save_mentees: "lms_group_mentee/save_group_mentee",
+    mentees: "lms_group_mentee/get_group_mentees",
+  },
 
   bos: {
     list: "bos_members/list",

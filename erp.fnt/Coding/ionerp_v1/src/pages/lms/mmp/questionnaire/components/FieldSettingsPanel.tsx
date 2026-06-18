@@ -1,54 +1,48 @@
 import React from "react";
-import { Control, Controller, FieldErrors } from "react-hook-form";
-import { FIELD_SETTINGS_MODES } from "../questionnaireConstants";
-import { QuestionnaireBuilderFormValues } from "../responseInterface";
+import { Control, Controller } from "react-hook-form";
+import { FIELD_SETTING_PLACEHOLDER } from "../questionnaireConstants";
+import {
+  FieldSettingOption,
+  QuestionnaireBuilderFormValues,
+} from "../responseInterface";
 
 interface FieldSettingsPanelProps {
   control: Control<QuestionnaireBuilderFormValues>;
-  errors: FieldErrors<QuestionnaireBuilderFormValues>;
+  options: FieldSettingOption[];
 }
 
 const FieldSettingsPanel: React.FC<FieldSettingsPanelProps> = ({
   control,
-  errors,
+  options,
 }) => (
-  <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-    <h3 className="mb-4 text-lg font-semibold text-color-1">Field Settings</h3>
+  <div className="grid grid-cols-1 items-center gap-3 md:grid-cols-[250px_1fr]">
+    <label className="text-sm font-semibold">
+      Field Setting: <span className="text-red-500">*</span>
+    </label>
     <Controller
-      name="field_settings.save_mode"
+      name="field_settings.field_setting_id"
       control={control}
       render={({ field }) => (
-        <div className="space-y-3">
-          {FIELD_SETTINGS_MODES.map((mode) => (
-            <label
-              key={mode.value}
-              className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 ${
-                field.value === mode.value
-                  ? "border-teal-500 bg-teal-50"
-                  : "border-gray-200"
-              }`}
+        <select
+          className="w-full max-w-[750px] rounded border border-gray-300 px-4 py-2"
+          value={field.value ?? ""}
+          onChange={(e) =>
+            field.onChange(e.target.value ? Number(e.target.value) : null)
+          }
+        >
+          <option value="">{FIELD_SETTING_PLACEHOLDER}</option>
+          {options.map((option) => (
+            <option
+              key={option.field_setting_id}
+              value={option.field_setting_id}
             >
-              <input
-                type="radio"
-                className="mt-1"
-                checked={field.value === mode.value}
-                onChange={() => field.onChange(mode.value)}
-              />
-              <div>
-                <p className="font-medium text-gray-800">{mode.label}</p>
-                <p className="text-sm text-gray-600">{mode.description}</p>
-              </div>
-            </label>
+              {option.field_setting_desc}
+            </option>
           ))}
-          {errors.field_settings?.save_mode && (
-            <p className="text-sm text-red-600">
-              {errors.field_settings.save_mode.message}
-            </p>
-          )}
-        </div>
+        </select>
       )}
     />
-  </section>
+  </div>
 );
 
 export default FieldSettingsPanel;

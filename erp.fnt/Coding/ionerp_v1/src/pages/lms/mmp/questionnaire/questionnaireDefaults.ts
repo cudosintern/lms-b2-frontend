@@ -5,32 +5,30 @@ import {
 } from "./responseInterface";
 
 export const createDefaultOption = (): QuestionOptionFormValues => ({
-  option_text: "",
+  questionnaire_options_id: null,
+  que_option: "",
   specify_flag: false,
 });
 
 export const createDefaultQuestion = (): QuestionFormValues => ({
-  question_text: "",
-  question_type: "MCQ",
-  questionnaire_type: "general",
-  is_mandatory: true,
-  options: [createDefaultOption(), createDefaultOption()],
-  rating_min: 1,
-  rating_max: 5,
-  rating_step: 1,
+  questionnaire_que_id: null,
+  que_type_id: 0,
+  que_no: 1,
+  question: "",
+  questionnaire_type_id: 0,
+  que_is_mandatory: true,
+  options: [],
 });
 
 export const createDefaultBuilderForm = (): QuestionnaireBuilderFormValues => ({
-  quiz_id: null,
-  quiz_title: "",
-  quiz_description: "",
-  quiz_instruction: "",
-  duration: 60,
-  shuffle_questions: false,
-  shuffle_options: false,
-  practice_quiz: false,
+  questionnaire_id: null,
+  questionnaire_name: "",
+  message_to_mentees: "",
+  access_level: 0,
+  parent_id: null,
   field_settings: {
-    save_mode: "continue_existing",
+    field_setting_id: null,
+    field_setting_desc: "",
   },
   questions: [createDefaultQuestion()],
 });

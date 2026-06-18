@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React from "react";
 import {
   Control,
   Controller,
@@ -7,28 +7,24 @@ import {
   useFieldArray,
   useWatch,
 } from "react-hook-form";
-import TextArea from "../../../../../components/FormBuilder/fields/Textarea";
-import Select from "../../../../../components/FormBuilder/fields/Select";
-import Checkbox from "../../../../../components/FormBuilder/fields/Checkbox";
-import NumberInput from "../../../../../components/FormBuilder/fields/NumberInput";
-import UIButton from "../../../../../components/FormBuilder/fields/Button";
-import OptionRow from "./OptionRow";
-import {
-  OPTION_QUESTION_TYPES,
-  QUESTION_TYPES,
-  QUESTIONNAIRE_TYPES,
-  QuestionType,
-} from "../questionnaireConstants";
 import { createDefaultOption } from "../questionnaireDefaults";
-import { QuestionnaireBuilderFormValues } from "../responseInterface";
+import { LookupOption, QuestionnaireBuilderFormValues } from "../responseInterface";
 
 interface QuestionBlockProps {
   control: Control<QuestionnaireBuilderFormValues>;
   questionIndex: number;
   errors: FieldErrors<QuestionnaireBuilderFormValues>;
   setValue: UseFormSetValue<QuestionnaireBuilderFormValues>;
+  onAdd: () => void;
   onRemove: () => void;
-  canRemove: boolean;
+  isFirst: boolean;
+  questionTypes: LookupOption[];
+  questionnaireTypes: LookupOption[];
+  onDeleteSavedOption?: (
+    questionIndex: number,
+    optionIndex: number,
+    questionnaireOptionsId: number,
+  ) => void;
 }
 
 const QuestionBlock: React.FC<QuestionBlockProps> = ({
@@ -36,14 +32,33 @@ const QuestionBlock: React.FC<QuestionBlockProps> = ({
   questionIndex,
   errors,
   setValue,
+  onAdd,
   onRemove,
-  canRemove,
+  isFirst,
+  questionTypes,
+  questionnaireTypes,
+  onDeleteSavedOption,
 }) => {
-  const questionType = useWatch({
+  const selectedTypeId = useWatch({
     control,
-    name: `questions.${questionIndex}.question_type`,
-  }) as QuestionType;
-
+    name: `questions.${questionIndex}.que_type_id`,
+  });
+  const questionText = useWatch({
+    control,
+    name: `questions.${questionIndex}.question`,
+  });
+  const questionNumber = useWatch({
+    control,
+    name: `questions.${questionIndex}.que_no`,
+  });
+  const selectedTypeLabel =
+    questionTypes.find((item) => item.value === selectedTypeId)?.label || "";
+  const normalizedTypeLabel = selectedTypeLabel
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, " ");
+  const showsOptions =
+    normalizedTypeLabel === "single select" || normalizedTypeLabel === "multiple select";
   const questionErrors = errors.questions?.[questionIndex];
 
   const {
@@ -55,89 +70,68 @@ const QuestionBlock: React.FC<QuestionBlockProps> = ({
     name: `questions.${questionIndex}.options`,
   });
 
-  const showOptions = OPTION_QUESTION_TYPES.includes(questionType);
-  const showRating = questionType === "Rating";
-
-  useEffect(() => {
-    if (showOptions && optionFields.length === 0) {
-      setValue(`questions.${questionIndex}.options`, [
-        createDefaultOption(),
-        createDefaultOption(),
-      ]);
+  React.useEffect(() => {
+    if (!selectedTypeId) return;
+    if (!showsOptions) {
+      setValue(`questions.${questionIndex}.options`, [], { shouldValidate: true });
+      return;
     }
-    if (!showOptions) {
-      setValue(`questions.${questionIndex}.options`, []);
+    if (optionFields.length === 0) {
+      setValue(
+        `questions.${questionIndex}.options`,
+        [createDefaultOption(), createDefaultOption()],
+        { shouldValidate: true },
+      );
     }
-  }, [questionType, showOptions, questionIndex, setValue, optionFields.length]);
+  }, [optionFields.length, questionIndex, selectedTypeId, setValue, showsOptions]);
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="mb-4 flex items-center justify-between">
-        <h4 className="text-base font-semibold text-color-1">
-          Question {questionIndex + 1}
-        </h4>
-        <UIButton type="button" size="sm" onClick={onRemove} isDisabled={!canRemove}>
-          Remove Question
-        </UIButton>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+    <div className="border border-gray-400 p-3">
+      <div className="grid grid-cols-1 items-center gap-3 xl:grid-cols-[90px_minmax(220px,345px)_minmax(260px,470px)_120px_60px]">
+        <input
+          className="rounded border border-gray-300 px-3 py-2 text-center"
+          value={questionNumber || questionIndex + 1}
+          readOnly
+        />
         <Controller
-          name={`questions.${questionIndex}.question_type`}
+          name={`questions.${questionIndex}.que_type_id`}
           control={control}
           render={({ field }) => (
-            <Select
-              label="Question Type"
-              options={[...QUESTION_TYPES]}
-              value={field.value}
-              onChange={(value) => field.onChange(value)}
-              onBlur={field.onBlur}
-              error={questionErrors?.question_type}
-              required
-            />
+            <select
+              className="rounded border border-gray-300 px-4 py-2"
+              value={field.value || 0}
+              onChange={(e) => field.onChange(Number(e.target.value))}
+            >
+              <option value={0}>Select question type</option>
+              {questionTypes.map((item) => (
+                <option key={item.value} value={item.value}>{item.label}</option>
+              ))}
+            </select>
           )}
         />
         <Controller
-          name={`questions.${questionIndex}.questionnaire_type`}
+          name={`questions.${questionIndex}.questionnaire_type_id`}
           control={control}
           render={({ field }) => (
-            <Select
-              label="Questionnaire Type"
-              options={[...QUESTIONNAIRE_TYPES]}
-              value={field.value}
-              onChange={(value) => field.onChange(value)}
-              onBlur={field.onBlur}
-              error={questionErrors?.questionnaire_type}
-              required
-            />
+            <select
+              className="rounded border border-gray-300 px-4 py-2"
+              value={field.value || 0}
+              onChange={(e) => field.onChange(Number(e.target.value))}
+            >
+              <option value={0}>Select questionnaire type</option>
+              {questionnaireTypes.map((item) => (
+                <option key={item.value} value={item.value}>{item.label}</option>
+              ))}
+            </select>
           )}
         />
-      </div>
-
-      <div className="mt-4">
+        <span className="text-sm font-semibold">Mandatory:</span>
         <Controller
-          name={`questions.${questionIndex}.question_text`}
+          name={`questions.${questionIndex}.que_is_mandatory`}
           control={control}
           render={({ field }) => (
-            <TextArea
-              label="Question Text"
-              value={field.value}
-              onChange={field.onChange}
-              onBlur={field.onBlur}
-              error={questionErrors?.question_text}
-              required
-            />
-          )}
-        />
-      </div>
-
-      <div className="mt-3">
-        <Controller
-          name={`questions.${questionIndex}.is_mandatory`}
-          control={control}
-          render={({ field }) => (
-            <Checkbox
-              label="Mandatory"
+            <input
+              type="checkbox"
               checked={field.value}
               onChange={(e) => field.onChange(e.target.checked)}
             />
@@ -145,80 +139,107 @@ const QuestionBlock: React.FC<QuestionBlockProps> = ({
         />
       </div>
 
-      {showRating && (
-        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-          <Controller
-            name={`questions.${questionIndex}.rating_min`}
-            control={control}
-            render={({ field }) => (
-              <NumberInput
-                label="Rating Min"
+      <div className="mt-2 grid grid-cols-1 items-center gap-4 md:grid-cols-[minmax(0,1fr)_70px] md:pl-5">
+        <Controller
+          name={`questions.${questionIndex}.question`}
+          control={control}
+          render={({ field }) => (
+            <div>
+              <textarea
+                className="h-24 w-full rounded border border-gray-300 px-4 py-2"
                 value={field.value}
                 onChange={field.onChange}
-                min={1}
-                error={questionErrors?.rating_min}
-                required
+                onBlur={field.onBlur}
+                placeholder="Enter question"
               />
-            )}
-          />
-          <Controller
-            name={`questions.${questionIndex}.rating_max`}
-            control={control}
-            render={({ field }) => (
-              <NumberInput
-                label="Rating Max"
-                value={field.value}
-                onChange={field.onChange}
-                min={2}
-                error={questionErrors?.rating_max}
-                required
+              <p className="text-right text-xs text-cyan-700">
+                {(questionText || "").length} / 2000 characters
+              </p>
+            </div>
+          )}
+        />
+
+        <button
+          type="button"
+          className={`mx-auto h-10 w-10 rounded-full text-xl font-bold text-white ${
+            isFirst ? "bg-blue-600" : "bg-red-500"
+          }`}
+          onClick={isFirst ? onAdd : onRemove}
+        >
+          {isFirst ? "+" : "-"}
+        </button>
+      </div>
+
+      {showsOptions && optionFields.length > 0 && (
+        <div className="mt-3 space-y-2 md:pl-5">
+          {optionFields.map((field, optionIndex) => (
+            <div
+              key={field.id}
+              className="grid grid-cols-[minmax(0,1fr)_40px_40px] items-center gap-3 md:grid-cols-[minmax(0,1fr)_40px_40px_auto]"
+            >
+              <Controller
+                name={`questions.${questionIndex}.options.${optionIndex}.que_option`}
+                control={control}
+                render={({ field }) => (
+                  <input
+                    className="rounded border border-gray-300 px-3 py-2"
+                    value={field.value}
+                    onChange={field.onChange}
+                    placeholder={`Option ${optionIndex + 1}`}
+                  />
+                )}
               />
-            )}
-          />
-          <Controller
-            name={`questions.${questionIndex}.rating_step`}
-            control={control}
-            render={({ field }) => (
-              <NumberInput
-                label="Rating Step"
-                value={field.value}
-                onChange={field.onChange}
-                min={1}
-                error={questionErrors?.rating_step}
-                required
+              <button
+                type="button"
+                className="rounded bg-blue-600 px-3 py-2 text-lg font-bold text-white"
+                onClick={() => appendOption(createDefaultOption())}
+              >
+                +
+              </button>
+              <Controller
+                name={`questions.${questionIndex}.options.${optionIndex}.specify_flag`}
+                control={control}
+                render={({ field }) => (
+                  <button
+                    type="button"
+                    title="Specify"
+                    className={`rounded border px-3 py-2 ${
+                      field.value ? "bg-blue-600 text-white" : "bg-white"
+                    }`}
+                    onClick={() => field.onChange(!field.value)}
+                  >
+                    ...
+                  </button>
+                )}
               />
-            )}
-          />
+              {optionFields.length > 2 && (
+                <button
+                  type="button"
+                  className="w-24 rounded bg-red-500 px-3 py-2 text-white"
+                  onClick={() => {
+                    const savedOptionId =
+                      typeof field.questionnaire_options_id === "number"
+                        ? field.questionnaire_options_id
+                        : null;
+                    if (savedOptionId && onDeleteSavedOption) {
+                      onDeleteSavedOption(questionIndex, optionIndex, savedOptionId);
+                      return;
+                    }
+                    removeOption(optionIndex);
+                  }}
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+          ))}
         </div>
       )}
 
-      {showOptions && (
-        <div className="mt-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-gray-700">Options</p>
-            <UIButton
-              type="button"
-              size="sm"
-              onClick={() => appendOption(createDefaultOption())}
-            >
-              + Add Option
-            </UIButton>
-          </div>
-          {typeof questionErrors?.options?.message === "string" && (
-            <p className="text-sm text-red-600">{questionErrors.options.message}</p>
-          )}
-          {optionFields.map((field, optionIndex) => (
-            <OptionRow
-              key={field.id}
-              control={control}
-              questionIndex={questionIndex}
-              optionIndex={optionIndex}
-              errors={errors}
-              onRemove={() => removeOption(optionIndex)}
-              canRemove={optionFields.length > 2}
-            />
-          ))}
-        </div>
+      {questionErrors?.question && (
+        <p className="pl-5 text-sm text-red-600">
+          {String(questionErrors.question.message)}
+        </p>
       )}
     </div>
   );

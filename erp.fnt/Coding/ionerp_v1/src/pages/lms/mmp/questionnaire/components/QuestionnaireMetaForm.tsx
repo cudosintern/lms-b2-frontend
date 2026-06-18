@@ -1,10 +1,5 @@
 import React from "react";
 import { Control, Controller, FieldErrors } from "react-hook-form";
-import TextInput from "../../../../../components/FormBuilder/fields/TextInput";
-import TextArea from "../../../../../components/FormBuilder/fields/Textarea";
-import NumberInput from "../../../../../components/FormBuilder/fields/NumberInput";
-import ToggleSwitch from "../../../../../components/FormBuilder/fields/Switch";
-import Checkbox from "../../../../../components/FormBuilder/fields/Checkbox";
 import { QuestionnaireBuilderFormValues } from "../responseInterface";
 
 interface QuestionnaireMetaFormProps {
@@ -16,102 +11,66 @@ const QuestionnaireMetaForm: React.FC<QuestionnaireMetaFormProps> = ({
   control,
   errors,
 }) => (
-  <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-    <h3 className="mb-4 text-lg font-semibold text-color-1">Questionnaire Details</h3>
-    <div className="grid grid-cols-1 gap-4">
+  <section className="space-y-5">
+    <div className="grid grid-cols-1 items-center gap-3 md:grid-cols-[250px_minmax(0,490px)]">
       <Controller
-        name="quiz_title"
+        name="questionnaire_name"
         control={control}
         render={({ field }) => (
-          <TextInput
-            label="Title"
-            placeholder="Enter questionnaire title"
-            value={field.value}
-            onChange={field.onChange}
-            onBlur={field.onBlur}
-            error={errors.quiz_title}
-            required
-          />
-        )}
-      />
-      <Controller
-        name="quiz_description"
-        control={control}
-        render={({ field }) => (
-          <TextArea
-            label="Description"
-            value={field.value}
-            onChange={field.onChange}
-            onBlur={field.onBlur}
-            error={errors.quiz_description}
-            required
-          />
-        )}
-      />
-      <Controller
-        name="quiz_instruction"
-        control={control}
-        render={({ field }) => (
-          <TextArea
-            label="Instructions"
-            value={field.value ?? ""}
-            onChange={field.onChange}
-            onBlur={field.onBlur}
-            error={errors.quiz_instruction}
-          />
-        )}
-      />
-      <Controller
-        name="duration"
-        control={control}
-        render={({ field }) => (
-          <NumberInput
-            label="Duration (minutes)"
-            value={field.value}
-            onChange={field.onChange}
-            min={1}
-            max={480}
-            error={errors.duration}
-            required
-          />
-        )}
-      />
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <Controller
-          name="shuffle_questions"
-          control={control}
-          render={({ field }) => (
-            <ToggleSwitch
-              label="Shuffle Questions"
-              checked={field.value}
+          <>
+            <label className="text-sm font-semibold">
+              Questionnaire Title: <span className="text-red-500">*</span>
+            </label>
+            <input
+              className="rounded border border-gray-300 px-4 py-2"
+              value={field.value}
               onChange={field.onChange}
+              onBlur={field.onBlur}
+              placeholder="Enter questionnaire title"
             />
-          )}
-        />
-        <Controller
-          name="shuffle_options"
-          control={control}
-          render={({ field }) => (
-            <ToggleSwitch
-              label="Shuffle Options"
-              checked={field.value}
-              onChange={field.onChange}
-            />
-          )}
-        />
-        <Controller
-          name="practice_quiz"
-          control={control}
-          render={({ field }) => (
-            <Checkbox
-              label="Practice Quiz"
-              checked={field.value}
-              onChange={(e) => field.onChange(e.target.checked)}
-            />
-          )}
-        />
-      </div>
+            {errors.questionnaire_name && (
+              <p className="col-start-2 text-sm text-red-600">
+                {String(errors.questionnaire_name.message)}
+              </p>
+            )}
+          </>
+        )}
+      />
     </div>
+
+    <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-[250px_minmax(0,750px)]">
+      <Controller
+        name="message_to_mentees"
+        control={control}
+        render={({ field }) => (
+          <>
+            <label className="pt-1 text-sm font-semibold">
+              Message to Mentees:
+            </label>
+            <div>
+              <textarea
+                className="h-16 w-full rounded border border-gray-300 px-4 py-2"
+                value={field.value}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+                placeholder="Enter message to mentees"
+              />
+              <p className="text-right text-xs text-cyan-700">
+                {(field.value || "").length} / 2000 characters
+              </p>
+            </div>
+          </>
+        )}
+      />
+    </div>
+
+    <Controller
+      name="access_level"
+      control={control}
+      render={({ field }) => (
+        <input type="hidden" value={field.value} onChange={field.onChange} />
+      )}
+    />
   </section>
 );
 
