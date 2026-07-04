@@ -5,24 +5,34 @@ import { QuestionnaireBuilderFormValues } from "../responseInterface";
 interface QuestionnaireMetaFormProps {
   control: Control<QuestionnaireBuilderFormValues>;
   errors: FieldErrors<QuestionnaireBuilderFormValues>;
+  compact?: boolean;
+  createMode?: boolean;
 }
 
 const QuestionnaireMetaForm: React.FC<QuestionnaireMetaFormProps> = ({
   control,
   errors,
+  compact = false,
+  createMode = false,
 }) => (
-  <section className="space-y-5">
-    <div className="grid grid-cols-1 items-center gap-3 md:grid-cols-[250px_minmax(0,490px)]">
+  <section className={compact ? "space-y-3" : "space-y-4"}>
+    <div
+      className={`grid grid-cols-1 items-center gap-2 ${
+        createMode
+          ? "md:grid-cols-[200px_540px]"
+          : "md:grid-cols-[200px_minmax(0,40%)]"
+      }`}
+    >
       <Controller
         name="questionnaire_name"
         control={control}
         render={({ field }) => (
           <>
-            <label className="text-sm font-semibold">
+            <label className="!text-[15px] font-semibold">
               Questionnaire Title: <span className="text-red-500">*</span>
             </label>
             <input
-              className="rounded border border-gray-300 px-4 py-2"
+              className="h-10 rounded border border-gray-300 px-4 py-2 text-sm md:max-w-full"
               value={field.value}
               onChange={field.onChange}
               onBlur={field.onBlur}
@@ -38,18 +48,26 @@ const QuestionnaireMetaForm: React.FC<QuestionnaireMetaFormProps> = ({
       />
     </div>
 
-    <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-[250px_minmax(0,750px)]">
+    <div
+      className={`grid grid-cols-1 items-start gap-2 ${
+        createMode
+          ? "md:grid-cols-[200px_760px]"
+          : "md:grid-cols-[200px_minmax(0,58%)]"
+      }`}
+    >
       <Controller
         name="message_to_mentees"
         control={control}
         render={({ field }) => (
           <>
-            <label className="pt-1 text-sm font-semibold">
+            <label className="!text-[15px] font-semibold">
               Message to Mentees:
             </label>
             <div>
               <textarea
-                className="h-16 w-full rounded border border-gray-300 px-4 py-2"
+                className={`w-full rounded border border-gray-300 px-4 py-2 text-sm ${
+                  compact ? "h-16" : "h-16"
+                }`}
                 value={field.value}
                 onChange={field.onChange}
                 onBlur={field.onBlur}

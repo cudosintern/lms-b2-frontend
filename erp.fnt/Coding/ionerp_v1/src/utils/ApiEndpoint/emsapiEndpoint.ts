@@ -32,13 +32,24 @@ export const ApiEndpoint = {
 
   mentorMentee: {
     group_list: "lms_mentor_group/get_mentors_group_list",
-    save_group: "lms_mentor_group/save_mentors_group",
-    dropdowns: "lms_mentor_group/get_mmp_dropdowns",
+    academic_batch_list: "lms_mentors_group/get_academic_batch_list",
+    semesters_by_academic_batch:
+      "lms_mentors_group/get_semesters_by_academic_batch",
+    groups_by_academic_batch:
+      "lms_mentors_group/get_groups_by_academic_batch",
+    save_group: "lms_mentors_group/save_mentors_group",
+    group_complete: "lms_mentors_group/get_group_complete",
+    dropdowns: "lms_mmp/common_dropdowns",
     terms: "lms_mentor_group_term/get_mentors_group_terms",
-    save_mentors: "lms_group_mentor/save_group_mentor",
-    mentors: "lms_group_mentor/get_group_mentors",
-    save_mentees: "lms_group_mentee/save_group_mentee",
-    mentees: "lms_group_mentee/get_group_mentees",
+    save_mentors: "lms_mentors_group/map_mentors",
+    mentors: "lms_mentors_group/get_group_mentors",
+    save_mentees: "lms_mentors_group/map_mentees",
+    mentees: "lms_mentors_group/get_group_mentees",
+    delete_mentee: "lms_mentors_group/delete_mentee",
+  },
+
+  mentoringSession: {
+    group_mentees: "lms_mentoring_session/get_group_mentees",
   },
 
   bos: {

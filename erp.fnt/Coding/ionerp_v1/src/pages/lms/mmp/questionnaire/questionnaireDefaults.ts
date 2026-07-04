@@ -4,6 +4,8 @@ import {
   QuestionnaireBuilderFormValues,
 } from "./responseInterface";
 
+export const MAX_OPTIONS = 5;
+
 export const createDefaultOption = (): QuestionOptionFormValues => ({
   questionnaire_options_id: null,
   que_option: "",

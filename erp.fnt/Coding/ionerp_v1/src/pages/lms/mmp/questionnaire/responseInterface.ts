@@ -4,6 +4,12 @@ export interface getQuestionnaireList {
   message_to_mentees?: string;
   access_level: number;
   parent_id?: number | null;
+  field_setting_id?: number | string | null;
+  field_setting_desc?: string;
+  field_settings?: {
+    field_setting_id?: number | string | null;
+    field_setting_desc?: string;
+  };
 }
 
 export interface QuestionOptionFormValues {
@@ -29,7 +35,7 @@ export interface QuestionnaireBuilderFormValues {
   access_level: number;
   parent_id: number | null;
   field_settings: {
-    field_setting_id: number | null;
+    field_setting_id: string | null;
     field_setting_desc?: string;
   };
   questions: QuestionFormValues[];
@@ -41,7 +47,7 @@ export interface LookupOption {
 }
 
 export interface FieldSettingOption {
-  field_setting_id: number;
+  field_setting_id: number | string;
   field_setting_desc: string;
   status: number;
 }

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { GoPencil, GoTrash } from "react-icons/go";
+import { FaPencilAlt, FaRegTrashAlt } from "react-icons/fa";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { toast } from "react-toastify";
@@ -23,14 +23,13 @@ interface QuestionnaireQuestion {
 }
 
 interface QuestionnaireDetail extends getQuestionnaireList {
-  field_setting_id?: number | null;
-  field_setting_desc?: string;
-  field_settings?: {
-    field_setting_id?: number | null;
-    field_setting_desc?: string;
-  };
   questions: QuestionnaireQuestion[];
 }
+
+const getQuestionOptionLine = (option: QuestionnaireOption, index: number) =>
+  `${String.fromCharCode(65 + index)}. ${option.que_option || ""}${
+    option.specify_flag ? " __________ (Specify)" : ""
+  }`;
 
 const formatOptions = (options: QuestionnaireOption[]) => (
   <div className="mt-1 grid grid-cols-1 gap-x-20 gap-y-1.5 pl-6 text-[15px] leading-7 md:grid-cols-2">
@@ -52,13 +51,30 @@ const QuestionnairePage: React.FC = () => {
   const [showExport, setShowExport] = useState(false);
   const questions = detail?.questions || [];
   const detailVisible = Boolean(detail);
+  const normalizeFieldSettingValue = (value: unknown) => {
+    if (value === null || value === undefined || value === "") {
+      return "";
+    }
+
+    return String(value).trim();
+  };
+  const selectedQuestionnaire = questionnaires.find(
+    (questionnaire) => questionnaire.questionnaire_id === Number(selectedId),
+  );
+  const savedFieldSettingId =
+    selectedQuestionnaire?.field_settings?.field_setting_id ??
+    selectedQuestionnaire?.field_setting_id ??
+    detail?.field_settings?.field_setting_id ??
+    detail?.field_setting_id;
   const selectedFieldSettingDescription =
+    selectedQuestionnaire?.field_settings?.field_setting_desc ||
+    selectedQuestionnaire?.field_setting_desc ||
     detail?.field_settings?.field_setting_desc ||
     detail?.field_setting_desc ||
     fieldSettings.find(
       (item) =>
-        item.field_setting_id ===
-        (detail?.field_settings?.field_setting_id ?? detail?.field_setting_id),
+        normalizeFieldSettingValue(item.field_setting_id) ===
+        normalizeFieldSettingValue(savedFieldSettingId),
     )?.field_setting_desc ||
     "";
 
@@ -66,29 +82,51 @@ const QuestionnairePage: React.FC = () => {
     const response = await axiosInstance.get<any>(
       `${ApiEndpoint.questionnaire.questionnaire_full}/${questionnaireId}`,
     );
-    setDetail(response.data.data || null);
+    const nextDetail = response.data.data || null;
+    setDetail(nextDetail);
+    return nextDetail as QuestionnaireDetail | null;
   };
+
+  const loadVisibleQuestionnaires = React.useCallback(async () => {
+    const questionnaireResponse = await axiosInstance.get<any>(
+      ApiEndpoint.questionnaire.questionnaire_list,
+    );
+    const questionnaireItems: getQuestionnaireList[] =
+      questionnaireResponse.data.data || [];
+    const detailResponses = await Promise.allSettled(
+      questionnaireItems.map((questionnaire) =>
+        axiosInstance.get<any>(
+          `${ApiEndpoint.questionnaire.questionnaire_full}/${questionnaire.questionnaire_id}`,
+        ),
+      ),
+    );
+    const visibleQuestionnaires = questionnaireItems.filter((questionnaire, index) => {
+      const detailResult = detailResponses[index];
+      if (detailResult.status !== "fulfilled") {
+        return true;
+      }
+      const questions = detailResult.value.data?.data?.questions || [];
+      return Array.isArray(questions) && questions.length > 0;
+    });
+    setQuestionnaires(visibleQuestionnaires);
+    return visibleQuestionnaires;
+  }, []);
 
   useEffect(() => {
     Promise.all([
-      axiosInstance.get<any>(ApiEndpoint.questionnaire.questionnaire_list),
+      loadVisibleQuestionnaires(),
       axiosInstance.get<any>(ApiEndpoint.questionnaire.field_setting_list),
     ])
-      .then(([questionnaireResponse, fieldSettingResponse]) => {
-        setQuestionnaires(questionnaireResponse.data.data || []);
+      .then(([, fieldSettingResponse]) => {
         setFieldSettings(
           (Array.isArray(fieldSettingResponse.data)
             ? fieldSettingResponse.data
             : fieldSettingResponse.data?.data || []
-          ).filter((item: any) => item.status === 1),
+          ).filter((item: any) => item.field_setting_id !== undefined),
         );
       })
       .catch(() => toast.error("Unable to load questionnaire list"));
-  }, []);
-
-  const selectedQuestionnaire = questionnaires.find(
-    (questionnaire) => questionnaire.questionnaire_id === Number(selectedId),
-  );
+  }, [loadVisibleQuestionnaires]);
 
   const handleSelect = async (value: string) => {
     if (value === "create") {
@@ -122,27 +160,148 @@ const QuestionnairePage: React.FC = () => {
       if (!response.data.status) {
         throw new Error(response.data.message || "Unable to delete question");
       }
-      await loadQuestionnaireDetail(detail.questionnaire_id);
+      const refreshedDetail = await loadQuestionnaireDetail(detail.questionnaire_id);
+      if (!refreshedDetail || refreshedDetail.questions.length === 0) {
+        setSelectedId("");
+        setDetail(null);
+        setShowExport(false);
+        await loadVisibleQuestionnaires();
+      }
       toast.success("Question deleted successfully");
     } catch {
       toast.error("Unable to delete question");
     }
   };
 
-  const exportPdf = () => {
+  const exportPdf = async () => {
     if (!detail) return;
-    const doc = new jsPDF();
-    doc.text(detail.questionnaire_name, 14, 16);
-    doc.setFontSize(10);
-    doc.text(detail.message_to_mentees || "", 14, 24);
-    autoTable(doc, {
-      startY: 34,
-      head: [["Q.No.", "Questions"]],
-      body: questions.map((question, index) => [
-        index + 1,
-        `${question.question}\n${question.options.map((option) => option.que_option).join("    ")}`,
-      ]),
+
+    const doc = new jsPDF({
+      unit: "mm",
+      format: "a4",
     });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const leftMargin = 14;
+    const rightMargin = 14;
+    const contentWidth = pageWidth - leftMargin - rightMargin;
+    const headerTextCenterX = pageWidth / 2 + 4;
+    const headerLines = [
+      "IonIdea Institute of Technology and Management",
+      "IonIdea Institute of Technology and Management, Bangalore - Demo site",
+      "Department of",
+    ];
+    let currentY = 15.2;
+
+    doc.setFont("times", "normal");
+
+    doc.setFont("times", "normal");
+    doc.setFontSize(8.6);
+    headerLines.forEach((line) => {
+      doc.text(line, headerTextCenterX, currentY, { align: "center" });
+      currentY += 4.2;
+    });
+
+    doc.setDrawColor(150, 150, 150);
+    doc.setLineWidth(0.2);
+    const dividerY = currentY + 1.8;
+    doc.line(leftMargin, dividerY, pageWidth - rightMargin, dividerY);
+
+    currentY = dividerY + 8;
+    doc.setFont("times", "bold");
+    doc.setFontSize(10.8);
+    doc.setTextColor(139, 0, 0);
+    doc.text("Questionnaire Questions Report", leftMargin, currentY);
+
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(8.8);
+    currentY += 7;
+
+    const drawLabelValue = (label: string, value: string) => {
+      doc.setFont("times", "bold");
+      doc.text(label, leftMargin, currentY);
+      const labelWidth = doc.getTextWidth(label);
+      const valueLines = doc.splitTextToSize(
+        value || "",
+        Math.max(contentWidth - labelWidth - 2, 20),
+      );
+
+      doc.setFont("times", "normal");
+      doc.text(valueLines.length ? valueLines : [""], leftMargin + labelWidth + 2, currentY);
+      currentY += Math.max(valueLines.length, 1) * 4.6;
+    };
+
+    drawLabelValue("Questionnaire Title:", detail.questionnaire_name || "");
+    drawLabelValue("Message to Mentees:", detail.message_to_mentees || "");
+
+    currentY += 3;
+
+    autoTable(doc, {
+      startY: currentY,
+      margin: { left: leftMargin, right: rightMargin, bottom: 14 },
+      theme: "grid",
+      head: [["Q. No.", "Questions"]],
+      body: [
+        ...(selectedFieldSettingDescription
+          ? [[{ content: `Field Setting: ${selectedFieldSettingDescription}`, colSpan: 2 }]]
+          : []),
+        ...questions.map((question, index) => {
+          const optionLines = (question.options || []).map(getQuestionOptionLine);
+          const questionText = [question.question, ...(optionLines.length ? ["", ...optionLines] : [])]
+            .filter((line) => line !== undefined && line !== null)
+            .join("\n");
+
+          return [String(index + 1), questionText];
+        }),
+      ],
+      styles: {
+        font: "times",
+        fontSize: 8.6,
+        textColor: [0, 0, 0],
+        lineColor: [190, 190, 190],
+        lineWidth: 0.2,
+        overflow: "linebreak",
+        cellPadding: { top: 1.6, right: 2.2, bottom: 1.6, left: 2.2 },
+        valign: "top",
+      },
+      headStyles: {
+        fillColor: [255, 255, 255],
+        textColor: [0, 0, 0],
+        fontStyle: "bold",
+        halign: "center",
+        lineColor: [190, 190, 190],
+        lineWidth: 0.2,
+      },
+      bodyStyles: {
+        fillColor: [255, 255, 255],
+      },
+      columnStyles: {
+        0: { cellWidth: 20, halign: "center" },
+        1: { cellWidth: contentWidth - 20 },
+      },
+      didParseCell: (hookData) => {
+        if (selectedFieldSettingDescription && hookData.section === "body" && hookData.row.index === 0) {
+          hookData.cell.text = [""];
+          hookData.cell.styles.fontStyle = "normal";
+          hookData.cell.styles.cellPadding = { top: 1.4, right: 2.2, bottom: 1.4, left: 2.2 };
+        }
+      },
+      didDrawCell: (hookData) => {
+        if (selectedFieldSettingDescription && hookData.section === "body" && hookData.row.index === 0) {
+          const { cell } = hookData;
+          hookData.doc.setFont("times", "bold");
+          hookData.doc.setFontSize(8.6);
+          hookData.doc.text("Field Setting:", cell.x + 2.2, cell.y + 4.2);
+          hookData.doc.setFont("times", "normal");
+          hookData.doc.text(
+            selectedFieldSettingDescription,
+            cell.x + 2.2 + hookData.doc.getTextWidth("Field Setting: "),
+            cell.y + 4.2,
+          );
+        }
+      },
+      rowPageBreak: "avoid",
+    });
+
     doc.save(`${detail.questionnaire_name}.pdf`);
     setShowExport(false);
   };
@@ -163,7 +322,7 @@ const QuestionnairePage: React.FC = () => {
     <MmpModuleShell title="Questionnaires">
       <div className="mb-14 flex items-start justify-between gap-6 px-4 pt-1">
         <div className="w-[360px]">
-          <label className="mb-1.5 block text-[15px] leading-6">
+          <label className="mb-1.5 block text-[16px] font-normal leading-6">
             Questionnaire Title: <span className="text-red-500">*</span>
           </label>
           <select
@@ -188,7 +347,7 @@ const QuestionnairePage: React.FC = () => {
           <div className="flex items-start gap-[84px] pt-11 pr-2">
             <div className="relative">
               <button
-                className="h-[34px] rounded bg-green-500 px-5 text-[15px] text-white"
+                className="h-[34px] rounded bg-[#5cb85c] px-5 text-[15px] text-white"
                 onClick={() => setShowExport(!showExport)}
               >
                 Export v
@@ -203,7 +362,7 @@ const QuestionnairePage: React.FC = () => {
               )}
             </div>
             <button
-              className="h-[34px] rounded bg-blue-600 px-5 text-[15px] text-white"
+              className="h-[34px] rounded bg-[#337ab7] px-5 text-[15px] text-white"
               onClick={openSelectedQuestionnaire}
             >
               Add More Questions
@@ -244,22 +403,27 @@ const QuestionnairePage: React.FC = () => {
                   {index + 1}
                 </td>
                 <td className="border border-gray-300 px-4 py-4 align-top text-[15px] leading-7">
-                  <div className="pr-4">{question.question}</div>
-                  {formatOptions(question.options)}
-                </td>
-                <td className="border border-gray-300 px-4 py-4 align-top">
-                  <div className="flex justify-center gap-8 pt-1.5">
-                    <GoPencil
-                      className="mt-0.5 cursor-pointer text-[16px] text-blue-600"
-                      onClick={() => openQuestionEditor(question.questionnaire_que_id)}
-                    />
-                    <GoTrash
-                      className="mt-0.5 cursor-pointer text-[16px] text-red-600"
-                      onClick={() =>
-                        handleDeleteQuestion(question.questionnaire_que_id)}
-                    />
-                  </div>
-                </td>
+  <div className="pr-4">{question.question}</div>
+  {formatOptions(question.options)}
+</td>
+
+<td className="border border-gray-300 px-4 py-4 align-top">
+  <div className="flex flex-row items-center justify-center gap-8 whitespace-nowrap pt-1.5">
+    <FaPencilAlt
+      className="shrink-0 cursor-pointer text-[14px] text-[#337ab7]"
+      onClick={() =>
+        openQuestionEditor(question.questionnaire_que_id)
+      }
+    />
+
+    <FaRegTrashAlt
+  className="shrink-0 cursor-pointer text-[14px] text-[#ff0000]"
+  onClick={() =>
+    handleDeleteQuestion(question.questionnaire_que_id)
+  }
+/>
+  </div>
+</td>
               </tr>
             ))}
         </tbody>

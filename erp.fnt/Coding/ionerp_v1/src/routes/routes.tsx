@@ -34,21 +34,19 @@ const renderRoutes = (
 ): React.ReactNode => {
   return routes.map((route) => {
     const fullPath = `${parentPath}/${route.href}`.replace(/\/+/g, "/");
+    const hasChildRoutes = Boolean(route.subItems && route.subItems.length > 0);
     return (
       <Route
         key={fullPath}
         path={fullPath}
         element={
           <ProtectedRoute
-            element={route.subItems ? <Outlet /> : <route.element />}
+            element={hasChildRoutes ? <Outlet /> : <route.element />}
             roles={route.roles}
           />
         }
       >
-        {route.subItems && renderRoutes(route.subItems, fullPath)}
-        {route.subItems && route.subItems.length === 0 && (
-          <Route index element={<route.element />} />
-        )}
+        {hasChildRoutes && renderRoutes(route.subItems || [], fullPath)}
       </Route>
     );
   });

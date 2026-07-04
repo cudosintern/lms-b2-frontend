@@ -31,6 +31,7 @@ const MenuItem: React.FC<{
   depth?: number;
   menuType?: "main" | "child";
   parentId?: string;
+  parentHref?: string;
   onMenuToggle?: (menuId: string | null) => void;
   activeMenuId?: string | null;
 }> = ({
@@ -39,6 +40,7 @@ const MenuItem: React.FC<{
   depth = 0,
   menuType = "main",
   parentId = "",
+  parentHref = "",
   onMenuToggle,
   activeMenuId,
 }) => {
@@ -46,6 +48,11 @@ const MenuItem: React.FC<{
     const [isExpanded, setIsExpanded] = useState(false);
     const [activeSubMenu, setActiveSubMenu] = useState<string | null>(null);
     const currentMenuId = parentId ? `${parentId}-${item.name}` : item.name;
+    const itemHref = item.href
+      ? item.href.startsWith("/")
+        ? item.href
+        : `${parentHref}/${item.href}`.replace(/\/+/g, "/")
+      : parentHref || "/";
 
     // const isActive: boolean =
     //   location.pathname === item.href ||
@@ -138,16 +145,20 @@ const MenuItem: React.FC<{
 
     const shouldHighlight = (item: any) => {
       if (item.name === "" && item.element === Outlet) return false;
+      const path = item.href
+        ? item.href.startsWith("/")
+          ? item.href
+          : `${parentHref}/${item.href}`.replace(/\/+/g, "/")
+        : parentHref || "/";
       return (
-        location.pathname === item.href ||
-        (hasChildren && item.href !== "" && location.pathname === "/" + item.href) ||
-        (item.subItems?.some((subItem: any) => shouldHighlight(subItem)) ?? false)
+        location.pathname === path ||
+        (path !== "/" && location.pathname.startsWith(`${path}/`))
       );
     };
     const renderLink = () => (
       <div className={linkClassName(shouldHighlight(item), hasChildren ?? false) + " w-full"}>
         {!hasChildren ? (
-          <Link to={item.href ?? "#"} className='flex items-center justify-between w-full'>
+          <Link to={itemHref ?? "#"} className='flex items-center justify-between w-full'>
             <div className={`flex items-center ${item.href === "/" ? " dark:text-gray-200" : ""} space-x-1.5`}>
               {item.icon && <span className='text-[15px]'>{item.icon}</span>}
               <span className='font-medium'>{item.name}</span>
@@ -211,6 +222,7 @@ const MenuItem: React.FC<{
                       menuType='child'
                       depth={depth + 1}
                       parentId={currentMenuId}
+                      parentHref={itemHref}
                       onMenuToggle={onMenuToggle}
                       activeMenuId={activeMenuId}
                     />

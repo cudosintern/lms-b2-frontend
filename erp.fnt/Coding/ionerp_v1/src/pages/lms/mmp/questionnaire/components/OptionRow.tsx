@@ -25,7 +25,7 @@ const OptionRow: React.FC<OptionRowProps> = ({
   const optionErrors = errors.questions?.[questionIndex]?.options?.[optionIndex];
 
   return (
-    <div className="flex flex-col gap-2 rounded-md border border-gray-200 bg-gray-50 p-3">
+    <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
       <div className="flex items-start gap-3">
         <div className="flex-1">
           <Controller
@@ -44,31 +44,29 @@ const OptionRow: React.FC<OptionRowProps> = ({
             )}
           />
         </div>
-        <div className="pt-6">
-          <UIButton type="button" size="sm" onClick={onRemove} isDisabled={!canRemove}>
-            Remove
-          </UIButton>
-        </div>
+        <Controller
+          name={`questions.${questionIndex}.options.${optionIndex}.specify_flag`}
+          control={control}
+          render={({ field }) => (
+            <div className="flex shrink-0 items-center gap-2 pt-6">
+              <ToggleSwitch
+                label="Specify"
+                checked={field.value}
+                onChange={field.onChange}
+              />
+              <UIButton
+                type="button"
+                size="sm"
+                onClick={onRemove}
+                isDisabled={!canRemove}
+                className="bg-red-500 px-3 text-white"
+              >
+                -
+              </UIButton>
+            </div>
+          )}
+        />
       </div>
-
-      <Controller
-        name={`questions.${questionIndex}.options.${optionIndex}.specify_flag`}
-        control={control}
-        render={({ field }) => (
-          <div>
-            <ToggleSwitch
-              label="Specify"
-              checked={field.value}
-              onChange={field.onChange}
-            />
-            {field.value && (
-              <p className="mt-1 text-xs text-amber-700">
-                Student must enter additional description
-              </p>
-            )}
-          </div>
-        )}
-      />
     </div>
   );
 };

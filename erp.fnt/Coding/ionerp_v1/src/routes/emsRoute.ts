@@ -8,6 +8,11 @@ import MapMentorsPage from "../pages/lms/mmp/mapMentorMentee/MapMentorsPage";
 
 import MapMenteesPage from "../pages/lms/mmp/mapMentorMentee/MapMenteesPage";
 import MentoringSessionPage from "../pages/lms/mmp/mentoringSession/MentoringSessionPage";
+import MmpConfigurationPage from "../pages/lms/mmp/configuration/MmpConfigurationPage";
+import DeptConfigurationPage from "../pages/lms/mmp/deptConfiguration/DeptConfigurationPage";
+import MmpReportPage from "../pages/lms/mmp/reports/MmpReportPage";
+import MentorListPage from "../pages/lms/mmp/reports/MentorListPage";
+import IssueObservationReportPage from "../pages/lms/mmp/reports/IssueObservationReportPage";
 // import Masters from "../pages/ems/configuration/masters/mastersPage";
 // import UserRolePage from "../pages/ems/configuration/userRole/userRolePage";
 // import UserMasterPage from "../pages/ems/configuration/userMaster/userMasterPage";
@@ -201,13 +206,20 @@ export const EMSROUTE = [
     ],
   },
   {
-  name: "Mentor Mentee Program",
+    name: "Mentor Mentee Program",
   href: "/mmp",
   element: Outlet,
   roles: [],
   subItems: [
     {
-      name: "Questionnaire",
+      name: "Configuration",
+      href: "configuration",
+      element: MmpConfigurationPage,
+      roles: [],
+      subItems: [],
+    },
+    {
+      name: "Questionnaires",
       href: "questionnaire",
       element: Outlet,
       roles: [],
@@ -216,6 +228,13 @@ export const EMSROUTE = [
         { name: "", href: "create", roles: [], element: QuestionnaireCreatePage },
         { name: "", href: "edit/:id", roles: [], element: QuestionnaireCreatePage },
       ],
+    },
+    {
+      name: "Dept. Configuration",
+      href: "dept-configuration",
+      element: DeptConfigurationPage,
+      roles: [],
+      subItems: [],
     },
 
     {
@@ -244,6 +263,12 @@ export const EMSROUTE = [
       roles: [],
       element: MapMenteesPage,
     },
+    {
+      name: "",
+      href: "map-mentees/:mentors_group_id/:academic_batch_id",
+      roles: [],
+      element: MapMenteesPage,
+    },
   ],
 },
 
@@ -254,8 +279,117 @@ export const EMSROUTE = [
       roles: [],
       subItems: [],
     },
+    {
+      name: "MMP Report",
+      href: "mmp-report",
+      element: MmpReportPage,
+      roles: [],
+      subItems: [],
+    },
+    {
+      name: "Mentor List",
+      href: "mentor-list",
+      element: MentorListPage,
+      roles: [],
+      subItems: [],
+    },
+    {
+      name: "Issue & Observation Report",
+      href: "issue-observation-report",
+      element: IssueObservationReportPage,
+      roles: [],
+      subItems: [],
+    },
   ],
-}
+},
+{
+  name: "",
+  href: "/lms_mmp/questionnaire",
+  element: QuestionnairePage,
+  roles: [],
+  hidden: true,
+  subItems: [],
+},
+{
+  name: "",
+  href: "/lms_mmp/questionnaire/create",
+  element: QuestionnaireCreatePage,
+  roles: [],
+  hidden: true,
+  subItems: [],
+},
+{
+  name: "",
+  href: "/lms_mmp/questionnaire/edit/:id",
+  element: QuestionnaireCreatePage,
+  roles: [],
+  hidden: true,
+  subItems: [],
+},
+{
+  name: "",
+  href: "/lms_mmp/map_mentor_mentee",
+  element: MapMentorMenteeListPage,
+  roles: [],
+  hidden: true,
+  subItems: [],
+},
+{
+  name: "",
+  href: "/lms_mmp/map_mentor_mentee/map-mentors",
+  element: MapMentorsPage,
+  roles: [],
+  hidden: true,
+  subItems: [],
+},
+{
+  name: "",
+  href: "/lms_mmp/map_mentor_mentee/map-mentees",
+  element: MapMenteesPage,
+  roles: [],
+  hidden: true,
+  subItems: [],
+},
+{
+  name: "",
+  href: "/lms_mmp/map_mentor_mentee/map-mentees/:mentors_group_id/:academic_batch_id",
+  element: MapMenteesPage,
+  roles: [],
+  hidden: true,
+  subItems: [],
+},
+{
+  name: "",
+  href: "/lms_mmp/schedule_mentor",
+  element: MentoringSessionPage,
+  roles: [],
+  hidden: true,
+  subItems: [],
+},
+{
+  name: "",
+  href: "/lms_mmp/mmp_report",
+  element: MmpReportPage,
+  roles: [],
+  hidden: true,
+  subItems: [],
+},
+{
+  name: "",
+  href: "/lms_mmp/mentor_list",
+  element: MentorListPage,
+  roles: [],
+  hidden: true,
+  subItems: [],
+},
+{
+  name: "",
+  href: "/lms_mmp/lms_issues_observations_report",
+  element: IssueObservationReportPage,
+  roles: [],
+  hidden: true,
+  subItems: [],
+},
   // {
   //   name: "Academics",
   //   href: "",

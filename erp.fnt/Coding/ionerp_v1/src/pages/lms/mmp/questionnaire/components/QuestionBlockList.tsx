@@ -2,6 +2,7 @@ import React from "react";
 import {
   Control,
   FieldErrors,
+  UseFormClearErrors,
   UseFormSetValue,
   useFieldArray,
 } from "react-hook-form";
@@ -14,8 +15,12 @@ interface QuestionBlockListProps {
   control: Control<QuestionnaireBuilderFormValues>;
   errors: FieldErrors<QuestionnaireBuilderFormValues>;
   setValue: UseFormSetValue<QuestionnaireBuilderFormValues>;
+  clearErrors: UseFormClearErrors<QuestionnaireBuilderFormValues>;
   questionTypes: LookupOption[];
   questionnaireTypes: LookupOption[];
+  isQuestionEditMode?: boolean;
+  isCreateMode?: boolean;
+  isAddMoreMode?: boolean;
   onDeleteSavedOption?: (
     questionIndex: number,
     optionIndex: number,
@@ -27,8 +32,12 @@ const QuestionBlockList: React.FC<QuestionBlockListProps> = ({
   control,
   errors,
   setValue,
+  clearErrors,
   questionTypes,
   questionnaireTypes,
+  isQuestionEditMode = false,
+  isCreateMode = false,
+  isAddMoreMode = false,
   onDeleteSavedOption,
 }) => {
   const { fields, append, remove } = useFieldArray({
@@ -57,20 +66,32 @@ const QuestionBlockList: React.FC<QuestionBlockListProps> = ({
           questionIndex={index}
           errors={errors}
           setValue={setValue}
+          clearErrors={clearErrors}
           onAdd={() => append(nextQuestion())}
           onRemove={() => remove(index)}
           isFirst={index === 0}
           questionTypes={questionTypes}
           questionnaireTypes={questionnaireTypes}
+          isQuestionEditMode={isQuestionEditMode}
+          isCreateMode={isCreateMode}
+          isAddMoreMode={isAddMoreMode}
           onDeleteSavedOption={onDeleteSavedOption}
         />
       ))}
 
-      <div className="flex justify-end">
-        <UIButton type="button" onClick={() => append(nextQuestion())}>
-          + Add Question
-        </UIButton>
-      </div>
+      {!isQuestionEditMode && (
+        <div className="flex justify-end">
+          <UIButton
+            type="button"
+            className={
+              isCreateMode || isAddMoreMode ? "bg-[#337ab7] text-white" : undefined
+            }
+            onClick={() => append(nextQuestion())}
+          >
+            + Add Question
+          </UIButton>
+        </div>
+      )}
     </section>
   );
 };

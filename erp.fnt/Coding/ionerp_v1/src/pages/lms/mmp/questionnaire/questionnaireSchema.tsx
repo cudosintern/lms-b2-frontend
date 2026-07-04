@@ -221,16 +221,23 @@ export const SchemaColumnDefs = [
 
 const optionSchema = z.object({
   questionnaire_options_id: z.number().nullable().optional(),
-  que_option: z.string().min(1, { message: "Option text is required" }),
+  que_option: z
+    .string()
+    .trim()
+    .min(1, { message: "Option fields should not be empty." }),
   specify_flag: z.boolean(),
 });
 
 const questionSchema = z.object({
   questionnaire_que_id: z.number().nullable().optional(),
-  que_type_id: z.number().min(1),
+  que_type_id: z
+    .number()
+    .min(1, { message: "Please select question type" }),
   que_no: z.number().min(1),
   question: z.string().min(1, { message: "Question text is required" }),
-  questionnaire_type_id: z.number().min(1),
+  questionnaire_type_id: z
+    .number()
+    .min(1, { message: "Please select the questionnaire type." }),
   que_is_mandatory: z.boolean(),
   options: z.array(optionSchema),
 });
@@ -244,7 +251,12 @@ export const questionnaireBuilderSchema = z.object({
   access_level: z.number().min(0),
   parent_id: z.number().nullable(),
   field_settings: z.object({
-    field_setting_id: z.number().nullable(),
+    field_setting_id: z
+      .union([z.number(), z.string()])
+      .nullable()
+      .refine((value) => value !== null && value !== "", {
+        message: "Field Setting is required",
+      }),
     field_setting_desc: z.string().optional(),
   }),
   questions: z
