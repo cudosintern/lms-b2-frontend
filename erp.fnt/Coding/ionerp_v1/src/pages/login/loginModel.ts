@@ -23,6 +23,7 @@ export interface loginData {
   username: string;
   // Additional metadata
   user_id?: number;
+  user_dept_id?: number;
   email?: string;
   last_login?: string;
 }

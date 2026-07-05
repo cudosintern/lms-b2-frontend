@@ -2,23 +2,18 @@ import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ChevronRight } from "lucide-react";
 
-interface MentoringPageLayoutProps {
+interface CurriculumPageLayoutProps {
   children: React.ReactNode;
 }
 
-const MentoringPageLayout: React.FC<MentoringPageLayoutProps> = ({ children }) => {
+const CurriculumPageLayout: React.FC<CurriculumPageLayoutProps> = ({ children }) => {
   const location = useLocation();
   const currentPath = location.pathname;
 
   const menuItems = [
-    { name: "Configuration", path: "/mentoring", disabled: false },
-    { name: "Questionnaires", path: "/mentoring/questionnaires", disabled: false },
-    { name: "Dept. Configuration", path: "/mentoring/dept_configuration", disabled: false },
-    { name: "Map Mentor Mentee", path: "/mentoring/map_mentor_mentee", disabled: false },
-    { name: "Mentoring Session", path: "/mentoring/mentoring_session", disabled: false },
-    { name: "MMP Report", path: "#", disabled: true },
-    { name: "Mentor List", path: "/mentoring/mentor_list", disabled: false },
-    { name: "Issue & Observation Report", path: "#", disabled: true },
+    { name: "Student to Course Registration", path: "/curriculum", disabled: false },
+    { name: "Curriculum Structure", path: "#", disabled: true },
+    { name: "Course Syllabus", path: "#", disabled: true },
   ];
 
   return (
@@ -28,10 +23,9 @@ const MentoringPageLayout: React.FC<MentoringPageLayoutProps> = ({ children }) =
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
           <ul className="divide-y divide-gray-150 dark:divide-gray-700">
             {menuItems.map((item, index) => {
-              // Active check: Configuration is active for /mentoring or /mentoring/ (since it's the default index route)
               const isActive =
-                item.path === "/mentoring"
-                  ? currentPath === "/mentoring" || currentPath === "/mentoring/"
+                item.path === "/curriculum"
+                  ? currentPath === "/curriculum" || currentPath === "/curriculum/"
                   : currentPath === item.path;
 
               const baseClasses =
@@ -90,4 +84,4 @@ const MentoringPageLayout: React.FC<MentoringPageLayoutProps> = ({ children }) =
   );
 };
 
-export default MentoringPageLayout;
+export default CurriculumPageLayout;

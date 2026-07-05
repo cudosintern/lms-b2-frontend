@@ -56,4 +56,11 @@ export const MainPageCards: CardItem[] = [
     keyname: "main",
     description: "Manage configurations, mentors, and mentee assignments.",
   },
+  {
+    name: "Curriculum",
+    url: "/curriculum",
+    iconName: "curriculum",
+    keyname: "main",
+    description: "Manage student to course registration.",
+  },
 ];

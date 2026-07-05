@@ -3,8 +3,6 @@ import {
   Menu,
   X,
   ChevronRight,
-  Sun,
-  Moon,
   LandPlot,
   Columns,
   LayoutGrid,

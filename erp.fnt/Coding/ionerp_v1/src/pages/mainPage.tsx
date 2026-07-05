@@ -6,7 +6,7 @@ import {
   IoArrowForward,
   IoSettingsSharp,
 } from "react-icons/io5";
-import { FaUsers } from "react-icons/fa";
+import { FaUsers, FaBook } from "react-icons/fa";
 import { MainPageCards } from "../utils/data";
 import { IconBaseProps } from "react-icons";
 import { LocalStorageHelper } from "../utils/localStorageHelper";
@@ -54,6 +54,7 @@ const MainPage: React.FC = () => {
     admission: IoSchool,
     settings: IoSettingsSharp,
     mentoring: FaUsers,
+    curriculum: FaBook,
   };
 
   const handleNavigate = React.useCallback(

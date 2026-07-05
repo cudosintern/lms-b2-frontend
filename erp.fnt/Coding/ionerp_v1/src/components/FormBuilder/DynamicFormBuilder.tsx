@@ -186,6 +186,7 @@ const DynamicFormBuilder = ({
         }
       });
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(dependencyMap), fields]); // Removed optionsLoaded from dependencies
 
   React.useEffect(() => {
@@ -220,6 +221,7 @@ const DynamicFormBuilder = ({
         }
       });
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fields]); // Removed optionsLoaded from dependencies
 
   const watchedFields = useWatch({
