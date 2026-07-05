@@ -6,7 +6,9 @@ import DeptConfigurationPage from "../pages/mentoring/DeptConfigurationPage";
 import MentorListPage from "../pages/mentoring/MentorListPage";
 import QuestionnairePage from "../pages/mentoring/QuestionnairePage";
 import MentoringSessionPage from "../pages/mentoring/MentoringSessionPage";
-import { FaHome, FaUsers } from "react-icons/fa";
+import MapMentorMenteePage from "../pages/mentoring/MapMentorMenteePage";
+import CourseRegistrationPage from "../pages/curriculum/CourseRegistrationPage";
+import { FaHome, FaUsers, FaBook } from "react-icons/fa";
 
 export const MAINROUTE = [
   {
@@ -56,6 +58,22 @@ export const MAINROUTE = [
     roles: [],
     subItems: [],
     hidden: true,
+  },
+  {
+    name: "",
+    href: "/mentoring/map_mentor_mentee",
+    element: MapMentorMenteePage,
+    roles: [],
+    subItems: [],
+    hidden: true,
+  },
+  {
+    name: "Curriculum",
+    href: "/curriculum",
+    element: CourseRegistrationPage,
+    icon: React.createElement("div", { className: "w-6 h-6 rounded bg-indigo-600 flex items-center justify-center text-white mr-1.5" }, React.createElement(FaBook, { size: 11 })),
+    roles: [],
+    subItems: [],
   },
   {
     name: "Change Password",

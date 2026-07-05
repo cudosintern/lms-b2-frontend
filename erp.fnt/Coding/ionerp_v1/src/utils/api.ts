@@ -31,6 +31,9 @@ axiosInstance.interceptors.request.use(
     if (authOrg && authOrg?.value) {
       config.headers["org-id"] = authOrg?.value;
     }
+    if (authState && authState?.user_dept_id) {
+      config.headers["dept-id"] = authState.user_dept_id.toString();
+    }
     return config;
   },
   (error: any) => {
