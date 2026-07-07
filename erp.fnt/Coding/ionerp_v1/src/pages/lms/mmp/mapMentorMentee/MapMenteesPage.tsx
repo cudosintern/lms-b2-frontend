@@ -100,6 +100,7 @@ type EligibleMenteeApi = {
   email?: string;
   section?: string;
   section_name?: string;
+  student_section?: string;
 };
 
 type ApiEnvelope<T> = {
@@ -180,7 +181,11 @@ const normalizeEligibleMentee = (item: EligibleMenteeApi): MenteeRow | null => {
     name: item.name?.trim() || item.student_name?.trim() || `Student ID: ${student_id}`,
     usn: item.usn?.trim() || item.usno?.trim() || "",
     email: item.email?.trim() || "",
-    section: item.section?.trim() || item.section_name?.trim() || "",
+    section:
+      item.section?.trim() ||
+      item.section_name?.trim() ||
+      item.student_section?.trim() ||
+      "",
     mappingState: "unmapped",
   };
 };
@@ -298,11 +303,6 @@ const MapMenteesPage: React.FC = () => {
       (question) => question.questionnaire_type_name || question.questionnaire_type,
     )?.questionnaire_type ||
     "";
-
-  const showSectionColumn = useMemo(
-    () => allMentees.some((mentee) => Boolean(mentee.section)),
-    [allMentees],
-  );
 
   const initialCurrentGroupStudentIds = useMemo(
     () => Array.from(currentGroupMenteeMap.keys()),
@@ -1175,11 +1175,9 @@ const MapMenteesPage: React.FC = () => {
                         <th>
                         Mentee Name
                       </th>
-                      {showSectionColumn ? (
-                          <th className="w-[74px]">
-                          Section
-                        </th>
-                      ) : null}
+                      <th className="w-[74px]">
+                        Section
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1223,11 +1221,9 @@ const MapMenteesPage: React.FC = () => {
                               {buildMenteeName(mentee)}
                             </div>
                           </td>
-                          {showSectionColumn ? (
-                              <td className="text-[13.5px] font-normal text-gray-700">
-                              {mentee.section || ""}
-                            </td>
-                          ) : null}
+                          <td className="text-[13.5px] font-normal text-gray-700">
+                            {mentee.section || "-"}
+                          </td>
                         </tr>
                       );
                     })}

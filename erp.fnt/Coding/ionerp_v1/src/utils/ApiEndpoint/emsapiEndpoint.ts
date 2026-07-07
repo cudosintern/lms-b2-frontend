@@ -1,5 +1,5 @@
 export const ApiEndpoint = {
-  login: "auth/login",
+  login: "auth/staff_login",
   change_password: "auth/change-password",
   FORGOT_PASSWORD: "auth/forgot-password",
   master_soft_delete: "comman_function/soft_delete",

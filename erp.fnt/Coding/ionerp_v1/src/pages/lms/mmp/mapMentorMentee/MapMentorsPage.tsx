@@ -17,6 +17,7 @@ import MmpModuleShell from "../components/MmpModuleShell";
 
 type MentorMapping = {
   map_mentor_id?: number;
+  group_mentor_id?: number;
   mentor_id: number;
   mentors_group_id?: number;
   mentor_name?: string;
@@ -212,6 +213,8 @@ const getErrorMessage = (error: ApiError, fallback: string) =>
 const getAllMentorsEndpoint = (academicBatchId: number) =>
   `lms_mentors_group/get_all_mentors/${academicBatchId}`;
 
+const deleteMentorEndpoint = "lms_mentors_group/delete_mentor";
+
 const getMentorEmailTooltip = (email?: string) =>
   email?.trim() ? `Email: ${email.trim()}` : "Email not available";
 
@@ -220,7 +223,35 @@ const normalizeMentorId = (value: unknown) => {
   return Number.isFinite(mentorId) && mentorId > 0 ? mentorId : 0;
 };
 
+const normalizeMappingId = (value: unknown) => {
+  const mappingId = Number(value ?? 0);
+  return Number.isFinite(mappingId) && mappingId > 0 ? mappingId : 0;
+};
+
 const normalizeMentorName = (value?: string) => value?.trim() || undefined;
+
+const getMentorMappingId = (mentor: MentorMapping) =>
+  normalizeMappingId(mentor.map_mentor_id ?? mentor.group_mentor_id);
+
+const buildMentorMappingIdLookup = (mappedMentors: MentorMapping[]) => {
+  const mappingIdLookup: Record<number, number[]> = {};
+
+  mappedMentors.forEach((mentor) => {
+    const mentorId = normalizeMentorId(mentor.mentor_id);
+    const mappingId = getMentorMappingId(mentor);
+
+    if (!mentorId || !mappingId) {
+      return;
+    }
+
+    const existingMappingIds = mappingIdLookup[mentorId] || [];
+    mappingIdLookup[mentorId] = existingMappingIds.includes(mappingId)
+      ? existingMappingIds
+      : [...existingMappingIds, mappingId];
+  });
+
+  return mappingIdLookup;
+};
 
 const flattenMappedGroups = (value: unknown): Record<string, unknown>[] => {
   const queue = Array.isArray(value) ? [...value] : value ? [value] : [];
@@ -382,6 +413,23 @@ const getRealMappedGroups = (mappedGroups: MentorGroupDisplay[]) =>
 const hasRealMappedGroups = (mappedGroups: MentorGroupDisplay[]) =>
   getRealMappedGroups(mappedGroups).length > 0;
 
+const buildMappedGroupsTitle = (mappedGroups: MentorGroupDisplay[]) =>
+  mappedGroups
+    .map((mappedGroup) => {
+      const lines = [
+        mappedGroup.curriculum?.trim()
+          ? `Curriculum: ${mappedGroup.curriculum.trim()}`
+          : "",
+        mappedGroup.groupName?.trim()
+          ? `Group Name: ${mappedGroup.groupName.trim()}`
+          : "",
+      ].filter((value) => value.length > 0);
+
+      return lines.join("\n");
+    })
+    .filter((value) => value.length > 0)
+    .join("\n\n");
+
 const normalizeMentorCandidate = (
   mentor: MentorCandidateApiRecord,
   fallbackCurriculum: string,
@@ -483,6 +531,9 @@ const MapMentorsPage: React.FC = () => {
   const [questionnaireDetail, setQuestionnaireDetail] = useState<QuestionnaireDetail | null>(
     null,
   );
+  const [mappedMentorIdLookup, setMappedMentorIdLookup] = useState<Record<number, number[]>>(
+    {},
+  );
   const termsDropdownRef = useRef<HTMLDivElement | null>(null);
   const questionnaireModalCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -495,6 +546,7 @@ const MapMentorsPage: React.FC = () => {
     mentors_pgm_title: navigationState.mentors_pgm_title ?? "",
     semester_ids: [] as number[],
   });
+  const [hoveredMentorInfoKey, setHoveredMentorInfoKey] = useState<number | null>(null);
 
   const selectedQuestionnaire = useMemo(
     () =>
@@ -513,6 +565,11 @@ const MapMentorsPage: React.FC = () => {
       ),
     [academicBatches, formState.academic_batch_id],
   );
+
+  const curriculumDisplayText =
+    selectedAcademicBatch?.academic_batch_desc?.trim() ||
+    navigationState.academic_batch_desc?.trim() ||
+    "";
 
   const selectedTerms = useMemo(
     () =>
@@ -663,6 +720,7 @@ const MapMentorsPage: React.FC = () => {
         if (!isMounted) return;
         setMentorCandidates([]);
         setSelected([]);
+        setMappedMentorIdLookup({});
 
         if (navigationState.mentors_group_id) {
           const groupResponse = await axiosInstance.get<GroupCompleteApiResponse>(
@@ -770,29 +828,12 @@ const MapMentorsPage: React.FC = () => {
 
         if (navigationState.mentors_group_id) {
           try {
-            const mappedMentorResponse =
-              await axiosInstance.get<MentorMappingsApiResponse>(
-                `${ApiEndpoint.mentorMentee.mentors}/${navigationState.mentors_group_id}`,
-                {
-                  validateStatus: () => true,
-                },
-              );
+            const {
+              mappedMentors,
+              mappedMentorIds,
+              mappingIdLookup,
+            } = await fetchMappedMentors(navigationState.mentors_group_id);
             if (!isMounted) return;
-
-            const mappedMentors =
-              mappedMentorResponse.status === 200
-                ? mappedMentorResponse.data?.data || []
-                : [];
-            const mappedMentorIds = Array.from(
-              new Set(
-                mappedMentors
-                  .map((mentor: MentorMapping) => mentor.mentor_id)
-                  .filter(
-                    (mentorId: number | undefined): mentorId is number =>
-                      typeof mentorId === "number",
-                  ),
-              ),
-            );
 
             mappedMentors.forEach((mentor: MentorMapping) => {
               mergeMentorLookupEntry(mentorLookup, {
@@ -811,6 +852,7 @@ const MapMentorsPage: React.FC = () => {
               true,
             );
             setSelected(mappedMentorIds);
+            setMappedMentorIdLookup(mappingIdLookup);
             if (nextMentorCandidates.length > 0) {
               setMentorLoadError("");
             }
@@ -824,6 +866,7 @@ const MapMentorsPage: React.FC = () => {
               true,
             );
             setSelected([]);
+            setMappedMentorIdLookup({});
             if (nextMentorCandidates.length > 0) {
               setMentorLoadError("");
             }
@@ -942,6 +985,37 @@ const MapMentorsPage: React.FC = () => {
     }
   };
 
+  const fetchMappedMentors = async (mentorsGroupId: number) => {
+    const mappedMentorResponse =
+      await axiosInstance.get<MentorMappingsApiResponse>(
+        `${ApiEndpoint.mentorMentee.mentors}/${mentorsGroupId}`,
+        {
+          validateStatus: () => true,
+        },
+      );
+
+    const mappedMentors =
+      mappedMentorResponse.status === 200
+        ? mappedMentorResponse.data?.data || []
+        : [];
+    const mappedMentorIds = Array.from(
+      new Set(
+        mappedMentors
+          .map((mentor: MentorMapping) => mentor.mentor_id)
+          .filter(
+            (mentorId: number | undefined): mentorId is number =>
+              typeof mentorId === "number",
+          ),
+      ),
+    );
+
+    return {
+      mappedMentors,
+      mappedMentorIds,
+      mappingIdLookup: buildMentorMappingIdLookup(mappedMentors),
+    };
+  };
+
   const save = async () => {
     if (isEditMode) {
       if (!formState.mentors_group_id) {
@@ -951,15 +1025,52 @@ const MapMentorsPage: React.FC = () => {
 
       try {
         setIsSaving(true);
-        const response = await axiosInstance.post<MentorGroupSaveResponse>(
-          ApiEndpoint.mentorMentee.save_mentors,
-          {
-            mentors_group_id: formState.mentors_group_id,
-            mentor_ids: Array.from(new Set(selected)),
-          },
+        const selectedMentorIds = Array.from(new Set(selected));
+        const originallyMappedMentorIds = Array.from(
+          new Set(Object.keys(mappedMentorIdLookup).map((mentorId) => Number(mentorId))),
+        ).filter((mentorId) => normalizeMentorId(mentorId) > 0);
+        const removedMentorIds = originallyMappedMentorIds.filter(
+          (mentorId) => !selectedMentorIds.includes(mentorId),
+        );
+        const newMentorIds = selectedMentorIds.filter(
+          (mentorId) => !originallyMappedMentorIds.includes(mentorId),
+        );
+        const deleteMappingIds = removedMentorIds.flatMap(
+          (mentorId) => mappedMentorIdLookup[mentorId] || [],
         );
 
-        toast.success(getResponseMessage(response.data?.message));
+        if (removedMentorIds.length > 0 && deleteMappingIds.length === 0) {
+          throw new Error("Unable to resolve mentor mapping IDs for deletion");
+        }
+
+        let successMessage = "Mentor mappings saved successfully";
+
+        if (deleteMappingIds.length > 0) {
+          await Promise.all(
+            deleteMappingIds.map((mappingId) =>
+              axiosInstance.delete(`${deleteMentorEndpoint}/${mappingId}`),
+            ),
+          );
+          successMessage = "Mentor mappings updated successfully";
+        }
+
+        if (newMentorIds.length > 0) {
+          const response = await axiosInstance.post<MentorGroupSaveResponse>(
+            ApiEndpoint.mentorMentee.save_mentors,
+            {
+              mentors_group_id: formState.mentors_group_id,
+              mentor_ids: newMentorIds,
+            },
+          );
+
+          successMessage = getResponseMessage(response.data?.message, successMessage);
+        }
+
+        const refreshedMappedMentors = await fetchMappedMentors(formState.mentors_group_id);
+        setSelected(refreshedMappedMentors.mappedMentorIds);
+        setMappedMentorIdLookup(refreshedMappedMentors.mappingIdLookup);
+
+        toast.success(successMessage);
         navigate("..", {
           state: {
             refreshKey: Date.now(),
@@ -1196,14 +1307,14 @@ const MapMentorsPage: React.FC = () => {
     : null;
 
   return (
-    <MmpModuleShell title={isEditMode ? "Add More Mentors" : "Add Mentors"}>
+    <MmpModuleShell title={isEditMode ? "Add mentors" : "Add Mentors"}>
       <div className="-mt-1 mb-2">
         <style>
           {`
             .map-mentors-form .mentor-name-content {
+              position: relative;
               display: inline-flex;
               align-items: center;
-              gap: 6px;
               min-width: 0;
             }
 
@@ -1216,22 +1327,23 @@ const MapMentorsPage: React.FC = () => {
               color: #7a1f1f;
             }
 
-            .map-mentors-form .mentor-info-tooltip {
-              position: relative;
-              display: inline-flex;
-              align-items: center;
-            }
-
             .map-mentors-form .mentor-info-trigger {
+              position: absolute;
+              left: calc(100% + 6px);
+              top: 50%;
+              transform: translateY(-50%);
               display: inline-flex;
               align-items: center;
               justify-content: center;
+              width: 14px;
+              height: 14px;
               padding: 0;
               border: 0;
               background: transparent;
               color: #374151;
               cursor: help;
               line-height: 1;
+              z-index: 10;
             }
 
             .map-mentors-form .mentor-info-trigger:focus-visible {
@@ -1240,116 +1352,113 @@ const MapMentorsPage: React.FC = () => {
               border-radius: 999px;
             }
 
-            .map-mentors-form .mentor-info-popup {
-              position: absolute;
-              left: 18px;
-              top: calc(100% + 6px);
-              z-index: 20;
-              display: block;
-              min-width: 220px;
-              max-width: 280px;
-              padding: 8px 10px;
-              border: 1px solid #4b5563;
-              background: #ffffff;
-              box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
-              color: #1f2937;
-              font-size: 12.5px;
-              line-height: 1.35;
-              opacity: 0;
-              visibility: hidden;
-              pointer-events: none;
-              white-space: normal;
-            }
-
-            .map-mentors-form .mentor-info-tooltip:hover .mentor-info-popup,
-            .map-mentors-form .mentor-info-tooltip:focus-within .mentor-info-popup {
-              opacity: 1;
-              visibility: visible;
-            }
-
-            .map-mentors-form .mentor-info-popup-entry + .mentor-info-popup-entry {
-              margin-top: 8px;
-              padding-top: 8px;
-              border-top: 1px solid #e5e7eb;
-            }
-
             .mentor-cross-department-note {
-              margin-top: 10px;
-              color: #7a1f1f;
-              font-size: 14px;
+              margin-top: 6px;
+              color: #1f2937;
+              font-size: 12px;
+              font-weight: 600;
+              line-height: 1.3;
             }
 
             section:has(.map-mentors-form) > div:first-child {
-              margin-bottom: 14px;
-              padding: 8px 20px;
+              margin-bottom: 12px;
+              padding: 6px 20px;
             }
 
             section:has(.map-mentors-form) > div:first-child h2 {
               font-size: 18px;
-              line-height: 1.2;
-              font-weight: 600;
+              line-height: 1.25;
+              font-weight: 500;
             }
           `}
         </style>
       </div>
 
-      <div className="map-mentors-form space-y-5 text-sm">
-        <div className="text-[15px] text-gray-900">
-          <span className="font-semibold">Curriculum:</span>{" "}
-          <span className="font-normal">
-            {selectedAcademicBatch?.academic_batch_desc ||
-              navigationState.academic_batch_desc ||
-              formState.academic_batch_id ||
-              ""}
-          </span>
-        </div>
+      <div className="map-mentors-form space-y-3 text-[11px] leading-[1.3]">
+        {isEditMode ? (
+          <div className="flex items-stretch gap-3">
+            <table className="w-full max-w-[585px] border-collapse border border-[#d6d6d6] text-[13px] leading-[1.35] text-gray-900">
+              <tbody>
+                <tr>
+                  <td className="w-[150px] min-w-[150px] border border-[#d6d6d6] px-[10px] py-[8px] font-semibold">
+                    Curriculum
+                  </td>
+                  <td className="border border-[#d6d6d6] px-[10px] py-[8px] text-gray-800">
+                    {selectedAcademicBatch?.academic_batch_desc ||
+                      navigationState.academic_batch_desc ||
+                      formState.academic_batch_id ||
+                      ""}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="w-[150px] min-w-[150px] border border-[#d6d6d6] px-[10px] py-[8px] font-semibold">
+                    Applicable Terms
+                  </td>
+                  <td className="border border-[#d6d6d6] px-[10px] py-[8px] text-gray-800">
+                    {applicableTermsText}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="w-[150px] min-w-[150px] border border-[#d6d6d6] px-[10px] py-[8px] font-semibold">
+                    Group Title
+                  </td>
+                  <td className="border border-[#d6d6d6] px-[10px] py-[8px] text-gray-800">
+                    {formState.mentors_pgm_title}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="w-[150px] min-w-[150px] border border-[#d6d6d6] px-[10px] py-[8px] font-semibold">
+                    Configuration
+                    <br />
+                    Type
+                  </td>
+                  <td className="border border-[#d6d6d6] px-[10px] py-[8px] text-gray-800">
+                    {configurationTypes.find(
+                      (configuration) =>
+                        configuration.config_type_id === formState.config_type_id,
+                    )?.config_type_name || "Configuration types not available"}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="w-[150px] min-w-[150px] border border-[#d6d6d6] px-[10px] py-[8px] font-semibold">
+                    Questionnaire
+                    <br />
+                    Type
+                  </td>
+                  <td className="border border-[#d6d6d6] px-[10px] py-[8px] text-gray-800">
+                    {questionnaireTypeText}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
 
-        <div className="grid gap-y-5 md:grid-cols-[205px_minmax(0,560px)] md:items-center md:gap-x-10">
-          {isEditMode ? (
+            <div className="flex min-w-[132px] items-end pb-[10px]">
+              {selectedQuestionnaire ? (
+                <button
+                  type="button"
+                  className="text-[14px] text-[#337ab7] hover:text-[#f0ad4e] hover:underline"
+                  onClick={() => void openQuestionnaireModal()}
+                >
+                  View questionnaires
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : (
+          <div className="max-w-[760px] space-y-[10px]">
+            {curriculumDisplayText ? (
+              <p className="text-[14px] leading-[1.25] text-gray-900">
+                <span className="font-semibold">Curriculum:</span>{" "}
+                <span>{curriculumDisplayText}</span>
+              </p>
+            ) : null}
+            <div className="grid gap-y-3 md:grid-cols-[170px_minmax(0,322px)] md:items-center md:gap-x-5">
             <>
-              <label className="text-[16px] font-normal text-gray-900">Group Title:</label>
-              <div className="text-[16px] text-gray-800">{formState.mentors_pgm_title}</div>
-
-              <label className="text-[16px] font-normal text-gray-900">
-                Applicable Terms:<span className="text-red-500">*</span>
-              </label>
-              <div className="min-h-[38px] rounded border border-gray-300 bg-gray-50 px-3 py-2 text-[15px] text-gray-700">
-                {applicableTermsText}
-              </div>
-
-              <label className="text-[16px] font-normal text-gray-900">
-                Configuration Type:<span className="text-red-500">*</span>
-              </label>
-              <div className="text-[16px] text-gray-800">
-                {configurationTypes.find(
-                  (configuration) =>
-                    configuration.config_type_id === formState.config_type_id,
-                )?.config_type_name || "Configuration types not available"}
-              </div>
-
-              <label className="text-[16px] font-normal text-gray-900">
-                Questionnaire Title:<span className="text-red-500">*</span>
-              </label>
-              <div className="flex min-h-[38px] items-center gap-3 text-[15px] text-gray-800">
-                <span>{selectedQuestionnaire?.questionnaire_name || ""}</span>
-                {selectedQuestionnaire ? (
-                  <button
-                    type="button"
-                    className="text-[14px] text-[#337ab7] hover:text-[#f0ad4e] hover:underline"
-                    onClick={() => void openQuestionnaireModal()}
-                  >
-                    View questionnaires
-                  </button>
-                ) : null}
-              </div>
-            </>
-          ) : (
-            <>
-              <label className="text-[16px] font-normal text-gray-900">
+              <label className="text-[14px] font-normal text-gray-900">
                 Group Title:<span className="text-red-500">*</span>
               </label>
               <input
-                className="h-[38px] w-full max-w-[420px] rounded border border-gray-300 px-3 text-[16px] text-gray-800 shadow-sm focus:border-blue-500 focus:outline-none"
+                className="h-[39px] w-full max-w-[322px] rounded border border-gray-300 px-3 text-[13px] text-gray-800 shadow-sm focus:border-blue-500 focus:outline-none"
                 value={formState.mentors_pgm_title}
                 onChange={(event) =>
                   setFormState((current) => ({
@@ -1360,13 +1469,13 @@ const MapMentorsPage: React.FC = () => {
                 placeholder="Enter Group Title"
               />
 
-              <label className="text-[16px] font-normal text-gray-900">
+              <label className="text-[14px] font-normal text-gray-900">
                 Applicable Terms:<span className="text-red-500">*</span>
               </label>
-              <div className="relative w-full max-w-[420px]" ref={termsDropdownRef}>
+              <div className="relative w-full max-w-[322px]" ref={termsDropdownRef}>
                 <button
                   type="button"
-                  className="flex h-[38px] w-full items-center justify-between rounded border border-gray-300 bg-white px-3 text-left text-[15px] text-gray-800 shadow-sm disabled:bg-gray-50 disabled:text-gray-500"
+                  className="flex h-[39px] w-full items-center justify-between rounded border border-gray-300 bg-white px-3 text-left text-[13px] text-gray-800 shadow-sm disabled:bg-gray-50 disabled:text-gray-500"
                   onClick={() => setIsTermsOpen((current) => !current)}
                   disabled={termOptions.length === 0}
                 >
@@ -1438,11 +1547,11 @@ const MapMentorsPage: React.FC = () => {
                 ) : null}
               </div>
 
-              <label className="text-[16px] font-normal text-gray-900">
+              <label className="text-[14px] font-normal text-gray-900">
                 Configuration Type:<span className="text-red-500">*</span>
               </label>
               <select
-                className="h-[38px] w-full max-w-[420px] rounded border border-gray-300 bg-white px-3 text-[15px] text-gray-800 shadow-sm focus:border-blue-500 focus:outline-none disabled:bg-gray-50 disabled:text-gray-500"
+                className="h-[39px] w-full max-w-[322px] rounded border border-gray-300 bg-white px-3 text-[13px] text-gray-800 shadow-sm focus:border-blue-500 focus:outline-none disabled:bg-gray-50 disabled:text-gray-500"
                 value={formState.config_type_id || ""}
                 disabled
                 onChange={(event) =>
@@ -1463,13 +1572,13 @@ const MapMentorsPage: React.FC = () => {
                 ))}
               </select>
 
-              <label className="text-[16px] font-normal text-gray-900">
+              <label className="text-[14px] font-normal text-gray-900">
                 Questionnaire Title:<span className="text-red-500">*</span>
               </label>
-              <div className="flex w-full items-center gap-3">
-                <div className="w-full max-w-[420px] flex-none">
+              <div className="flex w-full max-w-[480px] items-center gap-[10px]">
+                <div className="w-full max-w-[322px] flex-none">
                   <select
-                    className="h-[38px] w-full rounded border border-gray-300 bg-white px-3 text-[15px] text-gray-800 shadow-sm focus:border-blue-500 focus:outline-none"
+                    className="h-[39px] w-full rounded border border-gray-300 bg-white px-3 text-[13px] text-gray-800 shadow-sm focus:border-blue-500 focus:outline-none"
                     value={formState.questionnaire_id || ""}
                     onChange={(event) =>
                       setFormState((current) => ({
@@ -1492,7 +1601,7 @@ const MapMentorsPage: React.FC = () => {
                 {selectedQuestionnaire ? (
                   <button
                     type="button"
-                    className="shrink-0 self-center text-[14px] leading-[38px] text-[#337ab7] hover:text-[#f0ad4e] hover:underline"
+                    className="shrink-0 self-center text-[12px] leading-[39px] text-[#337ab7] hover:text-[#f0ad4e] hover:underline"
                     onClick={() => void openQuestionnaireModal()}
                   >
                     View questionnaires
@@ -1500,11 +1609,12 @@ const MapMentorsPage: React.FC = () => {
                 ) : null}
               </div>
             </>
-          )}
-        </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      <div className="mt-4 grid gap-6 xl:grid-cols-3">
+      <div className="mt-2 grid gap-4 xl:grid-cols-3">
         {isLoading ? (
           <div className="rounded border border-gray-200 p-4 text-sm text-gray-500 xl:col-span-3">
             Loading mentor mappings...
@@ -1515,14 +1625,14 @@ const MapMentorsPage: React.FC = () => {
           </div>
         ) : mentorColumns.length > 0 ? (
           mentorColumns.map((column, columnIndex) => (
-            <div key={columnIndex} className="overflow-hidden rounded border border-gray-200">
-              <table className="min-w-full text-sm">
+            <div key={columnIndex} className="overflow-hidden border border-[#d7dde5] bg-white">
+              <table className="min-w-full text-[12px] leading-[1.25]">
                 <thead className="bg-white">
                   <tr>
-                    <th className="w-24 border-b border-r border-gray-200 px-4 py-3 text-left font-semibold">
+                    <th className="w-[102px] border-b border-r border-[#d7dde5] px-[10px] py-[6px] text-left font-semibold">
                       Sl. No.
                     </th>
-                    <th className="border-b border-gray-200 px-4 py-3 text-left font-semibold">
+                    <th className="border-b border-[#d7dde5] px-[10px] py-[6px] text-left font-semibold">
                       Mentor Name
                     </th>
                   </tr>
@@ -1535,11 +1645,13 @@ const MapMentorsPage: React.FC = () => {
                       1;
                     const checked = selected.includes(mentor.mentor_id);
                     const mappedGroupsForTooltip = getRealMappedGroups(mentor.mapped_groups);
+                    const mappedGroupsTitle = buildMappedGroupsTitle(mappedGroupsForTooltip);
+                    const mentorInfoKey = mentor.mentor_id;
 
                     return (
                       <tr key={mentor.mentor_id}>
-                        <td className="border-b border-r border-gray-200 px-4 py-3 align-middle">
-                          <label className="flex items-center gap-3">
+                        <td className="border-b border-r border-[#d7dde5] px-[10px] py-[6px] align-middle">
+                          <label className="flex items-center gap-[8px]">
                             <input
                               type="checkbox"
                               checked={checked}
@@ -1560,8 +1672,12 @@ const MapMentorsPage: React.FC = () => {
                             <span>{serialNumber}</span>
                           </label>
                         </td>
-                        <td className="border-b border-gray-200 px-4 py-3">
-                          <div className="mentor-name-content">
+                        <td className="border-b border-[#d7dde5] px-[10px] py-[6px]">
+                          <div
+                            className="mentor-name-content"
+                            onMouseEnter={() => setHoveredMentorInfoKey(mentorInfoKey)}
+                            onMouseLeave={() => setHoveredMentorInfoKey(null)}
+                          >
                             <span
                               className={`mentor-name-text ${
                                 mentor.is_cross_department
@@ -1572,36 +1688,20 @@ const MapMentorsPage: React.FC = () => {
                             >
                               {mentor.mentor_name}
                             </span>
-                            {!isEditMode && mappedGroupsForTooltip.length > 0 ? (
-                              <span className="mentor-info-tooltip">
-                                <button
-                                  type="button"
-                                  className="mentor-info-trigger"
-                                  aria-label={`View mapped groups for ${mentor.mentor_name}`}
-                                  onClick={(event) => event.preventDefault()}
-                                >
-                                  <FaInfoCircle className="text-[12px]" />
-                                </button>
-                                <span className="mentor-info-popup" role="tooltip">
-                                  {mappedGroupsForTooltip.map((mappedGroup) => (
-                                    <span
-                                      key={mappedGroup.key}
-                                      className="mentor-info-popup-entry block"
-                                    >
-                                      {mappedGroup.curriculum?.trim() ? (
-                                        <span className="block">
-                                          Curriculum: {mappedGroup.curriculum.trim()}
-                                        </span>
-                                      ) : null}
-                                      {mappedGroup.groupName?.trim() ? (
-                                        <span className="block">
-                                          Group Name: {mappedGroup.groupName.trim()}
-                                        </span>
-                                      ) : null}
-                                    </span>
-                                  ))}
-                                </span>
-                              </span>
+                            {!isEditMode &&
+                            mappedGroupsForTooltip.length > 0 &&
+                            hoveredMentorInfoKey === mentorInfoKey ? (
+                              <button
+                                type="button"
+                                className="mentor-info-trigger"
+                                aria-label={`View mapped groups for ${mentor.mentor_name}`}
+                                onClick={(event) => event.preventDefault()}
+                                onFocus={() => setHoveredMentorInfoKey(mentorInfoKey)}
+                                onBlur={() => setHoveredMentorInfoKey(null)}
+                                title={mappedGroupsTitle || undefined}
+                              >
+                                <FaInfoCircle className="text-[12px]" />
+                              </button>
                             ) : null}
                           </div>
                         </td>
@@ -1625,12 +1725,12 @@ const MapMentorsPage: React.FC = () => {
         </div>
       ) : null}
 
-      <div className="mt-6 flex justify-end gap-3">
+      <div className="mt-4 flex justify-end gap-[10px]">
         <UIButton
           type="button"
           onClick={save}
           disabled={isSaving || isLoading}
-          className="bg-[#5cb85c] px-4 py-[9px] text-[14px] font-medium text-white hover:bg-[#4da64d]"
+          className="bg-[#5cb85c] px-3 py-[7px] text-[12px] font-medium text-white hover:bg-[#4da64d]"
         >
           <span className="mr-1 inline-flex items-center">
             <FaRegFileAlt className="text-[13px]" />
@@ -1644,7 +1744,7 @@ const MapMentorsPage: React.FC = () => {
         <UIButton
           type="button"
           onClick={() => navigate("..")}
-          className="bg-[#d9534f] px-4 py-[9px] text-[14px] font-medium text-white hover:bg-[#c74642]"
+          className="bg-[#d9534f] px-3 py-[7px] text-[12px] font-medium text-white hover:bg-[#c74642]"
         >
           <span className="mr-1 inline-flex items-center">
             <FaTimes className="text-[13px]" />

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import { FaCheck, FaPencilAlt, FaPlus, FaPlusCircle, FaTimes } from "react-icons/fa";
+import { FaCheck, FaPencilAlt, FaPlus, FaPlusCircle, FaTimes, FaTrash } from "react-icons/fa";
 import { HiDocumentText } from "react-icons/hi";
 import axiosInstance from "../../../../utils/api";
 import { ApiEndpoint } from "../../../../utils/ApiEndpoint/emsapiEndpoint";
@@ -44,6 +44,19 @@ interface GroupApiItem {
   config_type_id: number | null;
   questionnaire_id: number | null;
   mentors: GroupMentorApi[];
+}
+
+interface CurrentGroupMentorApi {
+  map_mentor_id?: number;
+  group_mentor_id?: number;
+  mentor_id?: number;
+  mentor_name?: string;
+  name?: string;
+  employee_name?: string;
+  faculty_name?: string;
+  staff_name?: string;
+  user_name?: string;
+  full_name?: string;
 }
 
 interface GroupCompleteResponse {
@@ -122,6 +135,11 @@ interface MenteeLookupApiRecord {
   name?: string;
 }
 
+interface ApiStatusResponse {
+  status?: boolean;
+  message?: string;
+}
+
 type SortKey =
   | "serial"
   | "groupTitle"
@@ -140,6 +158,8 @@ const getAllMentorsEndpoint = (academicBatchId: number) =>
 const getAllMenteesEndpoint = (academicBatchId: number) =>
   `lms_mentors_group/get_all_mentees?academic_batch_id=${academicBatchId}`;
 
+const deleteMentorsGroupEndpoint = "lms_mentors_group/delete_mentors_group";
+
 const normalizeMentorId = (value: unknown) => {
   const mentorId = Number(value ?? 0);
   return Number.isFinite(mentorId) && mentorId > 0 ? mentorId : 0;
@@ -149,6 +169,7 @@ const pickRealMentorName = (
   mentor:
     | MentorLookupApiRecord
     | GroupMentorApi
+    | CurrentGroupMentorApi
     | undefined
     | null,
 ) => {
@@ -194,6 +215,7 @@ const buildMentorDisplaySummary = (names: string[]) => {
 
 const formatGroupRows = (
   groups: GroupApiItem[],
+  currentMentorsByGroupId: Map<number, CurrentGroupMentorApi[]>,
   mentorLookup: Map<number, string>,
   menteeLookup: Map<number, string>,
 ): TableRow[] =>
@@ -203,14 +225,27 @@ const formatGroupRows = (
       { id: number; name: string; mentors_group_terms_id: number }
     >();
 
-    (group.mentors || []).forEach((mentor) => {
-      if (!mentorDisplayMap.has(mentor.mentor_id)) {
-        mentorDisplayMap.set(mentor.mentor_id, {
-          id: mentor.mentor_id,
-          name: mentorLookup.get(mentor.mentor_id) ?? `Mentor ID: ${mentor.mentor_id}`,
-          mentors_group_terms_id: mentor.mentors_group_terms_id,
-        });
+    const currentMappedMentors = currentMentorsByGroupId.get(group.mentors_group_id) || [];
+
+    currentMappedMentors.forEach((mentor) => {
+      const mentorId = normalizeMentorId(mentor.mentor_id);
+      if (!mentorId || mentorDisplayMap.has(mentorId)) {
+        return;
       }
+
+      const mentorName =
+        pickRealMentorName(mentor) ||
+        mentorLookup.get(mentorId) ||
+        `Mentor ID: ${mentorId}`;
+      const matchingGroupMentor = (group.mentors || []).find(
+        (groupMentor) => normalizeMentorId(groupMentor.mentor_id) === mentorId,
+      );
+
+      mentorDisplayMap.set(mentorId, {
+        id: mentorId,
+        name: mentorName,
+        mentors_group_terms_id: Number(matchingGroupMentor?.mentors_group_terms_id ?? 0),
+      });
     });
 
     const mentors = Array.from(mentorDisplayMap.values());
@@ -267,9 +302,39 @@ const fetchFormattedGroups = async (
   }
 
   const items = Array.isArray(response.data?.data) ? response.data.data : [];
+  const currentMentorsByGroupId = new Map<number, CurrentGroupMentorApi[]>();
+  const currentMappedMentorResponses = await Promise.all(
+    items.map(async (group: GroupApiItem) => {
+      try {
+        const mappedMentorResponse =
+          await axiosInstance.get<{ data?: CurrentGroupMentorApi[] }>(
+            `${ApiEndpoint.mentorMentee.mentors}/${group.mentors_group_id}`,
+            {
+              validateStatus: () => true,
+            },
+          );
+
+        const mappedMentors =
+          mappedMentorResponse.status === 200
+            ? Array.isArray(mappedMentorResponse.data?.data)
+              ? mappedMentorResponse.data.data
+              : []
+            : [];
+
+        return [group.mentors_group_id, mappedMentors] as const;
+      } catch {
+        return [group.mentors_group_id, [] as CurrentGroupMentorApi[]] as const;
+      }
+    }),
+  );
+
+  currentMappedMentorResponses.forEach(([groupId, mappedMentors]) => {
+    currentMentorsByGroupId.set(groupId, mappedMentors);
+  });
+
   const resolvedMentorLookup = new Map(mentorLookup);
-  items.forEach((group: GroupApiItem) => {
-    (group.mentors || []).forEach((mentor) => {
+  currentMentorsByGroupId.forEach((mappedMentors) => {
+    mappedMentors.forEach((mentor) => {
       const mentorId = normalizeMentorId(mentor.mentor_id);
       const mentorName = pickRealMentorName(mentor);
 
@@ -281,7 +346,7 @@ const fetchFormattedGroups = async (
 
   return {
     notFound: false,
-    rows: formatGroupRows(items, resolvedMentorLookup, menteeLookup),
+    rows: formatGroupRows(items, currentMentorsByGroupId, resolvedMentorLookup, menteeLookup),
   };
 };
 
@@ -338,12 +403,14 @@ const getErrorMessage = (error: any, fallback: string) =>
   fallback;
 
 const EDIT_SUCCESS_TOAST_ID = "map-mentor-mentee-edit-success";
+const DELETE_SUCCESS_TOAST_ID = "map-mentor-mentee-delete-success";
 const SUCCESS_TOAST_DURATION = 4000;
 const EDIT_MODAL_CLOSE_DURATION_MS = 180;
 
 const SuccessToastContent: React.FC<{
   closeToast?: () => void;
-}> = ({ closeToast }) => {
+  message: string;
+}> = ({ closeToast, message }) => {
   const fallbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasClosedRef = useRef(false);
 
@@ -393,7 +460,7 @@ const SuccessToastContent: React.FC<{
         <div className="min-w-0">
           <div className="text-[15px] font-semibold leading-5">Success</div>
           <div className="mt-1 text-[13px] leading-5 text-white/95">
-            Data updated successfully
+            {message}
           </div>
         </div>
         <button
@@ -413,9 +480,38 @@ const showEditSuccessToast = () => {
   toast.dismiss(EDIT_SUCCESS_TOAST_ID);
 
   toast(
-    ({ closeToast }) => <SuccessToastContent closeToast={closeToast} />,
+    ({ closeToast }) => (
+      <SuccessToastContent
+        closeToast={closeToast}
+        message="Data updated successfully"
+      />
+    ),
     {
       toastId: EDIT_SUCCESS_TOAST_ID,
+      position: "bottom-left",
+      autoClose: false,
+      hideProgressBar: true,
+      closeButton: false,
+      icon: false,
+      className: "!bg-transparent !p-0 !shadow-none !min-h-0",
+      bodyClassName: "!p-0",
+      progressClassName: "!hidden",
+    },
+  );
+};
+
+const showDeleteSuccessToast = () => {
+  toast.dismiss(DELETE_SUCCESS_TOAST_ID);
+
+  toast(
+    ({ closeToast }) => (
+      <SuccessToastContent
+        closeToast={closeToast}
+        message="Mentoring group deleted successfully."
+      />
+    ),
+    {
+      toastId: DELETE_SUCCESS_TOAST_ID,
       position: "bottom-left",
       autoClose: false,
       hideProgressBar: true,
@@ -442,6 +538,9 @@ const MapMentorMenteeListPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [sortKey, setSortKey] = useState<SortKey>(DEFAULT_SORT_KEY);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">(DEFAULT_SORT_DIRECTION);
+  const [selectedGroupIds, setSelectedGroupIds] = useState<number[]>([]);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [isEditModalClosing, setIsEditModalClosing] = useState(false);
@@ -458,6 +557,7 @@ const MapMentorMenteeListPage: React.FC = () => {
     setSortKey(DEFAULT_SORT_KEY);
     setSortDirection(DEFAULT_SORT_DIRECTION);
     setCurrentPage(1);
+    setSelectedGroupIds([]);
   };
 
   const resetEditModalState = () => {
@@ -544,7 +644,7 @@ const MapMentorMenteeListPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!isEditModalOpen) {
+    if (!isEditModalOpen && !isDeleteModalOpen) {
       return;
     }
 
@@ -554,7 +654,7 @@ const MapMentorMenteeListPage: React.FC = () => {
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [isEditModalOpen]);
+  }, [isDeleteModalOpen, isEditModalOpen]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -576,6 +676,7 @@ const MapMentorMenteeListPage: React.FC = () => {
         clearTimeout(editModalCloseTimeoutRef.current);
       }
       toast.dismiss(EDIT_SUCCESS_TOAST_ID);
+      toast.dismiss(DELETE_SUCCESS_TOAST_ID);
     };
   }, []);
 
@@ -593,43 +694,13 @@ const MapMentorMenteeListPage: React.FC = () => {
     if (selectedCurriculumId === "") {
       resetEditModalState();
       setGroups([]);
+      setSelectedGroupIds([]);
       setCurrentPage(1);
       setLoading(false);
       return;
     }
 
-    const loadSelectedGroups = async () => {
-      setLoading(true);
-      try {
-        let menteeLookup = menteeLookupCacheRef.current.get(selectedCurriculumId);
-
-        if (!menteeLookup) {
-          menteeLookup = await fetchMenteeLookup(selectedCurriculumId);
-          menteeLookupCacheRef.current.set(selectedCurriculumId, menteeLookup);
-        }
-
-        const mentorLookup = await fetchMentorLookup(selectedCurriculumId);
-
-        const result = await fetchFormattedGroups(
-          selectedCurriculumId,
-          mentorLookup,
-          menteeLookup,
-        );
-        setGroups(result.rows);
-        setCurrentPage(1);
-      } catch (error: any) {
-        setGroups([]);
-        if (error?.response?.status !== 404) {
-          toast.error(
-            error?.response?.data?.message || "Unable to load mentor-mentee groups.",
-          );
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadSelectedGroups().catch(() => undefined);
+    loadGroupsForCurriculum(selectedCurriculumId).catch(() => undefined);
   }, [location.state, selectedCurriculumId]);
 
   const filteredGroups = useMemo(() => {
@@ -733,6 +804,40 @@ const MapMentorMenteeListPage: React.FC = () => {
 
   const hasSelection = selectedCurriculumId !== "";
   const showEmptyState = hasSelection && !loading && sortedGroups.length === 0;
+  const hasSelectedRows = selectedGroupIds.length > 0;
+
+  const loadGroupsForCurriculum = async (curriculumId: number) => {
+    setLoading(true);
+    try {
+      let menteeLookup = menteeLookupCacheRef.current.get(curriculumId);
+
+      if (!menteeLookup) {
+        menteeLookup = await fetchMenteeLookup(curriculumId);
+        menteeLookupCacheRef.current.set(curriculumId, menteeLookup);
+      }
+
+      const mentorLookup = await fetchMentorLookup(curriculumId);
+
+      const result = await fetchFormattedGroups(curriculumId, mentorLookup, menteeLookup);
+      setGroups(result.rows);
+      setSelectedGroupIds((current) =>
+        current.filter((groupId) =>
+          result.rows.some((group) => group.mentors_group_id === groupId),
+        ),
+      );
+      setCurrentPage(1);
+    } catch (error: any) {
+      setGroups([]);
+      setSelectedGroupIds([]);
+      if (error?.response?.status !== 404) {
+        toast.error(
+          error?.response?.data?.message || "Unable to load mentor-mentee groups.",
+        );
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSort = (key: SortKey) => {
     if (!hasSelection) {
@@ -787,6 +892,81 @@ const MapMentorMenteeListPage: React.FC = () => {
     }
 
     setSelectedCurriculumId(Number(value));
+  };
+
+  const toggleGroupSelection = (groupId: number) => {
+    setSelectedGroupIds((current) =>
+      current.includes(groupId)
+        ? current.filter((selectedId) => selectedId !== groupId)
+        : [...current, groupId],
+    );
+  };
+
+  const openDeleteModal = () => {
+    if (!hasSelectedRows) {
+      return;
+    }
+
+    setIsDeleteModalOpen(true);
+    setIsDeleteModalVisible(prefersReducedMotion);
+
+    if (!prefersReducedMotion) {
+      requestAnimationFrame(() => {
+        setIsDeleteModalVisible(true);
+      });
+    }
+  };
+
+  const closeDeleteModal = () => {
+    if (loading) {
+      return;
+    }
+
+    setIsDeleteModalVisible(false);
+    setIsDeleteModalOpen(false);
+  };
+
+  const handleDeleteSelectedGroups = async () => {
+    if (!hasSelectedRows) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const responses = await Promise.all(
+        selectedGroupIds.map((groupId) =>
+          axiosInstance.delete<ApiStatusResponse>(`${deleteMentorsGroupEndpoint}/${groupId}`, {
+            validateStatus: () => true,
+          }),
+        ),
+      );
+
+      const failedResponse = responses.find(
+        (response) => response.status >= 400 || response.data?.status === false,
+      );
+
+      if (failedResponse) {
+        throw new Error(
+          failedResponse.data?.message || "Unable to delete selected mentor-mentee groups.",
+        );
+      }
+
+      setSelectedGroupIds([]);
+      setIsDeleteModalVisible(false);
+      setIsDeleteModalOpen(false);
+      showDeleteSuccessToast();
+
+      if (selectedCurriculumId !== "") {
+        await loadGroupsForCurriculum(selectedCurriculumId);
+      }
+    } catch (error: any) {
+      setIsDeleteModalVisible(false);
+      setIsDeleteModalOpen(false);
+      toast.error(getErrorMessage(error, "Unable to delete selected mentor-mentee groups."));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAddMentorMentee = () => {
@@ -926,15 +1106,7 @@ const MapMentorMenteeListPage: React.FC = () => {
             menteeLookupCacheRef.current.set(selectedCurriculumId, menteeLookup);
           }
 
-          const mentorLookup = await fetchMentorLookup(selectedCurriculumId);
-
-          const result = await fetchFormattedGroups(
-            selectedCurriculumId,
-            mentorLookup,
-            menteeLookup,
-          );
-          setGroups(result.rows);
-          setCurrentPage(1);
+          await loadGroupsForCurriculum(selectedCurriculumId);
         } catch (error: any) {
           if (error?.response?.status !== 404) {
             toast.error(
@@ -953,10 +1125,56 @@ const MapMentorMenteeListPage: React.FC = () => {
   };
 
   const actionCellClassName =
-    "border border-gray-300 px-3 py-[8px] align-top text-center";
+    "border border-gray-300 px-[10px] py-[7px] align-top text-center";
   const linkClassName =
-    "inline-flex items-center gap-[5px] text-[14px] font-normal leading-5 text-[#2c78c4] hover:underline";
-  const linkIconClassName = "text-[14px] text-[#2c78c4]";
+    "inline-flex items-center gap-[5px] text-[13px] font-normal leading-5 text-[#2c78c4] hover:underline";
+  const linkIconClassName = "text-[13px] text-[#2c78c4]";
+  const deleteModalContent = isDeleteModalOpen ? (
+    <div
+      className={`fixed inset-0 z-[1100] bg-black/45 px-4 pt-[7.5vh] transition-opacity motion-reduce:transition-none ${
+        isDeleteModalVisible
+          ? "opacity-100 duration-[220ms] ease-out"
+          : "opacity-0 duration-[180ms] ease-in"
+      }`}
+    >
+      <div
+        className={`mx-auto w-full max-w-[820px] overflow-hidden rounded-md bg-white shadow-2xl transition-all motion-reduce:transition-none ${
+          isDeleteModalVisible
+            ? "translate-y-0 opacity-100 duration-[220ms] ease-out"
+            : "-translate-y-[25px] opacity-0 duration-[180ms] ease-in"
+        }`}
+      >
+        <div className="border-b border-gray-200 px-5 py-[15px] text-[17px] font-normal text-[#3a3a3a]">
+          Delete mentoring group
+        </div>
+        <div className="border-b border-gray-200 px-5 py-[18px] text-[15px] text-[#444]">
+          Are you sure you want to delete?
+        </div>
+        <div className="flex justify-end gap-3 px-5 py-[17px]">
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 rounded bg-[#d9534f] px-4 py-[9px] text-[14px] font-medium text-white hover:bg-[#c74642] disabled:cursor-not-allowed disabled:opacity-70"
+            onClick={closeDeleteModal}
+            disabled={loading}
+          >
+            <FaTimes className="text-[13px]" />
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 rounded bg-[#337ab7] px-4 py-[9px] text-[14px] font-medium text-white hover:bg-[#2b669a] disabled:cursor-not-allowed disabled:opacity-70"
+            onClick={() => {
+              void handleDeleteSelectedGroups();
+            }}
+            disabled={loading}
+          >
+            <FaCheck className="text-[13px]" />
+            Ok
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
   const editModalContent = isEditModalOpen ? (
     <div
       className={`fixed inset-0 z-[1000] overflow-y-auto bg-black/45 px-4 pt-[8vh] transition-opacity motion-reduce:transition-none ${
@@ -1029,19 +1247,19 @@ const MapMentorMenteeListPage: React.FC = () => {
           }
         `}
       </style>
-     <div className="mb-5 rounded-tl-[22px] rounded-tr-none rounded-br-[22px] rounded-bl-none border border-[#253246] bg-[#253246] px-5 py-[6px] text-white">
-  <h2 className="text-[20px] leading-[20px] font-medium tracking-[0.01em]">
+     <div className="mb-3 rounded-tl-[22px] rounded-tr-none rounded-br-[22px] rounded-bl-none border border-[#253246] bg-[#253246] px-5 py-[5px] text-white">
+  <h2 className="text-[18px] leading-[18px] font-normal tracking-[0.01em] text-white/90">
     Map Mentor Mentee
   </h2>
 </div>
 
-      <div className="mb-7 flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
-        <div className="w-full max-w-[365px]">
-          <label className="mb-2 block text-[17px] font-normal text-gray-800">
+      <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div className="w-full max-w-[320px]">
+          <label className="mb-1 block text-[16px] font-normal text-gray-800">
              Curriculum:<span className="text-red-500">*</span>
           </label>
           <select
-            className="w-full rounded-[6px] border border-gray-300 bg-white px-4 py-[10px] text-[14px] text-gray-800 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100 disabled:bg-gray-50"
+            className="w-full rounded-[6px] border border-gray-300 bg-white px-3 py-[9px] text-[13px] text-gray-800 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100 disabled:bg-gray-50"
             value={selectedCurriculumId}
             onChange={(event) => handleCurriculumChange(event.target.value)}
             disabled={curriculaLoading}
@@ -1056,21 +1274,33 @@ const MapMentorMenteeListPage: React.FC = () => {
         </div>
 
         <div className="flex justify-end md:pt-1">
-          <button
-            type="button"
-            onClick={handleAddMentorMentee}
-            className="inline-flex items-center gap-2 rounded-[6px] bg-[#3f7fc1] px-4 py-[9px] text-[14px] font-medium text-white shadow-sm transition hover:bg-[#356fa8]"
-          >
-            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white text-[10px] text-[#3f7fc1]">
-              <FaPlus />
-            </span>
-            <span>Add Mentor Mentee</span>
-          </button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {hasSelectedRows && (
+              <button
+                type="button"
+                onClick={openDeleteModal}
+                className="inline-flex items-center gap-2 rounded-[6px] bg-[#d9534f] px-4 py-[9px] text-[14px] font-medium text-white shadow-sm transition hover:bg-[#c74642]"
+              >
+                <FaTrash className="text-[12px]" />
+                <span>Delete</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleAddMentorMentee}
+              className="inline-flex items-center gap-[6px] rounded-[6px] bg-[#3f7fc1] px-[14px] py-[7px] text-[13px] font-medium text-white shadow-sm transition hover:bg-[#356fa8]"
+            >
+              <span className="flex h-[14px] w-[14px] items-center justify-center rounded-full bg-white text-[9px] text-[#3f7fc1]">
+                <FaPlus />
+              </span>
+              <span>Add Mentor Mentee</span>
+            </button>
+          </div>
         </div>
       </div>
 
       {hasSelection && (
-        <div className="mb-4 flex flex-col gap-3 text-sm md:flex-row md:items-center md:justify-between">
+        <div className="mb-3 flex flex-col gap-2 text-sm md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-2 text-[14px] text-gray-800">
             <span>Show</span>
             <select
@@ -1105,23 +1335,23 @@ const MapMentorMenteeListPage: React.FC = () => {
         </div>
       )}
 
-      <div className="w-full overflow-x-auto">
-        <table className="w-full table-fixed border-collapse text-[14px]">
+      <div className="w-full overflow-x-auto md:pl-3">
+        <table className="w-full table-fixed border-collapse text-[13px] md:w-[98%]">
           <colgroup>
             <col className="w-[9%]" />
-            <col className="w-[15%]" />
-            <col className="w-[20%]" />
-            <col className="w-[20%]" />
-            <col className="w-[15%]" />
-            <col className="w-[12%]" />
+            <col className="w-[17%]" />
+            <col className="w-[16%]" />
+            <col className="w-[16%]" />
+            <col className="w-[17%]" />
+            <col className="w-[16%]" />
             <col className="w-[9%]" />
           </colgroup>
           <thead>
             <tr className="bg-white">
-              <th className="border border-gray-300 px-3 py-[9px] text-center font-semibold">
+              <th className="border border-gray-300 px-[8px] py-[5px] text-center align-middle font-semibold leading-[1.05]">
                 <button
                   type="button"
-                  className="inline-flex items-center justify-center gap-1 font-semibold disabled:cursor-default"
+                  className="inline-flex items-center justify-center gap-[3px] leading-[1.05] font-semibold disabled:cursor-default"
                   onClick={() => handleSort("serial")}
                   disabled={!hasSelection}
                 >
@@ -1129,10 +1359,10 @@ const MapMentorMenteeListPage: React.FC = () => {
                   {renderSortIndicator("serial")}
                 </button>
               </th>
-              <th className="border border-gray-300 px-3 py-[9px] text-center font-semibold">
+              <th className="border border-gray-300 px-[8px] py-[5px] text-center align-middle font-semibold leading-[1.05]">
                 <button
                   type="button"
-                  className="inline-flex items-center justify-center gap-1 font-semibold disabled:cursor-default"
+                  className="inline-flex items-center justify-center gap-[3px] leading-[1.05] font-semibold disabled:cursor-default"
                   onClick={() => handleSort("groupTitle")}
                   disabled={!hasSelection}
                 >
@@ -1140,10 +1370,10 @@ const MapMentorMenteeListPage: React.FC = () => {
                   {renderSortIndicator("groupTitle")}
                 </button>
               </th>
-              <th className="border border-gray-300 px-3 py-[9px] text-center font-semibold">
+              <th className="border border-gray-300 px-[8px] py-[5px] text-center align-middle font-semibold leading-[1.05]">
                 <button
                   type="button"
-                  className="inline-flex items-center justify-center gap-1 font-semibold disabled:cursor-default"
+                  className="inline-flex items-center justify-center gap-[3px] leading-[1.05] font-semibold disabled:cursor-default"
                   onClick={() => handleSort("mentor")}
                   disabled={!hasSelection}
                 >
@@ -1151,10 +1381,10 @@ const MapMentorMenteeListPage: React.FC = () => {
                   {renderSortIndicator("mentor")}
                 </button>
               </th>
-              <th className="border border-gray-300 px-3 py-[9px] text-center font-semibold">
+              <th className="border border-gray-300 px-[8px] py-[5px] text-center align-middle font-semibold leading-[1.05]">
                 <button
                   type="button"
-                  className="inline-flex items-center justify-center gap-1 font-semibold disabled:cursor-default"
+                  className="inline-flex items-center justify-center gap-[3px] leading-[1.05] font-semibold disabled:cursor-default"
                   onClick={() => handleSort("mentee")}
                   disabled={!hasSelection}
                 >
@@ -1162,10 +1392,10 @@ const MapMentorMenteeListPage: React.FC = () => {
                   {renderSortIndicator("mentee")}
                 </button>
               </th>
-              <th className="border border-gray-300 px-3 py-[9px] text-center font-semibold">
+              <th className="border border-gray-300 px-[8px] py-[5px] text-center align-middle font-semibold leading-[1.05]">
                 <button
                   type="button"
-                  className="inline-flex items-center justify-center gap-1 font-semibold disabled:cursor-default"
+                  className="inline-flex items-center justify-center gap-[3px] leading-[1.05] font-semibold disabled:cursor-default"
                   onClick={() => handleSort("sessionDate")}
                   disabled={!hasSelection}
                 >
@@ -1173,10 +1403,10 @@ const MapMentorMenteeListPage: React.FC = () => {
                   {renderSortIndicator("sessionDate")}
                 </button>
               </th>
-              <th className="border border-gray-300 px-3 py-[9px] text-center font-semibold">
+              <th className="border border-gray-300 px-[8px] py-[5px] text-center align-middle font-semibold leading-[1.05]">
                 <button
                   type="button"
-                  className="inline-flex items-center justify-center gap-1 whitespace-nowrap font-semibold disabled:cursor-default"
+                  className="inline-flex items-center justify-center gap-[3px] whitespace-nowrap leading-[1.05] font-semibold disabled:cursor-default"
                   onClick={() => handleSort("sessionStatus")}
                   disabled={!hasSelection}
                 >
@@ -1184,10 +1414,10 @@ const MapMentorMenteeListPage: React.FC = () => {
                   {renderSortIndicator("sessionStatus")}
                 </button>
               </th>
-              <th className="border border-gray-300 px-2 py-[9px] text-center font-semibold">
+              <th className="border border-gray-300 px-[6px] py-[5px] text-center align-middle font-semibold leading-[1.05]">
                 <button
                   type="button"
-                  className="inline-flex items-center justify-center gap-1 font-semibold disabled:cursor-default"
+                  className="inline-flex items-center justify-center gap-[3px] leading-[1.05] font-semibold disabled:cursor-default"
                   onClick={() => handleSort("action")}
                   disabled={!hasSelection}
                 >
@@ -1213,16 +1443,21 @@ const MapMentorMenteeListPage: React.FC = () => {
             ) : (
               paginatedGroups.map((group) => (
                 <tr key={group.mentors_group_id}>
-                  <td className="border border-gray-300 px-3 py-[8px] align-top">
-                    <label className="inline-flex items-start gap-3">
-                      <input type="checkbox" className="mt-[2px]" />
+                  <td className="border border-gray-300 px-[10px] py-[7px] align-top">
+                    <label className="inline-flex items-start gap-[10px]">
+                      <input
+                        type="checkbox"
+                        className="mt-[2px]"
+                        checked={selectedGroupIds.includes(group.mentors_group_id)}
+                        onChange={() => toggleGroupSelection(group.mentors_group_id)}
+                      />
                       <span>{group.originalSlNo}</span>
                     </label>
                   </td>
-                  <td className="border border-gray-300 px-3 py-[8px] align-top break-words">
+                  <td className="border border-gray-300 px-[10px] py-[7px] align-top break-words">
                     {group.mentors_pgm_title || ""}
                   </td>
-                  <td className="border border-gray-300 px-3 py-[8px] align-top">
+                  <td className="border border-gray-300 px-[10px] py-[7px] align-top">
                     {group.mentors.length > 0 ? (
                       <>
                         {(() => {
@@ -1232,7 +1467,7 @@ const MapMentorMenteeListPage: React.FC = () => {
 
                           return (
                             <div
-                              className="leading-6 break-words"
+                              className="break-words leading-[22px]"
                               title={mentorSummary.tooltip}
                             >
                               {mentorSummary.text}
@@ -1241,7 +1476,7 @@ const MapMentorMenteeListPage: React.FC = () => {
                         })()}
                         <button
                           type="button"
-                          className="mt-[7px] inline-flex items-center gap-[5px] text-[14px] leading-5 text-[#2c78c4] hover:underline"
+                          className="mt-[5px] inline-flex items-center gap-[5px] text-[13px] leading-5 text-[#2c78c4] hover:underline"
                           onClick={() => handleAddMentor(group)}
                         >
                           <FaPlusCircle className={linkIconClassName} />
@@ -1259,10 +1494,10 @@ const MapMentorMenteeListPage: React.FC = () => {
                       </button>
                     )}
                   </td>
-                  <td className="border border-gray-300 px-3 py-[8px] align-top">
+                  <td className="border border-gray-300 px-[10px] py-[7px] align-top">
                     {group.mentees.length > 0 ? (
                       <>
-                        <div className="space-y-[3px] leading-6">
+                        <div className="space-y-[2px] leading-[22px]">
                           {group.mentees.map((mentee) => (
                             <div key={mentee.id} className="break-words">
                               {mentee.name}
@@ -1271,7 +1506,7 @@ const MapMentorMenteeListPage: React.FC = () => {
                         </div>
                         <button
                           type="button"
-                          className="mt-[7px] inline-flex items-center gap-[5px] text-[14px] leading-5 text-[#2c78c4] hover:underline"
+                          className="mt-[5px] inline-flex items-center gap-[5px] text-[13px] leading-5 text-[#2c78c4] hover:underline"
                           onClick={() => handleAddMentee(group)}
                         >
                           <FaPlusCircle className={linkIconClassName} />
@@ -1289,8 +1524,8 @@ const MapMentorMenteeListPage: React.FC = () => {
                       </button>
                     )}
                   </td>
-                  <td className="border border-gray-300 px-3 py-[8px] align-top text-gray-700"></td>
-                  <td className="border border-gray-300 px-3 py-[8px] align-top text-gray-700"></td>
+                  <td className="border border-gray-300 px-[10px] py-[7px] align-top text-gray-700"></td>
+                  <td className="border border-gray-300 px-[10px] py-[7px] align-top text-gray-700"></td>
                   <td className={actionCellClassName}>
                     <button
                       type="button"
@@ -1315,30 +1550,43 @@ const MapMentorMenteeListPage: React.FC = () => {
             {Math.min(currentPage * pageSize, filteredGroups.length)} of{" "}
             {sortedGroups.length} entries
           </p>
-          <div className="flex items-center gap-0">
-            <button
-              type="button"
-              className="rounded-l-[4px] border border-gray-300 bg-white px-4 py-[7px] text-gray-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-            >
-              Previous
-            </button>
-            <span className="border-y border-gray-300 bg-[#3f7fc1] px-4 py-[7px] text-white">
-              {currentPage}
-            </span>
-            <button
-              type="button"
-              className="rounded-r-[4px] border border-gray-300 bg-white px-4 py-[7px] text-gray-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-            >
-              Next
-            </button>
+          <div className="flex flex-wrap items-center gap-2 md:justify-end">
+            {hasSelectedRows && (
+              <button
+                type="button"
+                onClick={openDeleteModal}
+                className="inline-flex items-center gap-2 rounded-[6px] bg-[#d9534f] px-4 py-[8px] text-[14px] font-medium text-white shadow-sm transition hover:bg-[#c74642]"
+              >
+                <FaTrash className="text-[12px]" />
+                <span>Delete</span>
+              </button>
+            )}
+            <div className="flex items-center gap-0">
+              <button
+                type="button"
+                className="rounded-l-[4px] border border-gray-300 bg-white px-4 py-[7px] text-gray-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              >
+                Previous
+              </button>
+              <span className="border-y border-gray-300 bg-[#3f7fc1] px-4 py-[7px] text-white">
+                {currentPage}
+              </span>
+              <button
+                type="button"
+                className="rounded-r-[4px] border border-gray-300 bg-white px-4 py-[7px] text-gray-700 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+              >
+                Next
+              </button>
+            </div>
           </div>
         </div>
       )}
 
+      {deleteModalContent && createPortal(deleteModalContent, document.body)}
       {editModalContent && createPortal(editModalContent, document.body)}
     </section>
   );
