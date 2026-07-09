@@ -21,6 +21,7 @@ interface FieldSettingsPanelProps {
   compact?: boolean;
   hidePlaceholder?: boolean;
   createMode?: boolean;
+  editMode?: boolean;
 }
 
 const FieldSettingsPanel: React.FC<FieldSettingsPanelProps> = ({
@@ -31,11 +32,14 @@ const FieldSettingsPanel: React.FC<FieldSettingsPanelProps> = ({
   compact = false,
   hidePlaceholder = false,
   createMode = false,
+  editMode = false,
 }) => (
   <div
     className={`grid grid-cols-1 items-center gap-2 ${
-      createMode
-        ? "md:grid-cols-[200px_760px]"
+      editMode
+        ? "md:grid-cols-[190px_650px] md:gap-x-[16px]"
+        : createMode
+        ? "md:grid-cols-[200px_660px] md:gap-x-[28px]"
         : "md:grid-cols-[200px_minmax(0,58%)]"
     }`}
   >
@@ -44,13 +48,25 @@ const FieldSettingsPanel: React.FC<FieldSettingsPanelProps> = ({
       control={control}
       render={({ field }) => (
         <>
-          <label className="!text-[15px] font-semibold">
+          <label
+            className={`${
+              editMode
+                ? "text-[14px] leading-[18px]"
+                : createMode
+                  ? "text-[13px] leading-[18px]"
+                  : "!text-[15px]"
+            } font-semibold`}
+          >
             Field Setting: <span className="text-red-500">*</span>
           </label>
           <div>
             <select
-              className={`w-full rounded border px-4 py-2 text-sm ${
-                compact ? "h-10" : "h-10"
+              className={`rounded border px-3 py-2 ${
+                editMode
+                  ? "h-[34px] w-[650px] text-[13px]"
+                : createMode
+                    ? "h-[36px] !w-[660px] !max-w-[660px] !flex-none text-[13px]"
+                    : `w-full text-sm ${compact ? "h-10" : "h-10"}`
               } ${
                 errors.field_settings?.field_setting_id
                   ? "border-red-500"
@@ -71,7 +87,9 @@ const FieldSettingsPanel: React.FC<FieldSettingsPanelProps> = ({
               onBlur={field.onBlur}
             >
               {!hidePlaceholder && (
-                <option value="">{FIELD_SETTING_PLACEHOLDER}</option>
+                <option value="" disabled>
+                  {FIELD_SETTING_PLACEHOLDER}
+                </option>
               )}
               {options.map((option) => (
                 <option

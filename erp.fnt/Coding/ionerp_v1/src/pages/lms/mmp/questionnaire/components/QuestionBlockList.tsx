@@ -54,7 +54,15 @@ const QuestionBlockList: React.FC<QuestionBlockListProps> = ({
   });
 
   return (
-    <section className="space-y-4">
+    <section
+      className={
+        isQuestionEditMode
+          ? "space-y-[12px] pt-[2px]"
+          : isAddMoreMode
+            ? "space-y-[14px]"
+            : "space-y-4"
+      }
+    >
       {errors.questions?.message && (
         <p className="text-sm text-red-600">{String(errors.questions.message)}</p>
       )}
@@ -80,11 +88,20 @@ const QuestionBlockList: React.FC<QuestionBlockListProps> = ({
       ))}
 
       {!isQuestionEditMode && (
-        <div className="flex justify-end">
+        <div className={`flex justify-end ${isCreateMode ? "pt-[6px]" : "pt-[10px]"}`}>
           <UIButton
             type="button"
             className={
-              isCreateMode || isAddMoreMode ? "bg-[#337ab7] text-white" : undefined
+              isCreateMode || isAddMoreMode
+                ? `${isAddMoreMode ? "mr-0 h-[36px] min-w-[130px] whitespace-nowrap rounded-[6px] px-[12px] text-[13px]" : isCreateMode ? "mr-0 h-[32px] w-[130px] whitespace-nowrap rounded-[6px] px-[12px] text-[13px]" : ""} bg-[#337ab7] font-medium text-white`
+                : undefined
+            }
+            style={
+              isAddMoreMode
+                ? { padding: "0.22rem 0.75rem" }
+                : isCreateMode
+                  ? { padding: "0.18rem 0.55rem" }
+                  : undefined
             }
             onClick={() => append(nextQuestion())}
           >

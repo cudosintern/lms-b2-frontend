@@ -23,7 +23,14 @@ import {
 } from "./responseInterface";
 import axiosInstance from "../../../../utils/api";
 import { ApiEndpoint } from "../../../../utils/ApiEndpoint/emsapiEndpoint";
-import MmpModuleShell from "../components/MmpModuleShell";
+import { FIELD_SETTING_PLACEHOLDER } from "./questionnaireConstants";
+
+const normalizeFieldSettingDescription = (value: unknown) => {
+  const normalizedValue = typeof value === "string" ? value.trim() : "";
+  return normalizedValue && normalizedValue !== FIELD_SETTING_PLACEHOLDER
+    ? normalizedValue
+    : "";
+};
 
 const QuestionnaireCreatePage: React.FC = () => {
   const questionnairePrimaryColorClass = "bg-[#337ab7]";
@@ -64,6 +71,10 @@ const QuestionnaireCreatePage: React.FC = () => {
   const messageToMentees = useWatch({
     control,
     name: "message_to_mentees",
+  });
+  const selectedFieldSettingValue = useWatch({
+    control,
+    name: FIELD_SETTING_FORM_NAME,
   });
   const watchedValues = useWatch({
     control,
@@ -133,21 +144,21 @@ const QuestionnaireCreatePage: React.FC = () => {
       setExistingQuestions(savedQuestions);
       setQuestionnaireName(detail.questionnaire_name || "");
       const savedFieldSettingId =
-        detail.field_settings?.field_setting_id ?? detail.field_setting_id;
+        detail.access_level ??
+        detail.field_settings?.field_setting_id ??
+        detail.field_setting_id;
       const detailFieldSettingValue = toSelectFieldSettingValue(savedFieldSettingId);
+      const matchedFieldSettingOption = options.find(
+        (option) =>
+          String(option.field_setting_id) === detailFieldSettingValue,
+      );
       const resolvedFieldSettingDescription =
-        detail.field_settings?.field_setting_desc ??
-        detail.field_setting_desc ??
-        options.find(
-          (option) =>
-            String(option.field_setting_id) === detailFieldSettingValue,
-        )?.field_setting_desc ??
+        matchedFieldSettingOption?.field_setting_desc ??
+        normalizeFieldSettingDescription(detail.field_settings?.field_setting_desc) ??
+        normalizeFieldSettingDescription(detail.field_setting_desc) ??
         "";
       const matchedFieldSettingValue =
-        options.find(
-          (option) =>
-            String(option.field_setting_id) === detailFieldSettingValue,
-        )?.field_setting_id ?? savedFieldSettingId;
+        matchedFieldSettingOption?.field_setting_id ?? savedFieldSettingId;
       const nextFormValues = {
         ...detail,
         field_settings: {
@@ -174,6 +185,16 @@ const QuestionnaireCreatePage: React.FC = () => {
           },
         );
       }
+      setValue(
+        "access_level",
+        isEmptyFieldSettingValue(matchedFieldSettingValue)
+          ? 0
+          : Number(matchedFieldSettingValue),
+        {
+          shouldDirty: false,
+          shouldValidate: false,
+        },
+      );
       if (isQuestionEditMode && !questionToEdit) {
         toast.error("Unable to load questionnaire data");
         navigate("/lms_mmp/questionnaire");
@@ -194,6 +215,19 @@ const QuestionnaireCreatePage: React.FC = () => {
     setIsPreviewOpen(false);
     setShowPreviewAfterSave(false);
   }, [editingQuestionId, isEditMode, isQuestionEditMode, questionnaireId]);
+
+  useEffect(() => {
+    setValue(
+      "access_level",
+      isEmptyFieldSettingValue(selectedFieldSettingValue)
+        ? 0
+        : Number(selectedFieldSettingValue),
+      {
+        shouldDirty: false,
+        shouldValidate: false,
+      },
+    );
+  }, [isEmptyFieldSettingValue, selectedFieldSettingValue, setValue]);
 
   useEffect(() => {
     const load = async () => {
@@ -272,7 +306,7 @@ const QuestionnaireCreatePage: React.FC = () => {
 
   const onSubmit = async (data: QuestionnaireBuilderFormValues) => {
     const selectedFieldSettingValue = getValues(FIELD_SETTING_FORM_NAME);
-    if (isEmptyFieldSettingValue(selectedFieldSettingValue)) {
+    if (!isAddMoreMode && isEmptyFieldSettingValue(selectedFieldSettingValue)) {
       setError(FIELD_SETTING_FORM_NAME, {
         type: "manual",
         message: "Field Setting is required",
@@ -285,7 +319,7 @@ const QuestionnaireCreatePage: React.FC = () => {
         String(option.field_setting_id) ===
         String(selectedFieldSettingValue),
     );
-    if (!selectedFieldSettingOption) {
+    if (!isAddMoreMode && !selectedFieldSettingOption) {
       setError(FIELD_SETTING_FORM_NAME, {
         type: "manual",
         message: "Field Setting is required",
@@ -307,6 +341,7 @@ const QuestionnaireCreatePage: React.FC = () => {
       ...questionnaireData,
       questionnaire_id: data.questionnaire_id,
       parent_id: data.parent_id,
+      access_level: Number(selectedFieldSettingValue),
       field_setting_id: Number(selectedFieldSettingValue),
       questions: questionsToSave.map((question, index) => ({
         ...question,
@@ -363,12 +398,14 @@ const QuestionnaireCreatePage: React.FC = () => {
       return (
         (formErrors.questionnaire_name?.message as string | undefined) ||
         (formErrors.message_to_mentees?.message as string | undefined) ||
-        (formErrors.field_settings?.field_setting_id?.message as string | undefined) ||
+        (!isAddMoreMode
+          ? (formErrors.field_settings?.field_setting_id?.message as string | undefined)
+          : undefined) ||
         (formErrors.questions?.message as string | undefined) ||
         "Please correct the highlighted errors."
       );
     },
-    [requiresOptions],
+    [isAddMoreMode, requiresOptions],
   );
 
   const onInvalidSubmit = React.useCallback(
@@ -389,7 +426,7 @@ const QuestionnaireCreatePage: React.FC = () => {
         (option) =>
           String(option.field_setting_id) === String(selectedFieldSettingValue || ""),
       )?.field_setting_desc ||
-      watchedValues?.field_settings?.field_setting_desc ||
+      normalizeFieldSettingDescription(watchedValues?.field_settings?.field_setting_desc) ||
       ""
     );
   }, [
@@ -397,6 +434,16 @@ const QuestionnaireCreatePage: React.FC = () => {
     watchedValues?.field_settings?.field_setting_desc,
     watchedValues?.field_settings?.field_setting_id,
   ]);
+  const addMoreFieldSettingDescription = React.useMemo(
+    () =>
+      previewFieldSettingDescription ||
+      normalizeFieldSettingDescription(watchedValues?.field_settings?.field_setting_desc) ||
+      "",
+    [
+      previewFieldSettingDescription,
+      watchedValues?.field_settings?.field_setting_desc,
+    ],
+  );
 
   const previewQuestions = React.useMemo(() => {
     const draftQuestions = (watchedValues?.questions || []).map(normalizePreviewQuestion);
@@ -439,44 +486,55 @@ const QuestionnaireCreatePage: React.FC = () => {
   const formContent = (
     <form
       onSubmit={handleSubmit(onSubmit, onInvalidSubmit)}
-      className="space-y-4"
+      className={
+        isQuestionEditMode
+          ? "space-y-[12px]"
+          : isAddMoreMode
+            ? "space-y-[8px]"
+            : isCreateMode
+              ? "space-y-[12px]"
+              : "space-y-4"
+      }
     >
       {isQuestionEditMode ? (
         <>
-          <div className="[&_label]:text-[17px] [&_label]:font-semibold [&_select]:text-[15px] [&_textarea]:text-[15px]">
-            <QuestionnaireMetaForm control={control} errors={errors} compact />
+          <div className="[&_select]:text-[15px] [&_textarea]:text-[15px]">
+            <QuestionnaireMetaForm
+              control={control}
+              errors={errors}
+              compact
+              editMode
+            />
             <FieldSettingsPanel
               control={control}
               clearErrors={clearErrors}
               errors={errors}
               options={fieldSettings}
               compact
+              editMode
             />
           </div>
-          <div className="rounded-tl-[22px] rounded-tr-none rounded-br-[22px] rounded-bl-none bg-slate-800 px-5 py-2 text-xl font-semibold text-white">
+          <div className="flex h-[32px] items-center rounded-none bg-[#263445] px-[18px] text-[16px] font-semibold leading-none text-white">
             Questionnaires
           </div>
         </>
       ) : isEditMode ? (
-        <section className="space-y-3 text-sm [&_label]:text-[17px] [&_label]:font-semibold [&_select]:text-[15px] [&_textarea]:text-[15px]">
-          <div className="grid grid-cols-1 items-start gap-2 md:grid-cols-[200px_760px]">
-            <span className="text-[13px] font-semibold">Questionnaire Title:</span>
+        <section className="space-y-[13px] pb-[3px] pt-[10px] text-[13px] leading-5 text-slate-800">
+          <div className="grid grid-cols-1 items-start gap-1 md:grid-cols-[224px_minmax(0,1fr)]">
+            <span className="font-semibold leading-5">Questionnaire Title:</span>
             <span>{questionnaireName}</span>
           </div>
-          <div className="grid grid-cols-1 items-start gap-2 md:grid-cols-[200px_760px]">
-            <span className="text-[13px] font-semibold">Message to Mentees:</span>
+          <div className="grid grid-cols-1 items-start gap-1 md:grid-cols-[224px_minmax(0,1fr)]">
+            <span className="font-semibold leading-5">Message to Mentees:</span>
             <span>{messageToMentees || ""}</span>
           </div>
-          <FieldSettingsPanel
-            control={control}
-            clearErrors={clearErrors}
-            errors={errors}
-            options={fieldSettings}
-            compact
-          />
+          <div className="grid grid-cols-1 items-start gap-1 md:grid-cols-[224px_minmax(0,1fr)]">
+            <span className="font-semibold leading-5">field setting:</span>
+            <span>{addMoreFieldSettingDescription}</span>
+          </div>
         </section>
       ) : (
-        <div className="[&_label]:text-[17px] [&_label]:font-semibold [&_select]:text-[15px] [&_textarea]:text-[15px]">
+        <div className="[&_label]:font-semibold [&_select]:text-[15px] [&_textarea]:text-[15px]">
           <QuestionnaireMetaForm control={control} errors={errors} createMode={isCreateMode} />
           <FieldSettingsPanel
             control={control}
@@ -500,30 +558,72 @@ const QuestionnaireCreatePage: React.FC = () => {
         isAddMoreMode={isAddMoreMode}
       />
 
-      <div className="flex justify-end gap-2">
+      <div
+        className={`${
+          isAddMoreMode
+            ? "flex justify-end gap-[8px] pt-[10px]"
+            : isCreateMode
+              ? "flex flex-col items-end gap-[4px] pt-[4px]"
+              : "flex justify-end gap-2"
+        }`}
+      >
         {showPreviewAfterSave && (
           <UIButton
             type="button"
-            className="bg-[#5cb85c] text-[17px] font-semibold text-white"
+            className={`${isAddMoreMode ? "h-[33px] min-w-[74px] px-2.5 text-[12px]" : "text-[17px]"} bg-[#5cb85c] font-medium text-white`}
+            style={isAddMoreMode ? { padding: "0.22rem 0.65rem" } : undefined}
             onClick={() => setIsPreviewOpen(true)}
           >
             Preview
           </UIButton>
         )}
-        <UIButton
-          type="button"
-          className={`${questionnaireDangerColorClass} text-[17px] font-semibold text-white`}
-          onClick={() => navigate("/lms_mmp/questionnaire")}
-        >
-          Close
-        </UIButton>
-        <UIButton
-          type="submit"
-          className={`${questionnairePrimaryColorClass} text-[17px] font-semibold text-white`}
-          isLoading={isSubmitting}
-        >
-          Save
-        </UIButton>
+        {isCreateMode ? (
+          <div className="flex items-center justify-end gap-[4px]">
+            <UIButton
+              type="button"
+              className={`${questionnaireDangerColorClass} mr-0 h-[32px] w-[62px] whitespace-nowrap rounded-[6px] px-[12px] text-[13px] font-medium text-white`}
+              style={{ padding: "0.18rem 0.5rem" }}
+              onClick={() => navigate("/lms_mmp/questionnaire")}
+            >
+              Close
+            </UIButton>
+            <UIButton
+              type="submit"
+              className={`${questionnairePrimaryColorClass} mr-0 h-[32px] w-[64px] whitespace-nowrap rounded-[6px] px-[12px] text-[13px] font-medium text-white`}
+              style={{ padding: "0.18rem 0.5rem" }}
+              isLoading={isSubmitting}
+            >
+              Save
+            </UIButton>
+          </div>
+        ) : (
+          <>
+            <UIButton
+              type="button"
+              className={`${questionnaireDangerColorClass} ${
+                isAddMoreMode
+                  ? "mr-0 h-[34px] min-w-[68px] whitespace-nowrap rounded-[6px] px-[12px] text-[13px]"
+                  : "text-[17px]"
+              } font-medium text-white`}
+              style={isAddMoreMode ? { padding: "0.22rem 0.6rem" } : undefined}
+              onClick={() => navigate("/lms_mmp/questionnaire")}
+            >
+              Close
+            </UIButton>
+            <UIButton
+              type="submit"
+              className={`${questionnairePrimaryColorClass} ${
+                isAddMoreMode
+                  ? "mr-0 h-[34px] min-w-[58px] whitespace-nowrap rounded-[6px] px-[12px] text-[13px]"
+                  : "text-[17px]"
+              } font-medium text-white`}
+              style={isAddMoreMode ? { padding: "0.22rem 0.55rem" } : undefined}
+              isLoading={isSubmitting}
+            >
+              Save
+            </UIButton>
+          </>
+        )}
       </div>
       <QuestionnairePreviewModal
         open={isPreviewOpen}
@@ -544,8 +644,8 @@ const QuestionnaireCreatePage: React.FC = () => {
 
   if (isQuestionEditMode) {
     return (
-      <section className="min-h-[590px] w-full min-w-0 overflow-x-hidden rounded-md border border-gray-200 bg-white p-4 shadow-md md:p-6">
-        <h2 className="mb-4 text-[18px] font-semibold text-slate-800">
+      <section className="min-h-[590px] w-full min-w-0 overflow-x-hidden rounded-md border border-gray-200 bg-white px-[28px] pb-[20px] pt-[18px] shadow-md">
+        <h2 className="mb-[12px] text-[16px] font-semibold leading-[22px] text-slate-800">
           Edit Questionnaires
         </h2>
         {formContent}
@@ -553,16 +653,24 @@ const QuestionnaireCreatePage: React.FC = () => {
     );
   }
 
+  if (isAddMoreMode) {
+    return (
+      <section className="min-h-[588px] w-full min-w-0 overflow-x-hidden rounded-md border border-gray-200 bg-white px-[14px] pb-[100px] pt-[14px] shadow-md">
+        <div className="h-[34px] w-full bg-[#1f2d3d] rounded-tl-[18px] rounded-tr-none rounded-bl-none rounded-br-[22px] flex items-center pl-[24px] text-white text-[18px] font-normal">
+          <h2>Add More Questions</h2>
+        </div>
+        {formContent}
+      </section>
+    );
+  }
+
   return (
-    <MmpModuleShell
-      title={
-        isEditMode
-            ? "Add More Questions"
-            : "Add Questionnaires"
-      }
-    >
+    <section className="min-h-[590px] w-full min-w-0 overflow-x-hidden rounded-md border border-gray-200 bg-white px-[28px] pb-[18px] pt-[22px] shadow-md">
+      <div className="mb-[14px] flex h-[34px] items-center rounded-tl-[20px] rounded-tr-none rounded-br-[20px] rounded-bl-none bg-[#253244] px-[24px] text-white">
+        <h2 className="text-[17px] font-normal leading-none">Add Questionnaires</h2>
+      </div>
       {formContent}
-    </MmpModuleShell>
+    </section>
   );
 };
 
