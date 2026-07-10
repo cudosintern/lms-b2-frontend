@@ -20,6 +20,7 @@ import {
   getStudentByUsn,
   mentorAgreeIssueObservation,
   saveIssueObservation,
+  updateIssueObservation,
 } from "./issueObservationReportApi";
 
 type ApiError = {
@@ -71,6 +72,15 @@ const createInitialFormState = (): ReportFormState => ({
   menteeSignatureWithDate: "",
   mentorSignatureWithDate: "",
 });
+
+const parseApiDateToDatePickerValue = (value?: string | null) => {
+  if (!value) {
+    return null;
+  }
+
+  const parsedDate = new Date(value);
+  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+};
 
 const getErrorMessage = (error: ApiError, fallback: string) =>
   error.response?.data?.message || fallback;
@@ -184,7 +194,7 @@ const applyLinkDialogDemoUi = () => {
 };
 
 const createEditorInit = () => ({
-  height: 170,
+  height: 125,
   menubar: false,
   statusbar: false,
   plugins: ["lists", "link"],
@@ -486,11 +496,8 @@ const IssueObservationReportPage: React.FC = () => {
   );
 
   const shouldShowCreateForm = selectedReport === "create-report";
-  const shouldShowReportDetails = Boolean(selectedReportDetail) && !shouldShowCreateForm;
-  const mentorSignatureDateForSelectedDetail = getAgreementDateValue(
-    selectedReportDetail as Record<string, unknown> | null | undefined,
-    MENTOR_SIGNATURE_DATE_FIELD_CANDIDATES,
-  );
+  const isExistingReportSelected = Boolean(selectedReportDetail) && !shouldShowCreateForm;
+  const shouldShowReportForm = shouldShowCreateForm || isExistingReportSelected;
   const purposeCount = getEditorCharacterCount(formState.purposeOfMeeting);
   const observationsCount = getEditorCharacterCount(formState.observationsAndActionTaken);
   const isMentorAgreed =
@@ -500,9 +507,7 @@ const IssueObservationReportPage: React.FC = () => {
     selectedReportDetail?.mentee_status === AGREED_STATUS ||
     formState.menteeSignatureWithDate.toLowerCase().includes("agreed");
   const isReportCompleted = isMentorAgreed && isMenteeAgreed;
-
-  const formatAgreementStatus = (status?: number | null) =>
-    status === AGREED_STATUS ? "Agreed" : "Pending";
+  const isExistingReportReadOnly = isExistingReportSelected && isReportCompleted;
 
   const buildSignatureStatus = (
     statusLabel: string,
@@ -510,7 +515,8 @@ const IssueObservationReportPage: React.FC = () => {
     isAgreedValue?: boolean,
   ) => {
     if (dateValue) {
-      return `${statusLabel} - ${formatDisplayDate(dateValue) || dateValue}`;
+      const displayLabel = statusLabel === "Mentor Status" ? "Agreed" : statusLabel;
+      return `${displayLabel} - ${formatDisplayDate(dateValue) || dateValue}`;
     }
 
     return isAgreedValue ? `${statusLabel} - Agreed` : `${statusLabel} - Pending`;
@@ -574,8 +580,17 @@ const IssueObservationReportPage: React.FC = () => {
         detailResponse.data as Record<string, unknown> | null | undefined,
         MENTOR_SIGNATURE_DATE_FIELD_CANDIDATES,
       );
-      setFormState((current) => ({
-        ...current,
+      setFormState({
+        reportTitle: detailResponse.data?.report_title || "",
+        counsellingDate: parseApiDateToDatePickerValue(
+          detailResponse.data?.counselling_date ?? null,
+        ),
+        purposeOfMeeting: detailResponse.data?.purpose_of_meeting_desc || "",
+        observationsAndActionTaken: detailResponse.data?.observation_desc || "",
+        parentsCommunication:
+          detailResponse.data?.comm_parent_flag === 1 ? "yes" : "no",
+        higherAuthoritiesCommunication:
+          detailResponse.data?.comm_high_auth_flag === 1 ? "yes" : "no",
         menteeSignatureWithDate: buildSignatureStatus(
           "Mentee Status",
           null,
@@ -586,7 +601,7 @@ const IssueObservationReportPage: React.FC = () => {
           mentorSignatureDate,
           detailResponse.data?.mentor_status === AGREED_STATUS,
         ),
-      }));
+      });
     } catch (error: any) {
       setSelectedReportDetail(null);
       setReportHistory([]);
@@ -765,28 +780,46 @@ const IssueObservationReportPage: React.FC = () => {
     setIsSaving(true);
 
     try {
-      const response = await saveIssueObservation({
-        academic_batch_id: selectedStudent.academic_batch_id,
-        semester_id: Number(selectedTerm),
-        ssd_id: selectedStudent.student_id,
-        student_usn: selectedStudent.student_usn,
-        report_title: formState.reportTitle.trim(),
-        counselling_date: formState.counsellingDate.toISOString(),
-        mentor_users_id: mentorUserResolution.mentorUserId,
-        purpose_of_meeting_desc: formState.purposeOfMeeting,
-        observation_desc: formState.observationsAndActionTaken,
-        comm_parent_flag: formState.parentsCommunication === "yes" ? 1 : 0,
-        comm_high_auth_flag:
-          formState.higherAuthoritiesCommunication === "yes" ? 1 : 0,
-        mentor_status: 0,
-        mentee_status: 0,
-        parent_guardian_status: 0,
-      });
+      if (selectedReportDetail?.lms_isnob_id) {
+        const response = await updateIssueObservation(selectedReportDetail.lms_isnob_id, {
+          report_title: formState.reportTitle.trim(),
+          counselling_date: formState.counsellingDate.toISOString(),
+          purpose_of_meeting_desc: formState.purposeOfMeeting,
+          observation_desc: formState.observationsAndActionTaken,
+          comm_parent_flag: formState.parentsCommunication === "yes" ? 1 : 0,
+          comm_high_auth_flag:
+            formState.higherAuthoritiesCommunication === "yes" ? 1 : 0,
+        });
 
-      toast.success(response.data.message);
-      await refreshSelectedReportState(selectedStudent, response.data.lms_isnob_id, {
-        resetCreateForm: true,
-      });
+        toast.success(response.data.message);
+        await refreshSelectedReportState(selectedStudent, selectedReportDetail.lms_isnob_id, {
+          clearSelectionAfterRefresh: true,
+          scrollToTop: true,
+        });
+      } else {
+        const response = await saveIssueObservation({
+          academic_batch_id: selectedStudent.academic_batch_id,
+          semester_id: Number(selectedTerm),
+          ssd_id: selectedStudent.student_id,
+          student_usn: selectedStudent.student_usn,
+          report_title: formState.reportTitle.trim(),
+          counselling_date: formState.counsellingDate.toISOString(),
+          mentor_users_id: mentorUserResolution.mentorUserId,
+          purpose_of_meeting_desc: formState.purposeOfMeeting,
+          observation_desc: formState.observationsAndActionTaken,
+          comm_parent_flag: formState.parentsCommunication === "yes" ? 1 : 0,
+          comm_high_auth_flag:
+            formState.higherAuthoritiesCommunication === "yes" ? 1 : 0,
+          mentor_status: 0,
+          mentee_status: 0,
+          parent_guardian_status: 0,
+        });
+
+        toast.success(response.data.message);
+        await refreshSelectedReportState(selectedStudent, response.data.lms_isnob_id, {
+          resetCreateForm: true,
+        });
+      }
     } catch (error: any) {
       toast.error(getErrorMessage(error, "Unable to save report"));
     } finally {
@@ -808,32 +841,64 @@ const IssueObservationReportPage: React.FC = () => {
     setIsAgreeing(true);
 
     try {
-      const saveResponse = await saveIssueObservation({
-        academic_batch_id: selectedStudent.academic_batch_id,
-        semester_id: Number(selectedTerm),
-        ssd_id: selectedStudent.student_id,
-        student_usn: selectedStudent.student_usn,
-        report_title: formState.reportTitle.trim(),
-        counselling_date: formState.counsellingDate.toISOString(),
-        mentor_users_id: mentorUserResolution.mentorUserId,
-        purpose_of_meeting_desc: formState.purposeOfMeeting,
-        observation_desc: formState.observationsAndActionTaken,
-        comm_parent_flag: formState.parentsCommunication === "yes" ? 1 : 0,
-        comm_high_auth_flag:
-          formState.higherAuthoritiesCommunication === "yes" ? 1 : 0,
-        mentor_status: 0,
-        mentee_status: 0,
-        parent_guardian_status: 0,
-      });
+      if (selectedReportDetail?.lms_isnob_id) {
+        const response = await updateIssueObservation(selectedReportDetail.lms_isnob_id, {
+          report_title: formState.reportTitle.trim(),
+          counselling_date: formState.counsellingDate.toISOString(),
+          purpose_of_meeting_desc: formState.purposeOfMeeting,
+          observation_desc: formState.observationsAndActionTaken,
+          comm_parent_flag: formState.parentsCommunication === "yes" ? 1 : 0,
+          comm_high_auth_flag:
+            formState.higherAuthoritiesCommunication === "yes" ? 1 : 0,
+        });
 
-      const reportId = saveResponse.data.lms_isnob_id;
-      await mentorAgreeIssueObservation(reportId, { mentor_status: AGREED_STATUS });
-      await refreshSelectedReportState(selectedStudent, reportId, {
-        resetCreateForm: true,
-        clearSelectionAfterRefresh: true,
-        scrollToTop: true,
-      });
-      toast.success("Report saved and mentor agreed successfully.");
+        if (!isMentorAgreed) {
+          await mentorAgreeIssueObservation(selectedReportDetail.lms_isnob_id, {
+            mentor_status: AGREED_STATUS,
+          });
+        }
+
+        await refreshSelectedReportState(
+          selectedStudent,
+          selectedReportDetail.lms_isnob_id,
+          {
+            clearSelectionAfterRefresh: true,
+            scrollToTop: true,
+          },
+        );
+        toast.success(
+          !isMentorAgreed
+            ? "Report saved and mentor agreed successfully."
+            : response.data.message,
+        );
+      } else {
+        const saveResponse = await saveIssueObservation({
+          academic_batch_id: selectedStudent.academic_batch_id,
+          semester_id: Number(selectedTerm),
+          ssd_id: selectedStudent.student_id,
+          student_usn: selectedStudent.student_usn,
+          report_title: formState.reportTitle.trim(),
+          counselling_date: formState.counsellingDate.toISOString(),
+          mentor_users_id: mentorUserResolution.mentorUserId,
+          purpose_of_meeting_desc: formState.purposeOfMeeting,
+          observation_desc: formState.observationsAndActionTaken,
+          comm_parent_flag: formState.parentsCommunication === "yes" ? 1 : 0,
+          comm_high_auth_flag:
+            formState.higherAuthoritiesCommunication === "yes" ? 1 : 0,
+          mentor_status: 0,
+          mentee_status: 0,
+          parent_guardian_status: 0,
+        });
+
+        const reportId = saveResponse.data.lms_isnob_id;
+        await mentorAgreeIssueObservation(reportId, { mentor_status: AGREED_STATUS });
+        await refreshSelectedReportState(selectedStudent, reportId, {
+          resetCreateForm: true,
+          clearSelectionAfterRefresh: true,
+          scrollToTop: true,
+        });
+        toast.success("Report saved and mentor agreed successfully.");
+      }
     } catch (error: any) {
       toast.error(getErrorMessage(error, "Unable to save and agree report"));
     } finally {
@@ -1324,6 +1389,50 @@ const IssueObservationReportPage: React.FC = () => {
             width: 100%;
           }
 
+          .issue-observation-report-page .issue-observation-date-popper {
+            z-index: 20;
+          }
+
+          .issue-observation-report-page .issue-observation-date-popper[data-placement^="bottom"] {
+            margin-top: 4px;
+          }
+
+          .issue-observation-report-page .issue-observation-date-calendar {
+            font-size: 12px;
+            border: 1px solid #cfd4dc;
+            border-radius: 3px;
+            box-shadow: 0 3px 8px rgba(15, 23, 42, 0.12);
+          }
+
+          .issue-observation-report-page .issue-observation-date-calendar .react-datepicker__month-container {
+            float: none;
+            width: 230px;
+          }
+
+          .issue-observation-report-page .issue-observation-date-calendar .react-datepicker__header {
+            padding-top: 7px;
+            padding-bottom: 6px;
+            background: #fff;
+            border-bottom: 1px solid #e5e7eb;
+          }
+
+          .issue-observation-report-page .issue-observation-date-calendar .react-datepicker__current-month {
+            font-size: 12px;
+            font-weight: 600;
+          }
+
+          .issue-observation-report-page .issue-observation-date-calendar .react-datepicker__day-names {
+            margin-top: 4px;
+            margin-bottom: 2px;
+          }
+
+          .issue-observation-report-page .issue-observation-date-calendar .react-datepicker__day-name,
+          .issue-observation-report-page .issue-observation-date-calendar .react-datepicker__day {
+            width: 1.8rem;
+            line-height: 1.8rem;
+            margin: 0.12rem;
+          }
+
           .issue-observation-report-page .date-input-icon {
             position: absolute;
             top: 0;
@@ -1346,9 +1455,12 @@ const IssueObservationReportPage: React.FC = () => {
             max-width: none;
           }
 
-          .issue-observation-report-page .editor-block .tox.tox-tinymce .tox-edit-area__iframe,
-          .issue-observation-report-page .editor-block .tox.tox-tinymce {
-            min-height: 170px !important;
+          .issue-observation-report-page .editor-block .tox .tox-edit-area__iframe {
+            min-height: 125px !important;
+          }
+
+          .issue-observation-report-page .editor-block .tox .tox-edit-area {
+            min-height: 125px !important;
           }
 
           .issue-observation-report-page .editor-counter {
@@ -1542,7 +1654,7 @@ const IssueObservationReportPage: React.FC = () => {
           </div>
         </div>
 
-        {shouldShowCreateForm && (
+        {shouldShowReportForm && (
           <div className="create-report-shell">
             <div className="report-title-row">
               <label className="compact-label">
@@ -1555,6 +1667,7 @@ const IssueObservationReportPage: React.FC = () => {
                   onChange={(event) => updateFormField("reportTitle", event.target.value)}
                   className={`${inputClassName} report-title-input h-[36px]`}
                   aria-label="Report Title"
+                  readOnly={isExistingReportReadOnly}
                 />
                 {fieldErrors.reportTitle && (
                   <p className="mt-1 text-xs text-red-600">{fieldErrors.reportTitle}</p>
@@ -1582,7 +1695,12 @@ const IssueObservationReportPage: React.FC = () => {
                         dateFormat="dd-MM-yyyy"
                         placeholderText="DD-MM-YYYY"
                         className={`${inputClassName} table-date-input`}
+                        popperPlacement="bottom-start"
+                        popperClassName="issue-observation-date-popper"
+                        calendarClassName="issue-observation-date-calendar"
+                        showPopperArrow={false}
                         aria-label="Counselling Date"
+                        disabled={isExistingReportReadOnly}
                       />
                       <span className="date-input-icon">
                         <CalendarDays size={15} />
@@ -1610,6 +1728,7 @@ const IssueObservationReportPage: React.FC = () => {
                 value={formState.purposeOfMeeting}
                 onEditorChange={(value) => handleEditorChange("purposeOfMeeting", value)}
                 init={createEditorInit()}
+                disabled={isExistingReportReadOnly}
               />
               <div className="editor-counter">
                 {fieldErrors.purposeOfMeeting ? (
@@ -1630,6 +1749,7 @@ const IssueObservationReportPage: React.FC = () => {
                   handleEditorChange("observationsAndActionTaken", value)
                 }
                 init={createEditorInit()}
+                disabled={isExistingReportReadOnly}
               />
               <div className="editor-counter">
                 {fieldErrors.observationsAndActionTaken ? (
@@ -1655,6 +1775,7 @@ const IssueObservationReportPage: React.FC = () => {
                 }
                 className={`${inputClassName} question-select`}
                 aria-label="Communicated with parents"
+                disabled={isExistingReportReadOnly}
               >
                 <option value="no">No</option>
                 <option value="yes">Yes</option>
@@ -1675,6 +1796,7 @@ const IssueObservationReportPage: React.FC = () => {
                 }
                 className={`${inputClassName} question-select`}
                 aria-label="Communicated with higher authorities"
+                disabled={isExistingReportReadOnly}
               >
                 <option value="no">No</option>
                 <option value="yes">Yes</option>
@@ -1708,24 +1830,48 @@ const IssueObservationReportPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="create-action-row">
-              <UIButton
-                onClick={() => void handleSave()}
-                className="h-[30px] min-w-[54px] rounded-[1px] bg-[#337ab7] px-3 py-1 text-[12px] text-white hover:bg-[#286090]"
-                disabled={isSaving || isAgreeing}
-                title="Save"
-              >
-                {isSaving ? "Saving..." : "Save"}
-              </UIButton>
-              <UIButton
-                onClick={() => void handleSaveAndAgree()}
-                className="h-[30px] min-w-[104px] rounded-[1px] bg-[#337ab7] px-3 py-1 text-[12px] text-white hover:bg-[#286090]"
-                disabled={isSaving || isAgreeing}
-                title="Save & Agree"
-              >
-                {isAgreeing ? "Saving & Agreeing..." : "Save & Agree"}
-              </UIButton>
-            </div>
+            {!isExistingReportReadOnly && (
+              <div className="create-action-row">
+                <UIButton
+                  onClick={() => void handleSave()}
+                  className="h-[30px] min-w-[54px] rounded-[1px] bg-[#337ab7] px-3 py-1 text-[12px] text-white hover:bg-[#286090]"
+                  disabled={isSaving || isAgreeing}
+                  title="Save"
+                >
+                  {isSaving ? "Saving..." : "Save"}
+                </UIButton>
+                <UIButton
+                  onClick={() => void handleSaveAndAgree()}
+                  className="h-[30px] min-w-[104px] rounded-[1px] bg-[#337ab7] px-3 py-1 text-[12px] text-white hover:bg-[#286090]"
+                  disabled={isSaving || isAgreeing}
+                  title="Save & Agree"
+                >
+                  {isAgreeing ? "Saving & Agreeing..." : "Save & Agree"}
+                </UIButton>
+              </div>
+            )}
+
+            {isExistingReportSelected && (
+              <div className="flex justify-end gap-3">
+                <UIButton
+                  onClick={() => void handleDeleteReport()}
+                  className="bg-[#d9534f] px-5 py-2 text-[13px] text-white hover:bg-[#c9302c]"
+                  title="Delete"
+                >
+                  Delete
+                </UIButton>
+                {!isMentorAgreed && (
+                  <UIButton
+                    onClick={() => void handleExistingReportMentorAgree()}
+                    className="bg-[#337ab7] px-5 py-2 text-[13px] text-white hover:bg-[#286090]"
+                    disabled={isAgreeing}
+                    title="Mentor Agree"
+                  >
+                    {isAgreeing ? "Agreeing..." : "Mentor Agree"}
+                  </UIButton>
+                )}
+              </div>
+            )}
 
             <div className="history-panel">
               <button
@@ -1768,176 +1914,6 @@ const IssueObservationReportPage: React.FC = () => {
         {isLoadingSelectedReport && !shouldShowCreateForm && (
           <div className="mt-10 rounded border border-gray-200 px-4 py-4 text-sm text-gray-600">
             Loading report details...
-          </div>
-        )}
-
-        {shouldShowReportDetails && selectedReportDetail && (
-          <div className="mt-10 space-y-8">
-            <div className="overflow-hidden rounded border border-gray-300">
-              <div className="grid grid-cols-1 border-b border-gray-300 md:grid-cols-[220px_minmax(0,1fr)_220px_minmax(0,1fr)]">
-                <div className="border-b border-gray-300 bg-white px-4 py-3 text-[13px] font-semibold text-black md:border-b-0 md:border-r">
-                  Report Title
-                </div>
-                <div className="border-b border-gray-300 px-4 py-3 text-[13px] text-black md:border-b-0 md:border-r">
-                  {selectedReportDetail.report_title}
-                </div>
-                <div className="border-b border-gray-300 bg-white px-4 py-3 text-[13px] font-semibold text-black md:border-b-0 md:border-r">
-                  USN
-                </div>
-                <div className="px-4 py-3 text-[13px] text-black">
-                  {selectedReportDetail.student_usn}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 border-b border-gray-300 md:grid-cols-[220px_minmax(0,1fr)_220px_minmax(0,1fr)]">
-                <div className="border-b border-gray-300 bg-white px-4 py-3 text-[13px] font-semibold text-black md:border-b-0 md:border-r">
-                  Counselling Date
-                </div>
-                <div className="border-b border-gray-300 px-4 py-3 text-[13px] text-black md:border-b-0 md:border-r">
-                  {formatDisplayDate(selectedReportDetail.counselling_date)}
-                </div>
-                <div className="border-b border-gray-300 bg-white px-4 py-3 text-[13px] font-semibold text-black md:border-b-0 md:border-r">
-                  Term
-                </div>
-                <div className="px-4 py-3 text-[13px] text-black">{selectedTermLabel}</div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-[220px_minmax(0,1fr)_220px_minmax(0,1fr)]">
-                <div className="border-b border-gray-300 bg-white px-4 py-3 text-[13px] font-semibold text-black md:border-b-0 md:border-r">
-                  Mentor Status
-                </div>
-                <div className="border-b border-gray-300 px-4 py-3 text-[13px] text-black md:border-b-0 md:border-r">
-                  {formatAgreementStatus(selectedReportDetail.mentor_status)}
-                </div>
-                <div className="border-b border-gray-300 bg-white px-4 py-3 text-[13px] font-semibold text-black md:border-b-0 md:border-r">
-                  Mentee Status
-                </div>
-                <div className="px-4 py-3 text-[13px] text-black">
-                  {formatAgreementStatus(selectedReportDetail.mentee_status)}
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-6 md:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-[13px] font-semibold text-black">
-                  Mentee Signature with Date
-                </label>
-                <input
-                  type="text"
-                  value={buildSignatureStatus(
-                    "Mentee Status",
-                    null,
-                    selectedReportDetail.mentee_status === AGREED_STATUS,
-                  )}
-                  readOnly
-                  className={`${inputClassName} h-[42px] w-full max-w-none bg-gray-50`}
-                  aria-label="Mentee Signature with Date"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-[13px] font-semibold text-black">
-                  Mentor Signature with Date
-                </label>
-                <input
-                  type="text"
-                  value={buildSignatureStatus(
-                    "Mentor Status",
-                    mentorSignatureDateForSelectedDetail,
-                    selectedReportDetail.mentor_status === AGREED_STATUS,
-                  )}
-                  readOnly
-                  className={`${inputClassName} h-[42px] w-full max-w-none bg-gray-50`}
-                  aria-label="Mentor Signature with Date"
-                />
-              </div>
-            </div>
-
-            <div className="text-[13px] font-semibold text-black">
-              Report Status: {isReportCompleted ? "Completed" : "In Progress"}
-            </div>
-
-            <div className="flex justify-end gap-3">
-              <UIButton
-                onClick={() => void handleDeleteReport()}
-                className="bg-[#d9534f] px-5 py-2 text-[13px] text-white hover:bg-[#c9302c]"
-                title="Delete"
-              >
-                Delete
-              </UIButton>
-              {!isMentorAgreed && (
-                <UIButton
-                  onClick={() => void handleExistingReportMentorAgree()}
-                  className="bg-[#337ab7] px-5 py-2 text-[13px] text-white hover:bg-[#286090]"
-                  disabled={isAgreeing}
-                  title="Mentor Agree"
-                >
-                  {isAgreeing ? "Agreeing..." : "Mentor Agree"}
-                </UIButton>
-              )}
-            </div>
-
-            <div>
-              <label className="mb-2 block text-[13px] font-semibold text-black">
-                Purpose of meeting / Issue reported
-              </label>
-              <div
-                className="min-h-[120px] rounded border border-gray-300 px-4 py-3 text-[13px] text-black"
-                dangerouslySetInnerHTML={{
-                  __html: selectedReportDetail.purpose_of_meeting_desc || "",
-                }}
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-[13px] font-semibold text-black">
-                Observations and Action Taken
-              </label>
-              <div
-                className="min-h-[120px] rounded border border-gray-300 px-4 py-3 text-[13px] text-black"
-                dangerouslySetInnerHTML={{
-                  __html: selectedReportDetail.observation_desc || "",
-                }}
-              />
-            </div>
-
-            <div className="rounded border border-gray-200">
-              <button
-                type="button"
-                onClick={() => setIsHistoryOpen((current) => !current)}
-                className="flex w-full items-center gap-2 px-4 py-3 text-left text-[15px] font-semibold text-[#337ab7] transition-colors hover:text-[#f0ad4e]"
-              >
-                {isHistoryOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-                <span>History</span>
-              </button>
-              {isHistoryOpen && (
-                <div className="border-t border-gray-200 px-4 py-4 text-sm text-gray-600">
-                  {reportHistory.length === 0 ? (
-                    "No history returned by backend for this report."
-                  ) : (
-                    <div className="space-y-3">
-                      {reportHistory.map((item) => (
-                        <div
-                          key={item.history_id}
-                          className="rounded border border-gray-200 px-3 py-3"
-                        >
-                          <p className="text-[13px] font-semibold text-black">
-                            {item.action_type}
-                          </p>
-                          <p className="text-[13px] text-gray-700">{item.report_title}</p>
-                          <p className="text-[12px] text-gray-600">
-                            Modified By: {item.modified_by || "-"}
-                          </p>
-                          <p className="text-[12px] text-gray-600">
-                            Action Time: {formatDisplayDate(item.action_timestamp)}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
           </div>
         )}
       </MmpModuleShell>

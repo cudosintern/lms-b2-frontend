@@ -42,6 +42,7 @@ export type IssueObservationReportDetail = {
   comm_parent_flag: number;
   comm_high_auth_flag: number;
   mentor_status: number;
+  mentor_agreed_date?: string | null;
   mentee_status: number;
   parent_guardian_status: number;
   created_date: string;
