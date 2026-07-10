@@ -16,7 +16,7 @@ const MentoringPageLayout: React.FC<MentoringPageLayoutProps> = ({ children }) =
     { name: "Dept. Configuration", path: "/mentoring/dept_configuration", disabled: false },
     { name: "Map Mentor Mentee", path: "/mentoring/map_mentor_mentee", disabled: false },
     { name: "Mentoring Session", path: "/mentoring/mentoring_session", disabled: false },
-    { name: "MMP Report", path: "#", disabled: true },
+    { name: "MMP Report", path: "/mentoring/mmp_report", disabled: false },
     { name: "Mentor List", path: "/mentoring/mentor_list", disabled: false },
     { name: "Issue & Observation Report", path: "#", disabled: true },
   ];

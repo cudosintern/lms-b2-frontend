@@ -172,6 +172,7 @@ const MentoringSessionPage: React.FC = () => {
   // Loading flags
   const [curriculumsLoading, setCurriculumsLoading] = useState(false);
   const [listLoading, setListLoading] = useState(false);
+  const [showErrors, setShowErrors] = useState(false);
 
   // Custom Feature Modal States
   // 1. Questionnaire Modal
@@ -322,20 +323,20 @@ const MentoringSessionPage: React.FC = () => {
 
   // Search & Filter
   const filteredSessions = useMemo(() => {
+    if (!selectedCurriculum || !selectedMonth) {
+      return [];
+    }
     return sessions.filter(s => {
-      const matchCurriculum = selectedCurriculum ? s.curriculum_id === parseInt(selectedCurriculum) : true;
+      const matchCurriculum = s.curriculum_id === parseInt(selectedCurriculum);
       
-      let matchMonth = true;
-      if (selectedMonth && s.sub_groups) {
-        const [year, month] = selectedMonth.split("-");
-        matchMonth = s.sub_groups.some(sg => 
-          sg.dates?.some(d => {
-            if (!d.start_date) return false;
-            const dPart = d.start_date.split("-");
-            return dPart[0] === year && dPart[1] === month;
-          })
-        );
-      }
+      const [year, month] = selectedMonth.split("-");
+      const matchMonth = s.sub_groups?.some(sg => 
+        sg.dates?.some(d => {
+          if (!d.start_date) return false;
+          const dPart = d.start_date.split("-");
+          return dPart[0] === year && dPart[1] === month;
+        })
+      );
 
       let matchSearch = true;
       if (searchQuery.trim()) {
@@ -378,6 +379,7 @@ const MentoringSessionPage: React.FC = () => {
     setSelectedGroup("");
     setSelectedTerm("");
     setSessionAgenda("");
+    setShowErrors(false);
     setSubGroups([
       {
         id: 1,
@@ -471,6 +473,7 @@ const MentoringSessionPage: React.FC = () => {
   };
 
   const handleSaveSession = async () => {
+    setShowErrors(true);
     if (!selectedCurriculum) return toast.error("Please select a Curriculum.");
     if (!selectedGroup) return toast.error("Please select a mentoring group.");
     if (!selectedTerm) return toast.error("Please select a term.");
@@ -1134,6 +1137,11 @@ const MentoringSessionPage: React.FC = () => {
 
                   </div>
                 ))
+              ) : (!selectedCurriculum || !selectedMonth) ? (
+                <div className="border border-gray-200 dark:border-gray-800 rounded p-12 text-center text-gray-400 dark:text-gray-500 font-medium">
+                  <AlertCircle className="mx-auto h-12 w-12 text-gray-300 dark:text-gray-600 mb-3" />
+                  Please select a Curriculum and Month to view mentoring sessions.
+                </div>
               ) : (
                 <div className="border border-gray-200 dark:border-gray-800 rounded p-12 text-center text-gray-400 dark:text-gray-500 font-medium">
                   <AlertCircle className="mx-auto h-12 w-12 text-gray-300 dark:text-gray-600 mb-3" />
@@ -1332,132 +1340,139 @@ const MentoringSessionPage: React.FC = () => {
                         Remove Sub-group
                       </button>
                     )}
-                  </div>
-
-                  {/* Slots Mapping */}
+                  </div>                  {/* Slots Mapping */}
                   <div className="flex flex-col gap-5">
                     {sg.slots.map((slot, index) => {
                       const startInputId = `start-date-${sg.id}-${slot.id}`;
                       const endInputId = `end-date-${sg.id}-${slot.id}`;
                       const startTimeParts = parseTime(slot.startTime);
                       const endTimeParts = parseTime(slot.endTime);
+                      const todayStr = new Date().toISOString().split("T")[0];
 
                       return (
                         <div key={slot.id} className="flex flex-wrap items-end gap-6 bg-slate-50/50 dark:bg-slate-900/10 p-4 rounded-xl border border-slate-100 dark:border-slate-750">
                           
-                          {/* Start Date */}
-                          <div className="flex flex-col gap-1.5 w-44">
-                            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Start Date</label>
-                            <div className="flex h-[34px]">
-                              <input
-                                type="date"
-                                id={startInputId}
-                                value={slot.startDate}
-                                onChange={(e) => handleUpdateSlot(sg.id, slot.id, 'startDate', e.target.value)}
-                                className="w-full px-3 py-1 text-[13px] text-slate-700 bg-white border border-slate-200 border-r-0 rounded-l-lg focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-gray-250 cursor-pointer"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const el = document.getElementById(startInputId) as HTMLInputElement | null;
-                                  if (el) try { el.showPicker(); } catch (err) { el.focus(); }
-                                }}
-                                className="flex items-center justify-center px-3 border border-slate-200 rounded-r-lg bg-slate-50 hover:bg-slate-100 text-slate-500 dark:bg-slate-600 dark:border-slate-600 dark:text-slate-350 cursor-pointer"
-                              >
-                                <Calendar className="h-3.5 w-3.5" />
-                              </button>
+                          {/* Dates Column */}
+                          <div className="flex flex-col gap-3">
+                            {/* Start Date */}
+                            <div className="flex flex-col gap-1.5 w-44">
+                              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Start Date</label>
+                              <div className="flex h-[34px]">
+                                <input
+                                  type="date"
+                                  id={startInputId}
+                                  value={slot.startDate}
+                                  min={todayStr}
+                                  onChange={(e) => handleUpdateSlot(sg.id, slot.id, 'startDate', e.target.value)}
+                                  className="w-full px-3 py-1 text-[13px] text-slate-700 bg-white border border-slate-200 border-r-0 rounded-l-lg focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-gray-255 cursor-pointer"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const el = document.getElementById(startInputId) as HTMLInputElement | null;
+                                    if (el) try { el.showPicker(); } catch (err) { el.focus(); }
+                                  }}
+                                  className="flex items-center justify-center px-3 border border-slate-200 rounded-r-lg bg-slate-50 hover:bg-slate-100 text-slate-500 dark:bg-slate-600 dark:border-slate-600 dark:text-slate-350 cursor-pointer"
+                                >
+                                  <Calendar className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* End Date */}
+                            <div className="flex flex-col gap-1.5 w-44">
+                              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">End Date</label>
+                              <div className="flex h-[34px]">
+                                <input
+                                  type="date"
+                                  id={endInputId}
+                                  value={slot.endDate}
+                                  min={slot.startDate || todayStr}
+                                  onChange={(e) => handleUpdateSlot(sg.id, slot.id, 'endDate', e.target.value)}
+                                  className="w-full px-3 py-1 text-[13px] text-slate-700 bg-white border border-slate-200 border-r-0 rounded-l-lg focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-gray-255 cursor-pointer"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const el = document.getElementById(endInputId) as HTMLInputElement | null;
+                                    if (el) try { el.showPicker(); } catch (err) { el.focus(); }
+                                  }}
+                                  className="flex items-center justify-center px-3 border border-slate-200 rounded-r-lg bg-slate-50 hover:bg-slate-100 text-slate-500 dark:bg-slate-600 dark:border-slate-600 dark:text-slate-350 cursor-pointer"
+                                >
+                                  <Calendar className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
                             </div>
                           </div>
 
-                          {/* End Date */}
-                          <div className="flex flex-col gap-1.5 w-44">
-                            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">End Date</label>
-                            <div className="flex h-[34px]">
-                              <input
-                                type="date"
-                                id={endInputId}
-                                value={slot.endDate}
-                                onChange={(e) => handleUpdateSlot(sg.id, slot.id, 'endDate', e.target.value)}
-                                className="w-full px-3 py-1 text-[13px] text-slate-700 bg-white border border-slate-200 border-r-0 rounded-l-lg focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-gray-255 cursor-pointer"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const el = document.getElementById(endInputId) as HTMLInputElement | null;
-                                  if (el) try { el.showPicker(); } catch (err) { el.focus(); }
-                                }}
-                                className="flex items-center justify-center px-3 border border-slate-200 rounded-r-lg bg-slate-50 hover:bg-slate-100 text-slate-500 dark:bg-slate-600 dark:border-slate-600 dark:text-slate-350 cursor-pointer"
-                              >
-                                <Calendar className="h-3.5 w-3.5" />
-                              </button>
+                          {/* Times Column */}
+                          <div className="flex flex-col gap-3">
+                            {/* Start Time */}
+                            <div className="flex flex-col gap-1.5 w-48">
+                              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Start Time</label>
+                              <div className="flex h-[34px] items-center border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 overflow-hidden w-full">
+                                <select
+                                  value={startTimeParts.hour}
+                                  onChange={(e) => handleUpdateTimePart(sg.id, slot.id, 'startTime', 'hour', e.target.value)}
+                                  className="px-2 py-1 text-[13px] text-slate-700 bg-white border-0 focus:outline-none dark:bg-gray-700 dark:text-slate-200 flex-grow text-center cursor-pointer"
+                                >
+                                  {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0")).map(h => (
+                                    <option key={h} value={h}>{h}</option>
+                                  ))}
+                                </select>
+                                <span className="text-slate-400 font-bold">:</span>
+                                <select
+                                  value={startTimeParts.minute}
+                                  onChange={(e) => handleUpdateTimePart(sg.id, slot.id, 'startTime', 'minute', e.target.value)}
+                                  className="px-2 py-1 text-[13px] text-slate-700 bg-white border-0 focus:outline-none dark:bg-gray-700 dark:text-slate-200 flex-grow text-center cursor-pointer"
+                                >
+                                  {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0")).map(m => (
+                                    <option key={m} value={m}>{m}</option>
+                                  ))}
+                                </select>
+                                <select
+                                  value={startTimeParts.period}
+                                  onChange={(e) => handleUpdateTimePart(sg.id, slot.id, 'startTime', 'period', e.target.value)}
+                                  className="px-2 py-1 text-[13px] text-slate-805 bg-slate-50 border-0 border-l border-slate-200 focus:outline-none dark:bg-gray-600 dark:text-slate-200 dark:border-slate-750 font-bold text-center cursor-pointer"
+                                >
+                                  <option value="AM">AM</option>
+                                  <option value="PM">PM</option>
+                                </select>
+                              </div>
                             </div>
-                          </div>
 
-                          {/* Start Time */}
-                          <div className="flex flex-col gap-1.5 w-48">
-                            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Start Time</label>
-                            <div className="flex h-[34px] items-center border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 overflow-hidden w-full">
-                              <select
-                                value={startTimeParts.hour}
-                                onChange={(e) => handleUpdateTimePart(sg.id, slot.id, 'startTime', 'hour', e.target.value)}
-                                className="px-2 py-1 text-[13px] text-slate-700 bg-white border-0 focus:outline-none dark:bg-gray-700 dark:text-slate-200 flex-grow text-center cursor-pointer"
-                              >
-                                {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0")).map(h => (
-                                  <option key={h} value={h}>{h}</option>
-                                ))}
-                              </select>
-                              <span className="text-slate-400 font-bold">:</span>
-                              <select
-                                value={startTimeParts.minute}
-                                onChange={(e) => handleUpdateTimePart(sg.id, slot.id, 'startTime', 'minute', e.target.value)}
-                                className="px-2 py-1 text-[13px] text-slate-700 bg-white border-0 focus:outline-none dark:bg-gray-700 dark:text-slate-200 flex-grow text-center cursor-pointer"
-                              >
-                                {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0")).map(m => (
-                                  <option key={m} value={m}>{m}</option>
-                                ))}
-                              </select>
-                              <select
-                                value={startTimeParts.period}
-                                onChange={(e) => handleUpdateTimePart(sg.id, slot.id, 'startTime', 'period', e.target.value)}
-                                className="px-2 py-1 text-[13px] text-slate-805 bg-slate-50 border-0 border-l border-slate-200 focus:outline-none dark:bg-gray-600 dark:text-slate-200 dark:border-slate-750 font-bold text-center cursor-pointer"
-                              >
-                                <option value="AM">AM</option>
-                                <option value="PM">PM</option>
-                              </select>
-                            </div>
-                          </div>
-
-                          {/* End Time */}
-                          <div className="flex flex-col gap-1.5 w-48">
-                            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">End Time</label>
-                            <div className="flex h-[34px] items-center border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 overflow-hidden w-full">
-                              <select
-                                value={endTimeParts.hour}
-                                onChange={(e) => handleUpdateTimePart(sg.id, slot.id, 'endTime', 'hour', e.target.value)}
-                                className="px-2 py-1 text-[13px] text-slate-700 bg-white border-0 focus:outline-none dark:bg-gray-700 dark:text-slate-200 flex-grow text-center cursor-pointer"
-                              >
-                                {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0")).map(h => (
-                                  <option key={h} value={h}>{h}</option>
-                                ))}
-                              </select>
-                              <span className="text-slate-400 font-bold">:</span>
-                              <select
-                                value={endTimeParts.minute}
-                                onChange={(e) => handleUpdateTimePart(sg.id, slot.id, 'endTime', 'minute', e.target.value)}
-                                className="px-2 py-1 text-[13px] text-slate-700 bg-white border-0 focus:outline-none dark:bg-gray-700 dark:text-slate-200 flex-grow text-center cursor-pointer"
-                              >
-                                {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0")).map(m => (
-                                  <option key={m} value={m}>{m}</option>
-                                ))}
-                              </select>
-                              <select
-                                value={endTimeParts.period}
-                                onChange={(e) => handleUpdateTimePart(sg.id, slot.id, 'endTime', 'period', e.target.value)}
-                                className="px-2 py-1 text-[13px] text-slate-805 bg-slate-50 border-0 border-l border-slate-200 focus:outline-none dark:bg-gray-600 dark:text-slate-200 dark:border-slate-750 font-bold text-center cursor-pointer"
-                              >
-                                <option value="AM">AM</option>
-                                <option value="PM">PM</option>
-                              </select>
+                            {/* End Time */}
+                            <div className="flex flex-col gap-1.5 w-48">
+                              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">End Time</label>
+                              <div className="flex h-[34px] items-center border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-gray-700 overflow-hidden w-full">
+                                <select
+                                  value={endTimeParts.hour}
+                                  onChange={(e) => handleUpdateTimePart(sg.id, slot.id, 'endTime', 'hour', e.target.value)}
+                                  className="px-2 py-1 text-[13px] text-slate-700 bg-white border-0 focus:outline-none dark:bg-gray-700 dark:text-slate-200 flex-grow text-center cursor-pointer"
+                                >
+                                  {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0")).map(h => (
+                                    <option key={h} value={h}>{h}</option>
+                                  ))}
+                                </select>
+                                <span className="text-slate-400 font-bold">:</span>
+                                <select
+                                  value={endTimeParts.minute}
+                                  onChange={(e) => handleUpdateTimePart(sg.id, slot.id, 'endTime', 'minute', e.target.value)}
+                                  className="px-2 py-1 text-[13px] text-slate-700 bg-white border-0 focus:outline-none dark:bg-gray-700 dark:text-slate-200 flex-grow text-center cursor-pointer"
+                                >
+                                  {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0")).map(m => (
+                                    <option key={m} value={m}>{m}</option>
+                                  ))}
+                                </select>
+                                <select
+                                  value={endTimeParts.period}
+                                  onChange={(e) => handleUpdateTimePart(sg.id, slot.id, 'endTime', 'period', e.target.value)}
+                                  className="px-2 py-1 text-[13px] text-slate-805 bg-slate-50 border-0 border-l border-slate-200 focus:outline-none dark:bg-gray-600 dark:text-slate-200 dark:border-slate-750 font-bold text-center cursor-pointer"
+                                >
+                                  <option value="AM">AM</option>
+                                  <option value="PM">PM</option>
+                                </select>
+                              </div>
                             </div>
                           </div>
 
@@ -1487,8 +1502,8 @@ const MentoringSessionPage: React.FC = () => {
                     })}
                   </div>
 
-                  {/* Register Mentees row triggers */}
-                  <div className="flex flex-wrap items-center gap-6">
+                  {/* Register Mentees & Location/URL Section */}
+                  <div className="flex flex-col gap-4">
                     <div
                       onClick={() => handleRegisterMenteesClick(sg.id)}
                       className="flex items-center justify-between px-4 py-2.5 bg-slate-50 dark:bg-gray-700 border border-slate-200 dark:border-slate-655 rounded-xl cursor-pointer hover:bg-slate-100 dark:hover:bg-gray-600 w-full max-w-[280px]"
@@ -1511,7 +1526,11 @@ const MentoringSessionPage: React.FC = () => {
                         type="text"
                         value={sg.locationUrl}
                         onChange={(e) => handleUpdateSubGroupField(sg.id, 'locationUrl', e.target.value)}
-                        className="w-full px-3.5 py-2 text-[13px] text-slate-700 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300"
+                        className={`w-full px-3.5 py-2 text-[13px] text-slate-700 bg-slate-50 border rounded-xl focus:outline-none focus:ring-2 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 transition-all ${
+                          showErrors && !sg.locationUrl.trim()
+                            ? "border-red-500 focus:ring-red-500/20 focus:border-red-500 bg-red-50/20 dark:bg-red-950/20"
+                            : "border-slate-200 focus:ring-blue-500/20 focus:border-blue-500"
+                        }`}
                         placeholder="Enter Location or Gmeet/Zoom Link"
                       />
                     </div>
@@ -1533,7 +1552,7 @@ const MentoringSessionPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleSaveSession}
-                className="flex items-center gap-2 px-6 py-2.5 text-[13px] font-bold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-lg shadow-blue-500/10 hover:shadow-blue-500/20 transition cursor-pointer"
+                className="flex items-center gap-2 px-6 py-2.5 text-[13px] font-bold text-white bg-green-600 hover:bg-green-700 active:bg-green-800 rounded-xl shadow-lg shadow-green-500/10 hover:shadow-green-500/20 transition cursor-pointer"
               >
                 <Save className="h-4.5 w-4.5" />
                 Save Session
@@ -1846,7 +1865,7 @@ const MentoringSessionPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleSaveQuestionnaire}
-                  className="flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-white bg-blue-650 hover:bg-blue-700 rounded-xl transition cursor-pointer"
+                  className="flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-white bg-green-600 hover:bg-green-700 rounded-xl transition cursor-pointer"
                 >
                   <Save className="h-4 w-4" />
                   Save
@@ -2092,7 +2111,7 @@ const MentoringSessionPage: React.FC = () => {
 
       {/* --- MODAL 4: Mentee Response Viewing Popover --- */}
       {selectedMenteeResponse && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-55 animate-in fade-in duration-150">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center animate-in fade-in duration-150" style={{ zIndex: 60 }}>
           <div className="bg-white dark:bg-gray-800 rounded-md p-5 max-w-xl w-full shadow-2xl border border-slate-200 dark:border-slate-700 flex flex-col max-h-[85vh]">
             <div className="flex justify-between items-center mb-3 pb-2 border-b border-slate-100 dark:border-slate-700">
               <h3 className="text-sm font-semibold text-slate-705 dark:text-white">

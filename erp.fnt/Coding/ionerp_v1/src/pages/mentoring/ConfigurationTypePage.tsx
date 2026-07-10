@@ -663,7 +663,7 @@ const ConfigurationTypePage: React.FC = () => {
                   <button
                     type="submit"
                     disabled={formLoading}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-semibold shadow transition cursor-pointer disabled:opacity-60 flex items-center gap-2"
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-semibold shadow transition cursor-pointer disabled:opacity-60 flex items-center gap-2"
                   >
                     {formLoading && (
                       <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -718,7 +718,7 @@ const ConfigurationTypePage: React.FC = () => {
                   type="button"
                   disabled={deleteLoading}
                   onClick={confirmDelete}
-                  className="px-3.5 py-1.5 bg-red-650 hover:bg-red-700 text-white rounded text-sm font-semibold shadow transition cursor-pointer disabled:opacity-60 flex items-center gap-2"
+                  className="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-sm font-semibold shadow transition cursor-pointer disabled:opacity-60 flex items-center gap-2"
                 >
                   {deleteLoading && (
                     <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

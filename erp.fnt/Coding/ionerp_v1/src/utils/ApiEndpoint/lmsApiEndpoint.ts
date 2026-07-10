@@ -11,6 +11,7 @@ export const LmsApiEndpoint = {
   },
   crossDeptMentor: {
     departments: "api/v1/cross-dept-mentor/departments",
+    users: "api/v1/cross-dept-mentor/users",
     curriculums: "api/v1/cross-dept-mentor/curriculums",
     mentorsFromOtherDept: "api/v1/cross-dept-mentor/mentors-from-other-dept",
     mentorsToOtherDept: "api/v1/cross-dept-mentor/mentors-to-other-dept",

@@ -820,7 +820,7 @@ const MapMentorMenteePage: React.FC = () => {
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-semibold shadow transition cursor-pointer flex items-center gap-2"
+                className="px-5 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-semibold shadow transition cursor-pointer flex items-center gap-2"
               >
                 Save &amp; Proceed to Add Mentee
               </button>
@@ -883,7 +883,7 @@ const MapMentorMenteePage: React.FC = () => {
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-semibold shadow transition cursor-pointer"
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-semibold shadow transition cursor-pointer"
                   >
                     Save
                   </button>
@@ -928,7 +928,7 @@ const MapMentorMenteePage: React.FC = () => {
                 <button
                   type="button"
                   onClick={confirmDeleteGroup}
-                  className="px-3.5 py-1.5 bg-red-650 hover:bg-red-700 text-white rounded text-sm font-semibold shadow transition cursor-pointer"
+                  className="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-sm font-semibold shadow transition cursor-pointer"
                 >
                   Delete
                 </button>

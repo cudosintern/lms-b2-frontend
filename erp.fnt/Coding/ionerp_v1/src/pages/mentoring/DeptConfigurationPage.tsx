@@ -178,21 +178,21 @@ const MentorsFromTab: React.FC = () => {
     }
     const fetchUsers = async () => {
       setUsersLoading(true);
-      const selectedDept = departments.find(d => d.dept_id === Number(formDeptId));
-      if (selectedDept) {
-        const result = await customApiCallRef.current<null, UserItem[]>(
-          `api/v1/user/by_school/${encodeURIComponent(selectedDept.dept_name)}`,
-          "get"
-        );
-        setUsers(result ?? []);
-      } else {
-        setUsers([]);
-      }
+      const result = await customApiCallRef.current<null, any[]>(
+        `${LmsApiEndpoint.crossDeptMentor.users}?dept_id=${formDeptId}`,
+        "get"
+      );
+      const mappedUsers = (result ?? []).map((u: any) => ({
+        user_id: u.id,
+        name: u.name,
+        email: u.email,
+      }));
+      setUsers(mappedUsers);
       setUsersLoading(false);
     };
     fetchUsers();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formDeptId, departments]);
+  }, [formDeptId]);
 
   // Refetch when department filter changes
   useEffect(() => {
@@ -502,7 +502,7 @@ const MentorsFromTab: React.FC = () => {
           <div className="mt-5 flex justify-end">
             <button
               type="submit"
-              className="flex items-center gap-2 px-5 py-2 bg-slate-700 hover:bg-slate-800 active:bg-slate-900 text-white text-sm font-semibold rounded shadow transition cursor-pointer"
+              className="flex items-center gap-2 px-5 py-2 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white text-sm font-semibold rounded shadow transition cursor-pointer"
             >
               <FaSave size={13} />
               Save

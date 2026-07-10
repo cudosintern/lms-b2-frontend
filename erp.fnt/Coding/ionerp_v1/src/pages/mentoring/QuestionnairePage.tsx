@@ -261,7 +261,7 @@ const QuestionnairePage: React.FC = () => {
                 </button>
                 <button 
                   onClick={handleSaveAddMore}
-                  className="px-4 py-1.5 text-[13px] font-medium text-white bg-[#337ab7] rounded hover:bg-[#286090] shadow-sm transition-colors"
+                  className="px-4 py-1.5 text-[13px] font-medium text-white bg-[#5cb85c] hover:bg-[#4cae4c] border border-[#4cae4c] rounded shadow-sm transition-colors"
                 >
                    Save
                 </button>
@@ -355,7 +355,7 @@ const QuestionnairePage: React.FC = () => {
                 </button>
                 <button 
                   onClick={handleSaveCreate}
-                  className="px-4 py-1.5 text-[13px] font-medium text-white bg-[#337ab7] rounded hover:bg-[#286090] shadow-sm transition-colors"
+                  className="px-4 py-1.5 text-[13px] font-medium text-white bg-[#5cb85c] hover:bg-[#4cae4c] border border-[#4cae4c] rounded shadow-sm transition-colors"
                 >
                    Save
                 </button>

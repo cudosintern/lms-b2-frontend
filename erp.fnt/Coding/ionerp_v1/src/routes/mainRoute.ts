@@ -7,6 +7,7 @@ import MentorListPage from "../pages/mentoring/MentorListPage";
 import QuestionnairePage from "../pages/mentoring/QuestionnairePage";
 import MentoringSessionPage from "../pages/mentoring/MentoringSessionPage";
 import MapMentorMenteePage from "../pages/mentoring/MapMentorMenteePage";
+import MmpReportPage from "../pages/mentoring/MmpReportPage";
 import CourseRegistrationPage from "../pages/curriculum/CourseRegistrationPage";
 import { FaHome, FaUsers, FaBook } from "react-icons/fa";
 
@@ -63,6 +64,14 @@ export const MAINROUTE = [
     name: "",
     href: "/mentoring/map_mentor_mentee",
     element: MapMentorMenteePage,
+    roles: [],
+    subItems: [],
+    hidden: true,
+  },
+  {
+    name: "",
+    href: "/mentoring/mmp_report",
+    element: MmpReportPage,
     roles: [],
     subItems: [],
     hidden: true,
