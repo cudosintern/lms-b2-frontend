@@ -2,6 +2,8 @@ import React from "react";
 import { Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { roleRoutes, RouteItem } from "./routeConfig";
+import { useAuth, BYPASS_LOGIN } from "../hooks/useAuth"; // add bypass constant
+import type { RouteItem } from "./routeTypes";
 import Login from "../pages/login/loginPage";
 import { VerticalLayout, HorizontalLayout } from "../components/Layout/index";
 import { useLayout } from "../contexts/LayoutContext";
@@ -43,14 +45,27 @@ const renderRoutes = (
       route.subItems.some(
         (s) => s.name !== "" && s.name !== "Create" && s.name !== "Update" && !s.hidden
       );
+    // For nested routes, use the relative path (href)
+    // For top-level routes or routes with absolute paths, use the full path
+    const fullPath = route.href.startsWith("/")
+      ? route.href
+      : `${parentPath}/${route.href}`.replace(/\/+/g, "/");
+    
+    // For the React Router path prop:
+    // - If this is a nested route (parentPath is set), use only the route.href
+    // - Otherwise use the fullPath
+    const routePath = parentPath ? route.href : fullPath;
+    
+    const RouteElement = route.subItems && route.subItems.length > 0 ? Outlet : route.element;
 
     return (
       <Route
         key={fullPath}
-        path={fullPath}
+        path={routePath}
         element={
           <ProtectedRoute
             element={hasNamedChildren ? <Outlet /> : <route.element />}
+            element={<RouteElement />}
             roles={route.roles}
           />
         }
@@ -80,6 +95,20 @@ const AppRoutes: React.FC = () => {
   // Memoize routes based on the applicationRole to avoid unnecessary recalculations
   const routesForProduct = React.useMemo(() => {
     return roleRoutes[applicationRole as keyof typeof roleRoutes];
+    try {
+      const { roleRoutes } = require("./routeConfig") as any;
+      const routes = roleRoutes[applicationRole as string];
+      if (!routes) {
+        console.warn(
+          `Routes for role '${applicationRole}' not found. Falling back to 'main'.`,
+        );
+        return roleRoutes["main"];
+      }
+      return routes;
+    } catch (e) {
+      console.error("Failed to load roleRoutes:", e);
+      return [];
+    }
   }, [applicationRole]);
 
   const Layout =

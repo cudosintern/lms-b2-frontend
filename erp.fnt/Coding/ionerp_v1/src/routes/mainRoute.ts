@@ -11,6 +11,11 @@ import MmpReportPage from "../pages/mentoring/MmpReportPage";
 import CourseRegistrationPage from "../pages/curriculum/CourseRegistrationPage";
 import IssueObservationReportPage from "../pages/lms/mmp/reports/IssueObservationReportPage";
 import { FaHome, FaUsers, FaBook } from "react-icons/fa";
+import { Outlet } from "react-router-dom";
+
+//import RegistrationSetup from "../pages/ems/academics/RegistrationSetup";
+//import CourseRegistration from "../pages/ems/academics/CourseRegistration";
+//import RegistrationList from "../pages/ems/academics/RegistrationList";
 
 export const MAINROUTE = [
   {
@@ -91,14 +96,14 @@ export const MAINROUTE = [
     element: CourseRegistrationPage,
     icon: React.createElement("div", { className: "w-6 h-6 rounded bg-indigo-600 flex items-center justify-center text-white mr-1.5" }, React.createElement(FaBook, { size: 11 })),
     roles: [],
-    subItems: [],
+    subItems: []
   },
   {
     name: "Change Password",
     href: "/change_password",
     element: ChangePasswordPage,
     roles: [],
-    subItems: [],
+    subItems: []
   },
   // {
   //   name: "User",
@@ -257,4 +262,34 @@ export const MAINROUTE = [
   //     },
     // ],
   // },
+//];
+  // {
+  //   name: "Registration",
+  //   href: "/registration",
+  //   element: Outlet,
+  //   roles: ["faculty", "admin"],
+  //   subItems: [
+  //     {
+  //       name: "Registration Setup",
+  //       href: "setup", // Relative path
+  //       element: RegistrationSetup,
+  //       roles: ["faculty", "admin"],
+  //       subItems: []
+  //     },
+  //     {
+  //       name: "Course Registration",
+  //       href: "course", // Relative path
+  //       element: CourseRegistration,
+  //       roles: ["faculty", "student"],
+  //       subItems: []
+  //     },
+  //     {
+  //       name: "Registrations List",
+  //       href: "list", // Relative path
+  //       element: RegistrationList,
+  //       roles: ["faculty", "admin"],
+  //       subItems: []
+  //     }
+  //   ]
+  // }
 ];

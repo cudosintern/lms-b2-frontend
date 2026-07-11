@@ -25,88 +25,29 @@ import BloomDomainPage from "../pages/ioncudos/configuration/bloomDomain/bloomDo
 // import AcademicBatchPage from "../pages/ems/academics/academicBatch/academicBatchPage";
 // import SemesterPage from "../pages/ems/academics/semester/semesterPage";
 // import AcademicCalenderForm from "../pages/ems/academics/academicCalendar/academicCalenderForm";
+// src/routes/emsRoute.ts
+
+import Home from "../pages/ems/home";
 import { Outlet } from "react-router-dom";
-// import CoursePage from "../pages/ems/academics/course/coursePage";
-// import CourseForm from "../pages/ems/academics/course/courseForm";
-// import UpdateCourseForm from "../pages/ems/academics/course/updatecourseForm";
-// import BulkImportCoursePage from "../pages/ems/academics/bulkcourseimport/coursePage";
-
-// import AcademicBatchForm from "../pages/ems/academics/academicBatch/academicBatchForm";
-// import SemesterForm from "../pages/ems/academics/semester/semesterForm";
-// import UserMasterForm from "../pages/ems/configuration/userMaster/userMasterForm";
-// import UserAccessAddEditForm from "../pages/ems/configuration/userAccess/userAccessAddEditForm";
-// import UserRoleAddEditForm from "../pages/ems/configuration/userRole/userRoleAddEditForm";
-// import EventCalendarPage from "../pages/ems/academics/eventCalender/eventlistPage";
-// import ExamAttendance from "../pages/ems/evalution/examAttendance/examAttendance";
-// import ExamMarks from "../pages/ems/evalution/examMarks/examMarks";
-// import GradeProcessing from "../pages/ems/evalution/gradeProcessing/gradeProcessing";
-// import GradeMarkSee from "../pages/ems/evalution/gradeMarksSee/gradeMarkSee";
-// import ReEvaluateMarkEntry from "../pages/ems/evalution/reevalutionMarks/reEvaluateMarkEntry";
-// import ReEvaluateGradeList from "../pages/ems/evalution/reevaluationGrade/reEvaluateGradelist";
-// import ExamTimeTable from "../pages/ems/examination/examtimetable/examTimeTable";
-// import LabBatchAllocation from "../pages/ems/examination/LabBatchAllocation/LabBatchAllocation";
-// import ExamHallAllocation from "../pages/ems/examination/ExamHallAllocation/ExamHallAllocation";
-// import ExaminorLabExamMark from "../pages/ems/examination/ExaminorLabExamMark/ExaminorLabExamMark";
-// import Result from "../pages/ems/examination/TransitionalGrade/result";
-// import OpenElectiveEntry from "../pages/ems/examEligibility/OpenElectiveEntry/OpenElectiveEntry";
-// import Eligibility from "../pages/ems/examEligibility/EligibilityList/Eligibility";
-// import GradeAttendance from "../pages/ems/examEligibility/GradeAttendance/GradeAttendance";
-// import AttendanceEntry from "../pages/ems/examEligibility/Attendance/AttendanceEntry";
-// import ClassTimetable from "../pages/ems/academics/classTimeTable/classTimeTable";
-// import CourseAllocation from "../pages/ems/configuration/CourseAllocation/CourseAllocation";
-// import BulkCourseForm from "../pages/ems/academics/bulkcourseimport/courseForm";
-// import BulkUpdateCourseForm from "../pages/ems/academics/bulkcourseimport/updatecourseForm";
-// import StudentAdmissionLitePage from "../pages/ems/registration/studentLite/StudentLitePage";
-// import StudentForm from "../pages/ems/registration/studentLite/studentForm";
-// import StudentAdmissionPage from "../pages/ems/registration/studentAdmission/StudentAdmissionPage";
-// import StudentAdmissionForm from "../pages/ems/registration/studentAdmission/studentForm";
-// import StudentBulkImportForm from "../pages/ems/registration/studentAdmission/bulkimport";
-// import StudentAllocationPage from "../pages/ems/registration/studentAllocation/stucentAllocationPage";
-// import CourseRegisterPage from "../pages/ems/registration/courseregestation/CourseRegisterPage";
-// import BulkCourseRegisterPage from "../pages/ems/registration/bulkcourseregestation/BulkCourseRegisterPage";
-// import StudentExamRegister from "../pages/ems/registration/studentExamRegister/StudentExamRegisterPage";
-// import ExaminerRegistrationPage from "../pages/ems/registration/ExaminerRegistration/ExaminerRegistrationPage";
-// import CIAProcess from "../pages/ems/examEligibility/CIAProcess/CIAProcess";
-// import SubOccCIAProcess from "../pages/ems/examEligibility/SubOccussionCIAProcess/SubOccCIAProcess";
-// import ExaminerLabBatchAllocation from "../pages/ems/examination/ExaminerLabBatchAllocation/ExaminerLabBatchAllocation";
-// import HallAllocationDetails from "../pages/ems/examination/ExamHallAllocation/HallAllocationDetails";
-// import Vertical from "../pages/ems/evalution/VerticalProgression/Vertical";
-// import RegisterReevalPage from "../pages/ems/registration/registerreeval/registerreevalPage";
-// import MakeupRegistationPage from "../pages/ems/registration/makeupRegistation/makeupRegistation";
-// import FastTrackRegistationPage from "../pages/ems/registration/fastTrackRegistation/fastTrackRegistation";
-// import BacklockRegistationPage from "../pages/ems/registration/backlogRegistation/backlogRegistation";
-// import SupplementaryRegistationPage from "../pages/ems/registration/supplementaryRegistation/SupplementaryRegistation";
-// import DepartmentChangePage from "../pages/ems/registration/departmentChange/departmentChange";
-// import StudentTrackReports from "../pages/ems/reports/student_track_reports/student_track_reports";
-// import NADReports from "../pages/ems/reports/NADReports/NADReports";
-// import CIAReports from "../pages/ems/reports/CIAReports/CIAReports";
-// import EligibilityIneligibilityReports from "../pages/ems/reports/EligibilityIneligibilityReports/EligibilityIneligibilityReports";
-// import ConsolidatedneStudentsListReports from "../pages/ems/reports/ConsolidatedneStudentsList/ConsolidatedneStudentsList";
-
-// import ResultSheetReports from "../pages/ems/reports/ResultSheetReports/ResultSheetReports";
-// import ConsolidateFormAReports from "../pages/ems/reports/ConsolidateFormA/ConsolidateFormAReports";
-// import SearchStudentReports from "../pages/ems/reports/SearchStudent/SearchStudentReports";
-// import ProvisionalCardReports from "../pages/ems/reports/ProvisionalCard/ProvisionalCard";
-// import GradeCardReports from "../pages/ems/reports/GradeCard/GradeCard";
-// import GradeReports from "../pages/ems/reports/GradeReport/GradeReport";
-// import GradeCardAcknowledgementReport from "../pages/ems/reports/GradeCardAcknowledgementReport/GradeCardAcknowledgementReport";
-// import StudentResultReport from "../pages/ems/reports/StudentResult/StudentResult";
-// import StudentPromotionReport from "../pages/ems/reports/StudentPromotion/StudentPromotion";
-
-// import ConsolidatedCourseRegistrationReport from "../pages/ems/reports/ConsolidatedCourseRegistrationReport/ConsolidatedCourseRegistrationReport";
-// import ConsolidatedSEEAbsenteesList from "../pages/ems/reports/ConsolidatedSEEAbsenteesList/ConsolidatedSEEAbsenteesList";
-// import AwardOfDegreeReports from "../pages/ems/reports/AwardOfDegree/AwardOfDegree";
-// import StudentListReport from "../pages/ems/reports/StudentListReport/StudentListReport";
-// import AnnualReport from "../pages/ems/reports/AnnualReport/AnnualReport";
-// import ConvocationReport from "../pages/ems/reports/ConvocationReport/ConvocationReport";
-// import Transcript from "../pages/ems/reports/Transcript/Transcript";
-// import EligibilityListReport from "../pages/ems/reports/EligibilityListReport/EligibilityListReport";
-// import AnalysisReport from "../pages/ems/reports/AnalysisReport/AnalysisReport";
 import ChangePasswordPage from "../pages/changepassword";
 import QuestionnairePage from "../pages/lms/mmp/questionnaire/QuestionnairePage";
 import QuestionnaireCreatePage from "../pages/lms/mmp/questionnaire/QuestionnaireCreatePage";
+import DepartmentPage from "../pages/ems/configuration/departmentDetail/departmentPage";
+import RegistrationSetup from "../pages/lms/studentCourseRegitsrtion/studentCourseRegistration";
+import type { RouteItem } from "./routeTypes";
 
-export const EMSROUTE = [
+// Import all Mentoring pages
+import ConfigurationType from "../pages/lms/Mentoring/ConfigurationType/ConfigurationType";
+import DeptConfiguration from "../pages/lms/Mentoring/DeptConfiguration/DeptConfiguration";
+import Questionnaires from "../pages/lms/Mentoring/Questionnaires/Questionnaires";
+import MentorMentee from "../pages/lms/Mentoring/mentorMentee";
+import MentoringSession from "../pages/lms/Mentoring/MentoringSession/MentoringSession";
+//import MyMentoringSessions from "../pages/lms/Mentoring/MyMentoringSessions/MyMentoringSessions";
+import MMPReport from "../pages/lms/Mentoring/MMPReport/MMPReport";
+import MentorList from "../pages/lms/Mentoring/MentorList/MentorList";
+import IssueObservationReport from "../pages/lms/Mentoring/IssueObservationReport/IssueObservationReport";
+
+export const EMSROUTE: RouteItem[] = [
   {
     name: "Home",
     href: "/",
@@ -139,43 +80,12 @@ export const EMSROUTE = [
   {
     name: "Configurations",
     href: "",
+  {
+    name: "Configuration",
+    href: "/configuration",
     element: Outlet,
     roles: [],
     subItems: [
-      //   { name: "All Masters", href: "all_masters", roles: [], element: Masters },
-      //   {
-      //     name: "User Roles",
-      //     href: "user_roles",
-      //     roles: [],
-      //     element: Outlet,
-      //     subItems: [
-      //       { name: "", href: "", roles: [], element: UserRolePage },
-      //       { name: "Create", href: "create", roles: [], element: UserRoleAddEditForm },
-      //       { name: "Update", href: "update", roles: [], element: UserRoleAddEditForm },
-      //     ],
-      //   },
-      //   {
-      //     name: "User Master",
-      //     href: "user_master",
-      //     roles: [],
-      //     element: Outlet,
-      //     subItems: [
-      //       { name: "", href: "", roles: [], element: UserMasterPage },
-      //       { name: "Create", href: "create", roles: [], element: UserMasterForm },
-      //       { name: "Update", href: "update", roles: [], element: UserMasterForm },
-      //     ],
-      //   },
-      //   {
-      //     name: "User Access",
-      //     href: "user_access",
-      //     roles: [],
-      //     element: Outlet,
-      //     subItems: [
-      //       { name: "", href: "", roles: [], element: UserAccessPage },
-      //       { name: "Create", href: "create", roles: [], element: UserAccessAddEditForm },
-      //       { name: "Update", href: "update", roles: [], element: UserAccessAddEditForm },
-      //     ],
-      //   },
       {
         name: "Department1",
         href: "department",
@@ -872,4 +782,83 @@ export const EMSROUTE = [
   //     { name: "Transcript", href: "transcript_report", roles: [], element: Transcript },
   //   ],
   // },
+        name: "Registration Setup",
+        href: "/configuration/registration-setup",
+        roles: ["faculty", "admin"],
+        element: RegistrationSetup,
+        subItems: [],
+      },
+    ],
+  },
+  {
+    name: "LMS - Mentoring",
+    href: "/lms",
+    element: Outlet,
+    roles: [],
+    subItems: [
+      {
+        name: "Configuration Type",
+        href: "/lms/configuration-type",
+        roles: [],
+        element: ConfigurationType,
+        subItems: [],
+      },
+      {
+        name: "Dept. Configuration",
+        href: "/lms/dept-configuration",
+        roles: [],
+        element: DeptConfiguration,
+        subItems: [],
+      },
+      {
+        name: "Questionnaires",
+        href: "/lms/questionnaires",
+        roles: [],
+        element: Questionnaires,
+        subItems: [],
+      },
+      {
+        name: "Map Mentor Mentee",
+        href: "/lms/mentor-mentee",
+        roles: [],
+        element: MentorMentee,
+        subItems: [],
+      },
+      {
+        name: "Mentoring Session",
+        href: "/lms/mentoring-session",
+        roles: [],
+        element: MentoringSession,
+        subItems: [],
+      },
+      //{
+        //name: "My Mentoring Sessions",
+        //href: "/lms/my-sessions",
+        //roles: [],
+        //element: MyMentoringSessions,
+        //subItems: [],
+      //},
+      {
+        name: "MMP Report",
+        href: "/lms/mmp-report",
+        roles: [],
+        element: MMPReport,
+        subItems: [],
+      },
+      {
+        name: "Mentor List",
+        href: "/lms/mentor-list",
+        roles: [],
+        element: MentorList,
+        subItems: [],
+      },
+      {
+        name: "Issue & Observation Report",
+        href: "/lms/issue-observation-report",
+        roles: [],
+        element: IssueObservationReport,
+        subItems: [],
+      },
+    ],
+  },
 ];
