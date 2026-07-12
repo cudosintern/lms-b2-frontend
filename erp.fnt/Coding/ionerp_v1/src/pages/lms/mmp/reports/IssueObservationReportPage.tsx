@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Editor } from "@tinymce/tinymce-react";
 import DatePicker from "react-datepicker";
 import { CalendarDays, ChevronDown, ChevronRight } from "lucide-react";
@@ -10,6 +10,8 @@ import { loginData } from "../../../login/loginModel";
 import MmpModuleShell from "../components/MmpModuleShell";
 import {
   deleteIssueObservation,
+  getIssueObservationCurriculumTerms,
+  IssueObservationCurriculumTermItem,
   IssueObservationHistoryItem,
   IssueObservationReportDetail,
   IssueObservationReportListItem,
@@ -34,6 +36,12 @@ type ApiError = {
 type TermOption = {
   value: string;
   label: string;
+};
+
+type CurriculumOption = {
+  value: string;
+  label: string;
+  terms: TermOption[];
 };
 
 type ReportFormState = {
@@ -101,17 +109,62 @@ const isEditorEmpty = (value: string) => stripEditorText(value).length === 0;
 
 const getEditorCharacterCount = (value: string) => stripEditorText(value).length;
 
-const createTermOption = (semesterId?: number | string | null): TermOption[] => {
-  if (semesterId == null || semesterId === "") {
-    return [];
+const normalizeCurriculumOption = (
+  item: IssueObservationCurriculumTermItem,
+): CurriculumOption | null => {
+  const academicBatchId = Number(item.academic_batch_id);
+  if (!Number.isFinite(academicBatchId) || academicBatchId <= 0) {
+    return null;
   }
 
-  return [
-    {
-      value: String(semesterId),
-      label: String(semesterId),
-    },
-  ];
+  const normalizedTerms = (item.terms ?? [])
+    .map((term) => {
+      const termId = Number(term.term_id);
+      if (!Number.isFinite(termId) || termId <= 0) {
+        return null;
+      }
+
+      return {
+        value: String(termId),
+        label: term.term_name?.trim() || String(termId),
+      };
+    })
+    .filter((term): term is TermOption => term !== null);
+
+  return {
+    value: String(academicBatchId),
+    label: item.curriculum_name?.trim() || String(academicBatchId),
+    terms: normalizedTerms,
+  };
+};
+
+const getPreferredReportTermRestoreValue = (
+  detail: IssueObservationReportDetail | null | undefined,
+) => {
+  const detailRecord = detail as Record<string, unknown> | null | undefined;
+  const semesterId = detailRecord?.semester_id;
+  const termId = detailRecord?.term_id;
+  const semesterDesc = detailRecord?.semester_desc;
+  const termName = detailRecord?.term_name;
+
+  const preferredTermId =
+    semesterId == null || semesterId === ""
+      ? termId == null || termId === ""
+        ? null
+        : String(termId)
+      : String(semesterId);
+
+  const preferredTermLabel =
+    typeof semesterDesc === "string" && semesterDesc.trim()
+      ? semesterDesc.trim()
+      : typeof termName === "string" && termName.trim()
+        ? termName.trim()
+        : null;
+
+  return {
+    preferredTermId,
+    preferredTermLabel,
+  };
 };
 
 const formatDisplayDate = (value?: string | Date | null) => {
@@ -461,7 +514,9 @@ const IssueObservationReportPage: React.FC = () => {
 
   const [studentUsnInput, setStudentUsnInput] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<IssueObservationStudent | null>(null);
+  const [selectedCurriculum, setSelectedCurriculum] = useState("");
   const [selectedTerm, setSelectedTerm] = useState("");
+  const [curriculumOptions, setCurriculumOptions] = useState<CurriculumOption[]>([]);
   const [termOptions, setTermOptions] = useState<TermOption[]>([]);
   const [selectedReport, setSelectedReport] = useState("");
   const [reportOptions, setReportOptions] = useState<IssueObservationReportListItem[]>([]);
@@ -473,15 +528,34 @@ const IssueObservationReportPage: React.FC = () => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isSearchingStudent, setIsSearchingStudent] = useState(false);
   const [isLoadingReports, setIsLoadingReports] = useState(false);
+  const [isLoadingCurriculumTerms, setIsLoadingCurriculumTerms] = useState(false);
   const [isLoadingSelectedReport, setIsLoadingSelectedReport] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isAgreeing, setIsAgreeing] = useState(false);
   const topSectionRef = useRef<HTMLDivElement | null>(null);
+  const curriculumTermsDropdownRef = useRef<HTMLDivElement | null>(null);
+  const [isCurriculumTermsOpen, setIsCurriculumTermsOpen] = useState(false);
 
   const selectedTermLabel = useMemo(
     () => termOptions.find((term) => term.value === selectedTerm)?.label || "",
     [selectedTerm, termOptions],
   );
+
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (
+        curriculumTermsDropdownRef.current &&
+        !curriculumTermsDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsCurriculumTermsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
+  }, []);
 
   const dropdownReports = useMemo(
     () => [
@@ -543,10 +617,83 @@ const IssueObservationReportPage: React.FC = () => {
     });
   };
 
-  const applyTermFromSemesterId = (semesterId?: number | string | null) => {
-    const nextTermOptions = createTermOption(semesterId);
+  const applyCurriculumTermSelection = (
+    nextCurriculumOptions: CurriculumOption[],
+    options?: {
+      preferredTermId?: number | string | null;
+      preferredCurriculumValue?: string | null;
+      preferredTermLabel?: string | null;
+      fallbackToFirstTerm?: boolean;
+    },
+  ) => {
+    const fallbackToFirstTerm = options?.fallbackToFirstTerm ?? true;
+    const resolvedCurriculumValue =
+      options?.preferredCurriculumValue &&
+      nextCurriculumOptions.some((item) => item.value === options.preferredCurriculumValue)
+        ? options.preferredCurriculumValue
+        : nextCurriculumOptions[0]?.value || "";
+
+    const activeCurriculum = nextCurriculumOptions.find(
+      (item) => item.value === resolvedCurriculumValue,
+    );
+
+    const nextTermOptions = activeCurriculum?.terms ?? [];
+    const normalizedPreferredTerm =
+      options?.preferredTermId == null || options.preferredTermId === ""
+        ? ""
+        : String(options.preferredTermId);
+    const matchedTermByLabel =
+      !normalizedPreferredTerm && options?.preferredTermLabel
+        ? nextTermOptions.find((term) => term.label === options.preferredTermLabel)
+        : undefined;
+    const resolvedTermValue =
+      normalizedPreferredTerm &&
+      nextTermOptions.some((term) => term.value === normalizedPreferredTerm)
+        ? normalizedPreferredTerm
+        : matchedTermByLabel?.value || (fallbackToFirstTerm ? nextTermOptions[0]?.value || "" : "");
+
+    setCurriculumOptions(nextCurriculumOptions);
+    setSelectedCurriculum(resolvedCurriculumValue);
     setTermOptions(nextTermOptions);
-    setSelectedTerm(nextTermOptions[0]?.value || "");
+    setSelectedTerm(resolvedTermValue);
+    setIsCurriculumTermsOpen(false);
+  };
+
+  const clearCurriculumTermSelection = () => {
+    setCurriculumOptions([]);
+    setSelectedCurriculum("");
+    setTermOptions([]);
+    setSelectedTerm("");
+    setIsCurriculumTermsOpen(false);
+  };
+
+  const loadCurriculumTermsForAcademicBatch = async (
+    academicBatchId: number,
+    options?: {
+      preferredTermId?: number | string | null;
+      preferredCurriculumValue?: string | null;
+      preferredTermLabel?: string | null;
+      fallbackToFirstTerm?: boolean;
+      suppressErrorToast?: boolean;
+    },
+  ) => {
+    setIsLoadingCurriculumTerms(true);
+
+    try {
+      const response = await getIssueObservationCurriculumTerms(academicBatchId);
+      const nextCurriculumOptions = (response.data ?? [])
+        .map(normalizeCurriculumOption)
+        .filter((item): item is CurriculumOption => item !== null);
+
+      applyCurriculumTermSelection(nextCurriculumOptions, options);
+    } catch (error: any) {
+      clearCurriculumTermSelection();
+      if (!options?.suppressErrorToast) {
+        toast.error(getErrorMessage(error, "Unable to load curriculum and terms"));
+      }
+    } finally {
+      setIsLoadingCurriculumTerms(false);
+    }
   };
 
   const loadReportsForStudent = async (student: IssueObservationStudent) => {
@@ -571,11 +718,18 @@ const IssueObservationReportPage: React.FC = () => {
         getIssueObservationDetail(reportId),
         getIssueObservationHistory(reportId),
       ]);
+      const restoredTerm = getPreferredReportTermRestoreValue(detailResponse.data);
 
       setSelectedReportDetail(detailResponse.data);
       setReportHistory(historyResponse.data ?? []);
       setIsHistoryOpen(false);
-      applyTermFromSemesterId(detailResponse.data?.semester_id);
+      await loadCurriculumTermsForAcademicBatch(detailResponse.data.academic_batch_id, {
+        preferredTermId: restoredTerm.preferredTermId,
+        preferredTermLabel: restoredTerm.preferredTermLabel,
+        preferredCurriculumValue:
+          selectedCurriculum || String(detailResponse.data.academic_batch_id),
+        fallbackToFirstTerm: false,
+      });
       const mentorSignatureDate = getAgreementDateValue(
         detailResponse.data as Record<string, unknown> | null | undefined,
         MENTOR_SIGNATURE_DATE_FIELD_CANDIDATES,
@@ -629,7 +783,10 @@ const IssueObservationReportPage: React.FC = () => {
 
     if (options?.clearSelectionAfterRefresh) {
       resetReportSelectionState();
-      applyTermFromSemesterId(selectedTerm || student.semester_id);
+      await loadCurriculumTermsForAcademicBatch(student.academic_batch_id, {
+        preferredTermId: selectedTerm || student.semester_id,
+        preferredCurriculumValue: selectedCurriculum || String(student.academic_batch_id),
+      });
 
       if (options?.scrollToTop) {
         scrollToTopSection();
@@ -664,12 +821,14 @@ const IssueObservationReportPage: React.FC = () => {
 
       setStudentUsnInput(student.student_usn);
       setSelectedStudent(student);
-      applyTermFromSemesterId(student.semester_id);
+      await loadCurriculumTermsForAcademicBatch(student.academic_batch_id, {
+        preferredTermId: student.semester_id,
+        preferredCurriculumValue: String(student.academic_batch_id),
+      });
       await loadReportsForStudent(student);
     } catch (error: any) {
       setSelectedStudent(null);
-      setTermOptions([]);
-      setSelectedTerm("");
+      clearCurriculumTermSelection();
       toast.error(getErrorMessage(error, "Unable to find student"));
     } finally {
       setIsSearchingStudent(false);
@@ -677,7 +836,21 @@ const IssueObservationReportPage: React.FC = () => {
   };
 
   const handleTermChange = (value: string) => {
+    const matchedCurriculum = curriculumOptions.find((curriculum) =>
+      curriculum.terms.some((term) => term.value === value),
+    );
+
+    if (matchedCurriculum) {
+      setSelectedCurriculum(matchedCurriculum.value);
+      setTermOptions(matchedCurriculum.terms);
+    }
+
     setSelectedTerm(value);
+    setIsCurriculumTermsOpen(false);
+  };
+
+  const toggleCurriculumTermsDropdown = () => {
+    setIsCurriculumTermsOpen((current) => !current);
   };
 
   const handleReportChange = async (value: string) => {
@@ -689,7 +862,14 @@ const IssueObservationReportPage: React.FC = () => {
 
     if (!value || value === "create-report") {
       if (selectedStudent) {
-        applyTermFromSemesterId(selectedStudent.semester_id);
+        applyCurriculumTermSelection(
+          curriculumOptions,
+          {
+            preferredTermId: selectedStudent.semester_id,
+            preferredCurriculumValue:
+              selectedCurriculum || String(selectedStudent.academic_batch_id),
+          },
+        );
       }
       return;
     }
@@ -949,7 +1129,10 @@ const IssueObservationReportPage: React.FC = () => {
       await loadReportsForStudent(selectedStudent);
       resetReportForm();
       resetReportSelectionState();
-      applyTermFromSemesterId(selectedTerm || selectedStudent.semester_id);
+      await loadCurriculumTermsForAcademicBatch(selectedStudent.academic_batch_id, {
+        preferredTermId: selectedTerm || selectedStudent.semester_id,
+        preferredCurriculumValue: selectedCurriculum || String(selectedStudent.academic_batch_id),
+      });
       scrollToTopSection();
     } catch (error: any) {
       toast.error(getErrorMessage(error, "Unable to delete report"));
@@ -987,19 +1170,19 @@ const IssueObservationReportPage: React.FC = () => {
               margin-top: 24px;
               margin-left: -3px;
               display: grid !important;
-              grid-template-columns: repeat(3, minmax(0, 290px)) !important;
+              grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
               column-gap: 22px !important;
               row-gap: 0 !important;
               align-items: start !important;
-              width: 914px !important;
+              width: 100% !important;
               max-width: 100% !important;
               justify-content: start !important;
             }
 
             .issue-observation-report-page .issue-observation-form-row > div {
-              width: 290px !important;
-              min-width: 290px !important;
-              max-width: 290px !important;
+              width: 100% !important;
+              min-width: 0 !important;
+              max-width: none !important;
             }
           }
 
@@ -1008,9 +1191,9 @@ const IssueObservationReportPage: React.FC = () => {
           .issue-observation-report-page .issue-observation-form-row input,
           .issue-observation-report-page .issue-observation-form-row select,
           .issue-observation-report-page .issue-observation-form-row .student-usn-control {
-            width: 290px;
-            min-width: 290px;
-            max-width: 290px;
+            width: 100%;
+            min-width: 0;
+            max-width: 100%;
             height: 34px;
             min-height: 34px;
             box-sizing: border-box;
@@ -1022,6 +1205,100 @@ const IssueObservationReportPage: React.FC = () => {
 
           .issue-observation-report-page .issue-observation-form-row > div {
             height: auto;
+          }
+
+          .issue-observation-report-page .curriculum-term-dropdown {
+            position: relative;
+            width: 100%;
+          }
+
+          .issue-observation-report-page .curriculum-term-trigger {
+            display: flex;
+            width: 100%;
+            height: 34px;
+            align-items: center;
+            justify-content: space-between;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            background: #fff;
+            padding: 0 12px;
+            font-size: 13px;
+            color: #111827;
+            text-align: left;
+            transition: border-color 0.15s ease;
+          }
+
+          .issue-observation-report-page .curriculum-term-trigger:disabled {
+            background: #f9fafb;
+            color: #6b7280;
+            cursor: not-allowed;
+          }
+
+          .issue-observation-report-page .curriculum-term-menu {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            z-index: 20;
+            width: 100%;
+            overflow: hidden;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            background: #fff;
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+          }
+
+          .issue-observation-report-page .curriculum-term-menu-inner {
+            max-height: 260px;
+            overflow-y: auto;
+          }
+
+          .issue-observation-report-page .curriculum-term-curriculum-row {
+            display: flex;
+            width: 100%;
+            min-height: 34px;
+            align-items: center;
+            justify-content: space-between;
+            border: 0;
+            border-bottom: 1px solid #e5e7eb;
+            background: #f3f4f6;
+            padding: 6px 10px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #111827;
+            text-align: left;
+          }
+
+          .issue-observation-report-page .curriculum-term-term-row {
+            display: flex;
+            width: 100%;
+            min-height: 32px;
+            align-items: center;
+            border: 0;
+            border-bottom: 1px solid #f3f4f6;
+            background: #fff;
+            padding: 6px 10px 6px 28px;
+            font-size: 13px;
+            font-weight: 400;
+            color: #111827;
+            text-align: left;
+          }
+
+          .issue-observation-report-page .curriculum-term-term-row:hover,
+          .issue-observation-report-page .curriculum-term-term-row:focus-visible {
+            background: #eff6ff;
+            outline: none;
+          }
+
+          .issue-observation-report-page .curriculum-term-term-row.is-selected {
+            background: #337ab7;
+            color: #fff;
+            outline: none;
+          }
+
+          .issue-observation-report-page .curriculum-term-empty {
+            padding: 8px 10px;
+            font-size: 13px;
+            color: #6b7280;
           }
 
           .issue-observation-report-page .student-usn-control input,
@@ -1576,7 +1853,7 @@ const IssueObservationReportPage: React.FC = () => {
       <MmpModuleShell title="Issues and Observations Report">
         <div
           ref={topSectionRef}
-          className="issue-observation-form-row grid grid-cols-1 items-start gap-5 md:grid-cols-3"
+          className="issue-observation-form-row grid grid-cols-1 items-start gap-5 md:grid-cols-2 xl:grid-cols-3"
         >
           <div className="min-w-0 self-start">
             <label className="mb-[6px] block text-[13px] font-semibold text-black">
@@ -1616,22 +1893,63 @@ const IssueObservationReportPage: React.FC = () => {
 
           <div className="min-w-0 self-start">
             <label className="mb-[6px] block text-[13px] font-semibold text-black">
-              Term: <span className="text-red-500">*</span>
+              Curriculum / Term: <span className="text-red-500">*</span>
             </label>
-            <select
-              className={inputClassName}
-              value={selectedTerm}
-              onChange={(event) => handleTermChange(event.target.value)}
-              aria-label="Term"
-              disabled={termOptions.length === 0}
-            >
-              <option value="">Select Term</option>
-              {termOptions.map((term) => (
-                <option key={term.value} value={term.value}>
-                  {term.label}
-                </option>
-              ))}
-            </select>
+            <div className="curriculum-term-dropdown" ref={curriculumTermsDropdownRef}>
+              <button
+                type="button"
+                className="curriculum-term-trigger"
+                onClick={toggleCurriculumTermsDropdown}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    setIsCurriculumTermsOpen(false);
+                  }
+                }}
+                aria-label="Curriculum and Term"
+                aria-haspopup="tree"
+                aria-expanded={isCurriculumTermsOpen}
+                disabled={curriculumOptions.length === 0 || isLoadingCurriculumTerms}
+              >
+                <span className="truncate">
+                  {selectedTermLabel || "Select Curriculum / Term"}
+                </span>
+                <ChevronDown size={16} className="ml-2 shrink-0 text-gray-500" />
+              </button>
+
+              {isCurriculumTermsOpen ? (
+                <div className="curriculum-term-menu" role="tree" aria-label="Curriculum and terms">
+                  <div className="curriculum-term-menu-inner">
+                    {curriculumOptions.length === 0 ? (
+                      <div className="curriculum-term-empty">No curriculum / term available.</div>
+                    ) : (
+                      curriculumOptions.map((curriculum) => (
+                        <div key={curriculum.value}>
+                          <div className="curriculum-term-curriculum-row">
+                            <span className="truncate">{curriculum.label}</span>
+                            <ChevronDown size={15} className="ml-2 shrink-0 text-gray-500" />
+                          </div>
+
+                          {curriculum.terms.map((term) => (
+                            <button
+                              key={`${curriculum.value}-${term.value}`}
+                              type="button"
+                              className={`curriculum-term-term-row${
+                                selectedTerm === term.value ? " is-selected" : ""
+                              }`}
+                              onClick={() => handleTermChange(term.value)}
+                              role="treeitem"
+                              aria-selected={selectedTerm === term.value}
+                            >
+                              <span className="truncate">{term.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </div>
 
           <div className="min-w-0 self-start">
