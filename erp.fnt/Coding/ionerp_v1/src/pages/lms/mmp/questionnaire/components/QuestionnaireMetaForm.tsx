@@ -7,6 +7,7 @@ interface QuestionnaireMetaFormProps {
   errors: FieldErrors<QuestionnaireBuilderFormValues>;
   compact?: boolean;
   createMode?: boolean;
+  editMode?: boolean;
 }
 
 const QuestionnaireMetaForm: React.FC<QuestionnaireMetaFormProps> = ({
@@ -14,12 +15,25 @@ const QuestionnaireMetaForm: React.FC<QuestionnaireMetaFormProps> = ({
   errors,
   compact = false,
   createMode = false,
+  editMode = false,
 }) => (
-  <section className={compact ? "space-y-3" : "space-y-4"}>
+  <section
+    className={
+      editMode
+        ? "space-y-[14px]"
+        : createMode
+          ? "space-y-[12px]"
+          : compact
+            ? "space-y-3"
+            : "space-y-4"
+    }
+  >
     <div
       className={`grid grid-cols-1 items-center gap-2 ${
-        createMode
-          ? "md:grid-cols-[200px_540px]"
+        editMode
+          ? "md:grid-cols-[190px_425px] md:gap-x-[16px]"
+          : createMode
+          ? "md:grid-cols-[200px_430px] md:gap-x-[28px]"
           : "md:grid-cols-[200px_minmax(0,40%)]"
       }`}
     >
@@ -28,11 +42,25 @@ const QuestionnaireMetaForm: React.FC<QuestionnaireMetaFormProps> = ({
         control={control}
         render={({ field }) => (
           <>
-            <label className="!text-[15px] font-semibold">
+            <label
+              className={`${
+                editMode
+                  ? "text-[14px] leading-[18px]"
+                  : createMode
+                    ? "text-[13px] leading-[18px]"
+                    : "!text-[15px]"
+              } font-semibold`}
+            >
               Questionnaire Title: <span className="text-red-500">*</span>
             </label>
             <input
-              className="h-10 rounded border border-gray-300 px-4 py-2 text-sm md:max-w-full"
+              className={`rounded border border-gray-300 px-3 py-2 ${
+                editMode
+                  ? "h-[34px] w-[425px] text-[13px]"
+                  : createMode
+                    ? "h-[36px] !w-[430px] !max-w-[430px] !flex-none text-[13px]"
+                    : "h-10 text-sm md:max-w-full"
+              }`}
               value={field.value}
               onChange={field.onChange}
               onBlur={field.onBlur}
@@ -50,8 +78,10 @@ const QuestionnaireMetaForm: React.FC<QuestionnaireMetaFormProps> = ({
 
     <div
       className={`grid grid-cols-1 items-start gap-2 ${
-        createMode
-          ? "md:grid-cols-[200px_760px]"
+        editMode
+          ? "md:grid-cols-[190px_650px] md:gap-x-[16px]"
+          : createMode
+          ? "md:grid-cols-[200px_660px] md:gap-x-[28px]"
           : "md:grid-cols-[200px_minmax(0,58%)]"
       }`}
     >
@@ -60,20 +90,36 @@ const QuestionnaireMetaForm: React.FC<QuestionnaireMetaFormProps> = ({
         control={control}
         render={({ field }) => (
           <>
-            <label className="!text-[15px] font-semibold">
+            <label
+              className={`${
+                editMode
+                  ? "pt-[2px] text-[14px] leading-[18px]"
+                  : createMode
+                    ? "pt-[2px] text-[13px] leading-[18px]"
+                    : "!text-[15px]"
+              } font-semibold`}
+            >
               Message to Mentees:
             </label>
             <div>
               <textarea
-                className={`w-full rounded border border-gray-300 px-4 py-2 text-sm ${
-                  compact ? "h-16" : "h-16"
+                className={`rounded border border-gray-300 px-3 py-2 ${
+                  editMode
+                    ? "h-[50px] w-[650px] text-[13px]"
+                  : createMode
+                      ? "h-[58px] !w-[660px] !max-w-[660px] !flex-none text-[13px]"
+                      : `w-full text-sm ${compact ? "h-16" : "h-16"}`
                 }`}
                 value={field.value}
                 onChange={field.onChange}
                 onBlur={field.onBlur}
                 placeholder="Enter message to mentees"
               />
-              <p className="text-right text-xs text-cyan-700">
+              <p
+                className={`${
+                  editMode ? "pt-[1px] text-[11px]" : createMode ? "pt-[1px] text-[11px]" : "text-xs"
+                } text-right text-cyan-700`}
+              >
                 {(field.value || "").length} / 2000 characters
               </p>
             </div>

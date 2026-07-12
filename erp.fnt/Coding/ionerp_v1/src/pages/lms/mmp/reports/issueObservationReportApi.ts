@@ -42,9 +42,21 @@ export type IssueObservationReportDetail = {
   comm_parent_flag: number;
   comm_high_auth_flag: number;
   mentor_status: number;
+  mentor_agreed_date?: string | null;
   mentee_status: number;
   parent_guardian_status: number;
   created_date: string;
+};
+
+export type IssueObservationCurriculumTerm = {
+  term_id: number;
+  term_name: string;
+};
+
+export type IssueObservationCurriculumTermItem = {
+  academic_batch_id: number;
+  curriculum_name: string;
+  terms: IssueObservationCurriculumTerm[];
 };
 
 export type IssueObservationHistoryItem = {
@@ -115,6 +127,13 @@ export const getStudentByUsn = async (studentUsn: string) => {
 export const getIssueObservationReports = async (studentId: number) => {
   const response = await axiosInstance.get<ApiEnvelope<IssueObservationReportListItem[]>>(
     `${ISSUE_OBSERVATION_REPORT_BASE}/get_issue_observations/${studentId}`,
+  );
+  return response.data;
+};
+
+export const getIssueObservationCurriculumTerms = async (academicBatchId: number) => {
+  const response = await axiosInstance.get<ApiEnvelope<IssueObservationCurriculumTermItem[]>>(
+    `${ISSUE_OBSERVATION_REPORT_BASE}/get_crclm_term/${academicBatchId}`,
   );
   return response.data;
 };

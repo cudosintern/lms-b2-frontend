@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Editor } from "@tinymce/tinymce-react";
 import DatePicker from "react-datepicker";
 import { CalendarDays, ChevronDown, ChevronRight } from "lucide-react";
@@ -10,6 +10,8 @@ import { loginData } from "../../../login/loginModel";
 import MmpModuleShell from "../components/MmpModuleShell";
 import {
   deleteIssueObservation,
+  getIssueObservationCurriculumTerms,
+  IssueObservationCurriculumTermItem,
   IssueObservationHistoryItem,
   IssueObservationReportDetail,
   IssueObservationReportListItem,
@@ -20,6 +22,7 @@ import {
   getStudentByUsn,
   mentorAgreeIssueObservation,
   saveIssueObservation,
+  updateIssueObservation,
 } from "./issueObservationReportApi";
 
 type ApiError = {
@@ -33,6 +36,12 @@ type ApiError = {
 type TermOption = {
   value: string;
   label: string;
+};
+
+type CurriculumOption = {
+  value: string;
+  label: string;
+  terms: TermOption[];
 };
 
 type ReportFormState = {
@@ -72,6 +81,15 @@ const createInitialFormState = (): ReportFormState => ({
   mentorSignatureWithDate: "",
 });
 
+const parseApiDateToDatePickerValue = (value?: string | null) => {
+  if (!value) {
+    return null;
+  }
+
+  const parsedDate = new Date(value);
+  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+};
+
 const getErrorMessage = (error: ApiError, fallback: string) =>
   error.response?.data?.message || fallback;
 
@@ -91,17 +109,62 @@ const isEditorEmpty = (value: string) => stripEditorText(value).length === 0;
 
 const getEditorCharacterCount = (value: string) => stripEditorText(value).length;
 
-const createTermOption = (semesterId?: number | string | null): TermOption[] => {
-  if (semesterId == null || semesterId === "") {
-    return [];
+const normalizeCurriculumOption = (
+  item: IssueObservationCurriculumTermItem,
+): CurriculumOption | null => {
+  const academicBatchId = Number(item.academic_batch_id);
+  if (!Number.isFinite(academicBatchId) || academicBatchId <= 0) {
+    return null;
   }
 
-  return [
-    {
-      value: String(semesterId),
-      label: String(semesterId),
-    },
-  ];
+  const normalizedTerms = (item.terms ?? [])
+    .map((term) => {
+      const termId = Number(term.term_id);
+      if (!Number.isFinite(termId) || termId <= 0) {
+        return null;
+      }
+
+      return {
+        value: String(termId),
+        label: term.term_name?.trim() || String(termId),
+      };
+    })
+    .filter((term): term is TermOption => term !== null);
+
+  return {
+    value: String(academicBatchId),
+    label: item.curriculum_name?.trim() || String(academicBatchId),
+    terms: normalizedTerms,
+  };
+};
+
+const getPreferredReportTermRestoreValue = (
+  detail: IssueObservationReportDetail | null | undefined,
+) => {
+  const detailRecord = detail as Record<string, unknown> | null | undefined;
+  const semesterId = detailRecord?.semester_id;
+  const termId = detailRecord?.term_id;
+  const semesterDesc = detailRecord?.semester_desc;
+  const termName = detailRecord?.term_name;
+
+  const preferredTermId =
+    semesterId == null || semesterId === ""
+      ? termId == null || termId === ""
+        ? null
+        : String(termId)
+      : String(semesterId);
+
+  const preferredTermLabel =
+    typeof semesterDesc === "string" && semesterDesc.trim()
+      ? semesterDesc.trim()
+      : typeof termName === "string" && termName.trim()
+        ? termName.trim()
+        : null;
+
+  return {
+    preferredTermId,
+    preferredTermLabel,
+  };
 };
 
 const formatDisplayDate = (value?: string | Date | null) => {
@@ -184,7 +247,7 @@ const applyLinkDialogDemoUi = () => {
 };
 
 const createEditorInit = () => ({
-  height: 170,
+  height: 125,
   menubar: false,
   statusbar: false,
   plugins: ["lists", "link"],
@@ -451,7 +514,9 @@ const IssueObservationReportPage: React.FC = () => {
 
   const [studentUsnInput, setStudentUsnInput] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<IssueObservationStudent | null>(null);
+  const [selectedCurriculum, setSelectedCurriculum] = useState("");
   const [selectedTerm, setSelectedTerm] = useState("");
+  const [curriculumOptions, setCurriculumOptions] = useState<CurriculumOption[]>([]);
   const [termOptions, setTermOptions] = useState<TermOption[]>([]);
   const [selectedReport, setSelectedReport] = useState("");
   const [reportOptions, setReportOptions] = useState<IssueObservationReportListItem[]>([]);
@@ -463,15 +528,34 @@ const IssueObservationReportPage: React.FC = () => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isSearchingStudent, setIsSearchingStudent] = useState(false);
   const [isLoadingReports, setIsLoadingReports] = useState(false);
+  const [isLoadingCurriculumTerms, setIsLoadingCurriculumTerms] = useState(false);
   const [isLoadingSelectedReport, setIsLoadingSelectedReport] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isAgreeing, setIsAgreeing] = useState(false);
   const topSectionRef = useRef<HTMLDivElement | null>(null);
+  const curriculumTermsDropdownRef = useRef<HTMLDivElement | null>(null);
+  const [isCurriculumTermsOpen, setIsCurriculumTermsOpen] = useState(false);
 
   const selectedTermLabel = useMemo(
     () => termOptions.find((term) => term.value === selectedTerm)?.label || "",
     [selectedTerm, termOptions],
   );
+
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (
+        curriculumTermsDropdownRef.current &&
+        !curriculumTermsDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsCurriculumTermsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
+  }, []);
 
   const dropdownReports = useMemo(
     () => [
@@ -486,11 +570,8 @@ const IssueObservationReportPage: React.FC = () => {
   );
 
   const shouldShowCreateForm = selectedReport === "create-report";
-  const shouldShowReportDetails = Boolean(selectedReportDetail) && !shouldShowCreateForm;
-  const mentorSignatureDateForSelectedDetail = getAgreementDateValue(
-    selectedReportDetail as Record<string, unknown> | null | undefined,
-    MENTOR_SIGNATURE_DATE_FIELD_CANDIDATES,
-  );
+  const isExistingReportSelected = Boolean(selectedReportDetail) && !shouldShowCreateForm;
+  const shouldShowReportForm = shouldShowCreateForm || isExistingReportSelected;
   const purposeCount = getEditorCharacterCount(formState.purposeOfMeeting);
   const observationsCount = getEditorCharacterCount(formState.observationsAndActionTaken);
   const isMentorAgreed =
@@ -500,9 +581,7 @@ const IssueObservationReportPage: React.FC = () => {
     selectedReportDetail?.mentee_status === AGREED_STATUS ||
     formState.menteeSignatureWithDate.toLowerCase().includes("agreed");
   const isReportCompleted = isMentorAgreed && isMenteeAgreed;
-
-  const formatAgreementStatus = (status?: number | null) =>
-    status === AGREED_STATUS ? "Agreed" : "Pending";
+  const isExistingReportReadOnly = isExistingReportSelected && isReportCompleted;
 
   const buildSignatureStatus = (
     statusLabel: string,
@@ -510,7 +589,8 @@ const IssueObservationReportPage: React.FC = () => {
     isAgreedValue?: boolean,
   ) => {
     if (dateValue) {
-      return `${statusLabel} - ${formatDisplayDate(dateValue) || dateValue}`;
+      const displayLabel = statusLabel === "Mentor Status" ? "Agreed" : statusLabel;
+      return `${displayLabel} - ${formatDisplayDate(dateValue) || dateValue}`;
     }
 
     return isAgreedValue ? `${statusLabel} - Agreed` : `${statusLabel} - Pending`;
@@ -537,10 +617,83 @@ const IssueObservationReportPage: React.FC = () => {
     });
   };
 
-  const applyTermFromSemesterId = (semesterId?: number | string | null) => {
-    const nextTermOptions = createTermOption(semesterId);
+  const applyCurriculumTermSelection = (
+    nextCurriculumOptions: CurriculumOption[],
+    options?: {
+      preferredTermId?: number | string | null;
+      preferredCurriculumValue?: string | null;
+      preferredTermLabel?: string | null;
+      fallbackToFirstTerm?: boolean;
+    },
+  ) => {
+    const fallbackToFirstTerm = options?.fallbackToFirstTerm ?? true;
+    const resolvedCurriculumValue =
+      options?.preferredCurriculumValue &&
+      nextCurriculumOptions.some((item) => item.value === options.preferredCurriculumValue)
+        ? options.preferredCurriculumValue
+        : nextCurriculumOptions[0]?.value || "";
+
+    const activeCurriculum = nextCurriculumOptions.find(
+      (item) => item.value === resolvedCurriculumValue,
+    );
+
+    const nextTermOptions = activeCurriculum?.terms ?? [];
+    const normalizedPreferredTerm =
+      options?.preferredTermId == null || options.preferredTermId === ""
+        ? ""
+        : String(options.preferredTermId);
+    const matchedTermByLabel =
+      !normalizedPreferredTerm && options?.preferredTermLabel
+        ? nextTermOptions.find((term) => term.label === options.preferredTermLabel)
+        : undefined;
+    const resolvedTermValue =
+      normalizedPreferredTerm &&
+      nextTermOptions.some((term) => term.value === normalizedPreferredTerm)
+        ? normalizedPreferredTerm
+        : matchedTermByLabel?.value || (fallbackToFirstTerm ? nextTermOptions[0]?.value || "" : "");
+
+    setCurriculumOptions(nextCurriculumOptions);
+    setSelectedCurriculum(resolvedCurriculumValue);
     setTermOptions(nextTermOptions);
-    setSelectedTerm(nextTermOptions[0]?.value || "");
+    setSelectedTerm(resolvedTermValue);
+    setIsCurriculumTermsOpen(false);
+  };
+
+  const clearCurriculumTermSelection = () => {
+    setCurriculumOptions([]);
+    setSelectedCurriculum("");
+    setTermOptions([]);
+    setSelectedTerm("");
+    setIsCurriculumTermsOpen(false);
+  };
+
+  const loadCurriculumTermsForAcademicBatch = async (
+    academicBatchId: number,
+    options?: {
+      preferredTermId?: number | string | null;
+      preferredCurriculumValue?: string | null;
+      preferredTermLabel?: string | null;
+      fallbackToFirstTerm?: boolean;
+      suppressErrorToast?: boolean;
+    },
+  ) => {
+    setIsLoadingCurriculumTerms(true);
+
+    try {
+      const response = await getIssueObservationCurriculumTerms(academicBatchId);
+      const nextCurriculumOptions = (response.data ?? [])
+        .map(normalizeCurriculumOption)
+        .filter((item): item is CurriculumOption => item !== null);
+
+      applyCurriculumTermSelection(nextCurriculumOptions, options);
+    } catch (error: any) {
+      clearCurriculumTermSelection();
+      if (!options?.suppressErrorToast) {
+        toast.error(getErrorMessage(error, "Unable to load curriculum and terms"));
+      }
+    } finally {
+      setIsLoadingCurriculumTerms(false);
+    }
   };
 
   const loadReportsForStudent = async (student: IssueObservationStudent) => {
@@ -565,17 +718,33 @@ const IssueObservationReportPage: React.FC = () => {
         getIssueObservationDetail(reportId),
         getIssueObservationHistory(reportId),
       ]);
+      const restoredTerm = getPreferredReportTermRestoreValue(detailResponse.data);
 
       setSelectedReportDetail(detailResponse.data);
       setReportHistory(historyResponse.data ?? []);
       setIsHistoryOpen(false);
-      applyTermFromSemesterId(detailResponse.data?.semester_id);
+      await loadCurriculumTermsForAcademicBatch(detailResponse.data.academic_batch_id, {
+        preferredTermId: restoredTerm.preferredTermId,
+        preferredTermLabel: restoredTerm.preferredTermLabel,
+        preferredCurriculumValue:
+          selectedCurriculum || String(detailResponse.data.academic_batch_id),
+        fallbackToFirstTerm: false,
+      });
       const mentorSignatureDate = getAgreementDateValue(
         detailResponse.data as Record<string, unknown> | null | undefined,
         MENTOR_SIGNATURE_DATE_FIELD_CANDIDATES,
       );
-      setFormState((current) => ({
-        ...current,
+      setFormState({
+        reportTitle: detailResponse.data?.report_title || "",
+        counsellingDate: parseApiDateToDatePickerValue(
+          detailResponse.data?.counselling_date ?? null,
+        ),
+        purposeOfMeeting: detailResponse.data?.purpose_of_meeting_desc || "",
+        observationsAndActionTaken: detailResponse.data?.observation_desc || "",
+        parentsCommunication:
+          detailResponse.data?.comm_parent_flag === 1 ? "yes" : "no",
+        higherAuthoritiesCommunication:
+          detailResponse.data?.comm_high_auth_flag === 1 ? "yes" : "no",
         menteeSignatureWithDate: buildSignatureStatus(
           "Mentee Status",
           null,
@@ -586,7 +755,7 @@ const IssueObservationReportPage: React.FC = () => {
           mentorSignatureDate,
           detailResponse.data?.mentor_status === AGREED_STATUS,
         ),
-      }));
+      });
     } catch (error: any) {
       setSelectedReportDetail(null);
       setReportHistory([]);
@@ -614,7 +783,10 @@ const IssueObservationReportPage: React.FC = () => {
 
     if (options?.clearSelectionAfterRefresh) {
       resetReportSelectionState();
-      applyTermFromSemesterId(selectedTerm || student.semester_id);
+      await loadCurriculumTermsForAcademicBatch(student.academic_batch_id, {
+        preferredTermId: selectedTerm || student.semester_id,
+        preferredCurriculumValue: selectedCurriculum || String(student.academic_batch_id),
+      });
 
       if (options?.scrollToTop) {
         scrollToTopSection();
@@ -649,12 +821,14 @@ const IssueObservationReportPage: React.FC = () => {
 
       setStudentUsnInput(student.student_usn);
       setSelectedStudent(student);
-      applyTermFromSemesterId(student.semester_id);
+      await loadCurriculumTermsForAcademicBatch(student.academic_batch_id, {
+        preferredTermId: student.semester_id,
+        preferredCurriculumValue: String(student.academic_batch_id),
+      });
       await loadReportsForStudent(student);
     } catch (error: any) {
       setSelectedStudent(null);
-      setTermOptions([]);
-      setSelectedTerm("");
+      clearCurriculumTermSelection();
       toast.error(getErrorMessage(error, "Unable to find student"));
     } finally {
       setIsSearchingStudent(false);
@@ -662,7 +836,21 @@ const IssueObservationReportPage: React.FC = () => {
   };
 
   const handleTermChange = (value: string) => {
+    const matchedCurriculum = curriculumOptions.find((curriculum) =>
+      curriculum.terms.some((term) => term.value === value),
+    );
+
+    if (matchedCurriculum) {
+      setSelectedCurriculum(matchedCurriculum.value);
+      setTermOptions(matchedCurriculum.terms);
+    }
+
     setSelectedTerm(value);
+    setIsCurriculumTermsOpen(false);
+  };
+
+  const toggleCurriculumTermsDropdown = () => {
+    setIsCurriculumTermsOpen((current) => !current);
   };
 
   const handleReportChange = async (value: string) => {
@@ -674,7 +862,14 @@ const IssueObservationReportPage: React.FC = () => {
 
     if (!value || value === "create-report") {
       if (selectedStudent) {
-        applyTermFromSemesterId(selectedStudent.semester_id);
+        applyCurriculumTermSelection(
+          curriculumOptions,
+          {
+            preferredTermId: selectedStudent.semester_id,
+            preferredCurriculumValue:
+              selectedCurriculum || String(selectedStudent.academic_batch_id),
+          },
+        );
       }
       return;
     }
@@ -765,28 +960,46 @@ const IssueObservationReportPage: React.FC = () => {
     setIsSaving(true);
 
     try {
-      const response = await saveIssueObservation({
-        academic_batch_id: selectedStudent.academic_batch_id,
-        semester_id: Number(selectedTerm),
-        ssd_id: selectedStudent.student_id,
-        student_usn: selectedStudent.student_usn,
-        report_title: formState.reportTitle.trim(),
-        counselling_date: formState.counsellingDate.toISOString(),
-        mentor_users_id: mentorUserResolution.mentorUserId,
-        purpose_of_meeting_desc: formState.purposeOfMeeting,
-        observation_desc: formState.observationsAndActionTaken,
-        comm_parent_flag: formState.parentsCommunication === "yes" ? 1 : 0,
-        comm_high_auth_flag:
-          formState.higherAuthoritiesCommunication === "yes" ? 1 : 0,
-        mentor_status: 0,
-        mentee_status: 0,
-        parent_guardian_status: 0,
-      });
+      if (selectedReportDetail?.lms_isnob_id) {
+        const response = await updateIssueObservation(selectedReportDetail.lms_isnob_id, {
+          report_title: formState.reportTitle.trim(),
+          counselling_date: formState.counsellingDate.toISOString(),
+          purpose_of_meeting_desc: formState.purposeOfMeeting,
+          observation_desc: formState.observationsAndActionTaken,
+          comm_parent_flag: formState.parentsCommunication === "yes" ? 1 : 0,
+          comm_high_auth_flag:
+            formState.higherAuthoritiesCommunication === "yes" ? 1 : 0,
+        });
 
-      toast.success(response.data.message);
-      await refreshSelectedReportState(selectedStudent, response.data.lms_isnob_id, {
-        resetCreateForm: true,
-      });
+        toast.success(response.data.message);
+        await refreshSelectedReportState(selectedStudent, selectedReportDetail.lms_isnob_id, {
+          clearSelectionAfterRefresh: true,
+          scrollToTop: true,
+        });
+      } else {
+        const response = await saveIssueObservation({
+          academic_batch_id: selectedStudent.academic_batch_id,
+          semester_id: Number(selectedTerm),
+          ssd_id: selectedStudent.student_id,
+          student_usn: selectedStudent.student_usn,
+          report_title: formState.reportTitle.trim(),
+          counselling_date: formState.counsellingDate.toISOString(),
+          mentor_users_id: mentorUserResolution.mentorUserId,
+          purpose_of_meeting_desc: formState.purposeOfMeeting,
+          observation_desc: formState.observationsAndActionTaken,
+          comm_parent_flag: formState.parentsCommunication === "yes" ? 1 : 0,
+          comm_high_auth_flag:
+            formState.higherAuthoritiesCommunication === "yes" ? 1 : 0,
+          mentor_status: 0,
+          mentee_status: 0,
+          parent_guardian_status: 0,
+        });
+
+        toast.success(response.data.message);
+        await refreshSelectedReportState(selectedStudent, response.data.lms_isnob_id, {
+          resetCreateForm: true,
+        });
+      }
     } catch (error: any) {
       toast.error(getErrorMessage(error, "Unable to save report"));
     } finally {
@@ -808,32 +1021,64 @@ const IssueObservationReportPage: React.FC = () => {
     setIsAgreeing(true);
 
     try {
-      const saveResponse = await saveIssueObservation({
-        academic_batch_id: selectedStudent.academic_batch_id,
-        semester_id: Number(selectedTerm),
-        ssd_id: selectedStudent.student_id,
-        student_usn: selectedStudent.student_usn,
-        report_title: formState.reportTitle.trim(),
-        counselling_date: formState.counsellingDate.toISOString(),
-        mentor_users_id: mentorUserResolution.mentorUserId,
-        purpose_of_meeting_desc: formState.purposeOfMeeting,
-        observation_desc: formState.observationsAndActionTaken,
-        comm_parent_flag: formState.parentsCommunication === "yes" ? 1 : 0,
-        comm_high_auth_flag:
-          formState.higherAuthoritiesCommunication === "yes" ? 1 : 0,
-        mentor_status: 0,
-        mentee_status: 0,
-        parent_guardian_status: 0,
-      });
+      if (selectedReportDetail?.lms_isnob_id) {
+        const response = await updateIssueObservation(selectedReportDetail.lms_isnob_id, {
+          report_title: formState.reportTitle.trim(),
+          counselling_date: formState.counsellingDate.toISOString(),
+          purpose_of_meeting_desc: formState.purposeOfMeeting,
+          observation_desc: formState.observationsAndActionTaken,
+          comm_parent_flag: formState.parentsCommunication === "yes" ? 1 : 0,
+          comm_high_auth_flag:
+            formState.higherAuthoritiesCommunication === "yes" ? 1 : 0,
+        });
 
-      const reportId = saveResponse.data.lms_isnob_id;
-      await mentorAgreeIssueObservation(reportId, { mentor_status: AGREED_STATUS });
-      await refreshSelectedReportState(selectedStudent, reportId, {
-        resetCreateForm: true,
-        clearSelectionAfterRefresh: true,
-        scrollToTop: true,
-      });
-      toast.success("Report saved and mentor agreed successfully.");
+        if (!isMentorAgreed) {
+          await mentorAgreeIssueObservation(selectedReportDetail.lms_isnob_id, {
+            mentor_status: AGREED_STATUS,
+          });
+        }
+
+        await refreshSelectedReportState(
+          selectedStudent,
+          selectedReportDetail.lms_isnob_id,
+          {
+            clearSelectionAfterRefresh: true,
+            scrollToTop: true,
+          },
+        );
+        toast.success(
+          !isMentorAgreed
+            ? "Report saved and mentor agreed successfully."
+            : response.data.message,
+        );
+      } else {
+        const saveResponse = await saveIssueObservation({
+          academic_batch_id: selectedStudent.academic_batch_id,
+          semester_id: Number(selectedTerm),
+          ssd_id: selectedStudent.student_id,
+          student_usn: selectedStudent.student_usn,
+          report_title: formState.reportTitle.trim(),
+          counselling_date: formState.counsellingDate.toISOString(),
+          mentor_users_id: mentorUserResolution.mentorUserId,
+          purpose_of_meeting_desc: formState.purposeOfMeeting,
+          observation_desc: formState.observationsAndActionTaken,
+          comm_parent_flag: formState.parentsCommunication === "yes" ? 1 : 0,
+          comm_high_auth_flag:
+            formState.higherAuthoritiesCommunication === "yes" ? 1 : 0,
+          mentor_status: 0,
+          mentee_status: 0,
+          parent_guardian_status: 0,
+        });
+
+        const reportId = saveResponse.data.lms_isnob_id;
+        await mentorAgreeIssueObservation(reportId, { mentor_status: AGREED_STATUS });
+        await refreshSelectedReportState(selectedStudent, reportId, {
+          resetCreateForm: true,
+          clearSelectionAfterRefresh: true,
+          scrollToTop: true,
+        });
+        toast.success("Report saved and mentor agreed successfully.");
+      }
     } catch (error: any) {
       toast.error(getErrorMessage(error, "Unable to save and agree report"));
     } finally {
@@ -884,7 +1129,10 @@ const IssueObservationReportPage: React.FC = () => {
       await loadReportsForStudent(selectedStudent);
       resetReportForm();
       resetReportSelectionState();
-      applyTermFromSemesterId(selectedTerm || selectedStudent.semester_id);
+      await loadCurriculumTermsForAcademicBatch(selectedStudent.academic_batch_id, {
+        preferredTermId: selectedTerm || selectedStudent.semester_id,
+        preferredCurriculumValue: selectedCurriculum || String(selectedStudent.academic_batch_id),
+      });
       scrollToTopSection();
     } catch (error: any) {
       toast.error(getErrorMessage(error, "Unable to delete report"));
@@ -922,19 +1170,19 @@ const IssueObservationReportPage: React.FC = () => {
               margin-top: 24px;
               margin-left: -3px;
               display: grid !important;
-              grid-template-columns: repeat(3, minmax(0, 290px)) !important;
+              grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
               column-gap: 22px !important;
               row-gap: 0 !important;
               align-items: start !important;
-              width: 914px !important;
+              width: 100% !important;
               max-width: 100% !important;
               justify-content: start !important;
             }
 
             .issue-observation-report-page .issue-observation-form-row > div {
-              width: 290px !important;
-              min-width: 290px !important;
-              max-width: 290px !important;
+              width: 100% !important;
+              min-width: 0 !important;
+              max-width: none !important;
             }
           }
 
@@ -943,9 +1191,9 @@ const IssueObservationReportPage: React.FC = () => {
           .issue-observation-report-page .issue-observation-form-row input,
           .issue-observation-report-page .issue-observation-form-row select,
           .issue-observation-report-page .issue-observation-form-row .student-usn-control {
-            width: 290px;
-            min-width: 290px;
-            max-width: 290px;
+            width: 100%;
+            min-width: 0;
+            max-width: 100%;
             height: 34px;
             min-height: 34px;
             box-sizing: border-box;
@@ -957,6 +1205,100 @@ const IssueObservationReportPage: React.FC = () => {
 
           .issue-observation-report-page .issue-observation-form-row > div {
             height: auto;
+          }
+
+          .issue-observation-report-page .curriculum-term-dropdown {
+            position: relative;
+            width: 100%;
+          }
+
+          .issue-observation-report-page .curriculum-term-trigger {
+            display: flex;
+            width: 100%;
+            height: 34px;
+            align-items: center;
+            justify-content: space-between;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            background: #fff;
+            padding: 0 12px;
+            font-size: 13px;
+            color: #111827;
+            text-align: left;
+            transition: border-color 0.15s ease;
+          }
+
+          .issue-observation-report-page .curriculum-term-trigger:disabled {
+            background: #f9fafb;
+            color: #6b7280;
+            cursor: not-allowed;
+          }
+
+          .issue-observation-report-page .curriculum-term-menu {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            z-index: 20;
+            width: 100%;
+            overflow: hidden;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            background: #fff;
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+          }
+
+          .issue-observation-report-page .curriculum-term-menu-inner {
+            max-height: 260px;
+            overflow-y: auto;
+          }
+
+          .issue-observation-report-page .curriculum-term-curriculum-row {
+            display: flex;
+            width: 100%;
+            min-height: 34px;
+            align-items: center;
+            justify-content: space-between;
+            border: 0;
+            border-bottom: 1px solid #e5e7eb;
+            background: #f3f4f6;
+            padding: 6px 10px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #111827;
+            text-align: left;
+          }
+
+          .issue-observation-report-page .curriculum-term-term-row {
+            display: flex;
+            width: 100%;
+            min-height: 32px;
+            align-items: center;
+            border: 0;
+            border-bottom: 1px solid #f3f4f6;
+            background: #fff;
+            padding: 6px 10px 6px 28px;
+            font-size: 13px;
+            font-weight: 400;
+            color: #111827;
+            text-align: left;
+          }
+
+          .issue-observation-report-page .curriculum-term-term-row:hover,
+          .issue-observation-report-page .curriculum-term-term-row:focus-visible {
+            background: #eff6ff;
+            outline: none;
+          }
+
+          .issue-observation-report-page .curriculum-term-term-row.is-selected {
+            background: #337ab7;
+            color: #fff;
+            outline: none;
+          }
+
+          .issue-observation-report-page .curriculum-term-empty {
+            padding: 8px 10px;
+            font-size: 13px;
+            color: #6b7280;
           }
 
           .issue-observation-report-page .student-usn-control input,
@@ -1324,6 +1666,50 @@ const IssueObservationReportPage: React.FC = () => {
             width: 100%;
           }
 
+          .issue-observation-report-page .issue-observation-date-popper {
+            z-index: 20;
+          }
+
+          .issue-observation-report-page .issue-observation-date-popper[data-placement^="bottom"] {
+            margin-top: 4px;
+          }
+
+          .issue-observation-report-page .issue-observation-date-calendar {
+            font-size: 12px;
+            border: 1px solid #cfd4dc;
+            border-radius: 3px;
+            box-shadow: 0 3px 8px rgba(15, 23, 42, 0.12);
+          }
+
+          .issue-observation-report-page .issue-observation-date-calendar .react-datepicker__month-container {
+            float: none;
+            width: 230px;
+          }
+
+          .issue-observation-report-page .issue-observation-date-calendar .react-datepicker__header {
+            padding-top: 7px;
+            padding-bottom: 6px;
+            background: #fff;
+            border-bottom: 1px solid #e5e7eb;
+          }
+
+          .issue-observation-report-page .issue-observation-date-calendar .react-datepicker__current-month {
+            font-size: 12px;
+            font-weight: 600;
+          }
+
+          .issue-observation-report-page .issue-observation-date-calendar .react-datepicker__day-names {
+            margin-top: 4px;
+            margin-bottom: 2px;
+          }
+
+          .issue-observation-report-page .issue-observation-date-calendar .react-datepicker__day-name,
+          .issue-observation-report-page .issue-observation-date-calendar .react-datepicker__day {
+            width: 1.8rem;
+            line-height: 1.8rem;
+            margin: 0.12rem;
+          }
+
           .issue-observation-report-page .date-input-icon {
             position: absolute;
             top: 0;
@@ -1346,9 +1732,12 @@ const IssueObservationReportPage: React.FC = () => {
             max-width: none;
           }
 
-          .issue-observation-report-page .editor-block .tox.tox-tinymce .tox-edit-area__iframe,
-          .issue-observation-report-page .editor-block .tox.tox-tinymce {
-            min-height: 170px !important;
+          .issue-observation-report-page .editor-block .tox .tox-edit-area__iframe {
+            min-height: 125px !important;
+          }
+
+          .issue-observation-report-page .editor-block .tox .tox-edit-area {
+            min-height: 125px !important;
           }
 
           .issue-observation-report-page .editor-counter {
@@ -1464,7 +1853,7 @@ const IssueObservationReportPage: React.FC = () => {
       <MmpModuleShell title="Issues and Observations Report">
         <div
           ref={topSectionRef}
-          className="issue-observation-form-row grid grid-cols-1 items-start gap-5 md:grid-cols-3"
+          className="issue-observation-form-row grid grid-cols-1 items-start gap-5 md:grid-cols-2 xl:grid-cols-3"
         >
           <div className="min-w-0 self-start">
             <label className="mb-[6px] block text-[13px] font-semibold text-black">
@@ -1504,22 +1893,63 @@ const IssueObservationReportPage: React.FC = () => {
 
           <div className="min-w-0 self-start">
             <label className="mb-[6px] block text-[13px] font-semibold text-black">
-              Term: <span className="text-red-500">*</span>
+              Curriculum / Term: <span className="text-red-500">*</span>
             </label>
-            <select
-              className={inputClassName}
-              value={selectedTerm}
-              onChange={(event) => handleTermChange(event.target.value)}
-              aria-label="Term"
-              disabled={termOptions.length === 0}
-            >
-              <option value="">Select Term</option>
-              {termOptions.map((term) => (
-                <option key={term.value} value={term.value}>
-                  {term.label}
-                </option>
-              ))}
-            </select>
+            <div className="curriculum-term-dropdown" ref={curriculumTermsDropdownRef}>
+              <button
+                type="button"
+                className="curriculum-term-trigger"
+                onClick={toggleCurriculumTermsDropdown}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    setIsCurriculumTermsOpen(false);
+                  }
+                }}
+                aria-label="Curriculum and Term"
+                aria-haspopup="tree"
+                aria-expanded={isCurriculumTermsOpen}
+                disabled={curriculumOptions.length === 0 || isLoadingCurriculumTerms}
+              >
+                <span className="truncate">
+                  {selectedTermLabel || "Select Curriculum / Term"}
+                </span>
+                <ChevronDown size={16} className="ml-2 shrink-0 text-gray-500" />
+              </button>
+
+              {isCurriculumTermsOpen ? (
+                <div className="curriculum-term-menu" role="tree" aria-label="Curriculum and terms">
+                  <div className="curriculum-term-menu-inner">
+                    {curriculumOptions.length === 0 ? (
+                      <div className="curriculum-term-empty">No curriculum / term available.</div>
+                    ) : (
+                      curriculumOptions.map((curriculum) => (
+                        <div key={curriculum.value}>
+                          <div className="curriculum-term-curriculum-row">
+                            <span className="truncate">{curriculum.label}</span>
+                            <ChevronDown size={15} className="ml-2 shrink-0 text-gray-500" />
+                          </div>
+
+                          {curriculum.terms.map((term) => (
+                            <button
+                              key={`${curriculum.value}-${term.value}`}
+                              type="button"
+                              className={`curriculum-term-term-row${
+                                selectedTerm === term.value ? " is-selected" : ""
+                              }`}
+                              onClick={() => handleTermChange(term.value)}
+                              role="treeitem"
+                              aria-selected={selectedTerm === term.value}
+                            >
+                              <span className="truncate">{term.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </div>
 
           <div className="min-w-0 self-start">
@@ -1542,7 +1972,7 @@ const IssueObservationReportPage: React.FC = () => {
           </div>
         </div>
 
-        {shouldShowCreateForm && (
+        {shouldShowReportForm && (
           <div className="create-report-shell">
             <div className="report-title-row">
               <label className="compact-label">
@@ -1555,6 +1985,7 @@ const IssueObservationReportPage: React.FC = () => {
                   onChange={(event) => updateFormField("reportTitle", event.target.value)}
                   className={`${inputClassName} report-title-input h-[36px]`}
                   aria-label="Report Title"
+                  readOnly={isExistingReportReadOnly}
                 />
                 {fieldErrors.reportTitle && (
                   <p className="mt-1 text-xs text-red-600">{fieldErrors.reportTitle}</p>
@@ -1582,7 +2013,12 @@ const IssueObservationReportPage: React.FC = () => {
                         dateFormat="dd-MM-yyyy"
                         placeholderText="DD-MM-YYYY"
                         className={`${inputClassName} table-date-input`}
+                        popperPlacement="bottom-start"
+                        popperClassName="issue-observation-date-popper"
+                        calendarClassName="issue-observation-date-calendar"
+                        showPopperArrow={false}
                         aria-label="Counselling Date"
+                        disabled={isExistingReportReadOnly}
                       />
                       <span className="date-input-icon">
                         <CalendarDays size={15} />
@@ -1610,6 +2046,7 @@ const IssueObservationReportPage: React.FC = () => {
                 value={formState.purposeOfMeeting}
                 onEditorChange={(value) => handleEditorChange("purposeOfMeeting", value)}
                 init={createEditorInit()}
+                disabled={isExistingReportReadOnly}
               />
               <div className="editor-counter">
                 {fieldErrors.purposeOfMeeting ? (
@@ -1630,6 +2067,7 @@ const IssueObservationReportPage: React.FC = () => {
                   handleEditorChange("observationsAndActionTaken", value)
                 }
                 init={createEditorInit()}
+                disabled={isExistingReportReadOnly}
               />
               <div className="editor-counter">
                 {fieldErrors.observationsAndActionTaken ? (
@@ -1655,6 +2093,7 @@ const IssueObservationReportPage: React.FC = () => {
                 }
                 className={`${inputClassName} question-select`}
                 aria-label="Communicated with parents"
+                disabled={isExistingReportReadOnly}
               >
                 <option value="no">No</option>
                 <option value="yes">Yes</option>
@@ -1675,6 +2114,7 @@ const IssueObservationReportPage: React.FC = () => {
                 }
                 className={`${inputClassName} question-select`}
                 aria-label="Communicated with higher authorities"
+                disabled={isExistingReportReadOnly}
               >
                 <option value="no">No</option>
                 <option value="yes">Yes</option>
@@ -1708,24 +2148,48 @@ const IssueObservationReportPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="create-action-row">
-              <UIButton
-                onClick={() => void handleSave()}
-                className="h-[30px] min-w-[54px] rounded-[1px] bg-[#337ab7] px-3 py-1 text-[12px] text-white hover:bg-[#286090]"
-                disabled={isSaving || isAgreeing}
-                title="Save"
-              >
-                {isSaving ? "Saving..." : "Save"}
-              </UIButton>
-              <UIButton
-                onClick={() => void handleSaveAndAgree()}
-                className="h-[30px] min-w-[104px] rounded-[1px] bg-[#337ab7] px-3 py-1 text-[12px] text-white hover:bg-[#286090]"
-                disabled={isSaving || isAgreeing}
-                title="Save & Agree"
-              >
-                {isAgreeing ? "Saving & Agreeing..." : "Save & Agree"}
-              </UIButton>
-            </div>
+            {!isExistingReportReadOnly && (
+              <div className="create-action-row">
+                <UIButton
+                  onClick={() => void handleSave()}
+                  className="h-[30px] min-w-[54px] rounded-[1px] bg-[#337ab7] px-3 py-1 text-[12px] text-white hover:bg-[#286090]"
+                  disabled={isSaving || isAgreeing}
+                  title="Save"
+                >
+                  {isSaving ? "Saving..." : "Save"}
+                </UIButton>
+                <UIButton
+                  onClick={() => void handleSaveAndAgree()}
+                  className="h-[30px] min-w-[104px] rounded-[1px] bg-[#337ab7] px-3 py-1 text-[12px] text-white hover:bg-[#286090]"
+                  disabled={isSaving || isAgreeing}
+                  title="Save & Agree"
+                >
+                  {isAgreeing ? "Saving & Agreeing..." : "Save & Agree"}
+                </UIButton>
+              </div>
+            )}
+
+            {isExistingReportSelected && (
+              <div className="flex justify-end gap-3">
+                <UIButton
+                  onClick={() => void handleDeleteReport()}
+                  className="bg-[#d9534f] px-5 py-2 text-[13px] text-white hover:bg-[#c9302c]"
+                  title="Delete"
+                >
+                  Delete
+                </UIButton>
+                {!isMentorAgreed && (
+                  <UIButton
+                    onClick={() => void handleExistingReportMentorAgree()}
+                    className="bg-[#337ab7] px-5 py-2 text-[13px] text-white hover:bg-[#286090]"
+                    disabled={isAgreeing}
+                    title="Mentor Agree"
+                  >
+                    {isAgreeing ? "Agreeing..." : "Mentor Agree"}
+                  </UIButton>
+                )}
+              </div>
+            )}
 
             <div className="history-panel">
               <button
@@ -1768,176 +2232,6 @@ const IssueObservationReportPage: React.FC = () => {
         {isLoadingSelectedReport && !shouldShowCreateForm && (
           <div className="mt-10 rounded border border-gray-200 px-4 py-4 text-sm text-gray-600">
             Loading report details...
-          </div>
-        )}
-
-        {shouldShowReportDetails && selectedReportDetail && (
-          <div className="mt-10 space-y-8">
-            <div className="overflow-hidden rounded border border-gray-300">
-              <div className="grid grid-cols-1 border-b border-gray-300 md:grid-cols-[220px_minmax(0,1fr)_220px_minmax(0,1fr)]">
-                <div className="border-b border-gray-300 bg-white px-4 py-3 text-[13px] font-semibold text-black md:border-b-0 md:border-r">
-                  Report Title
-                </div>
-                <div className="border-b border-gray-300 px-4 py-3 text-[13px] text-black md:border-b-0 md:border-r">
-                  {selectedReportDetail.report_title}
-                </div>
-                <div className="border-b border-gray-300 bg-white px-4 py-3 text-[13px] font-semibold text-black md:border-b-0 md:border-r">
-                  USN
-                </div>
-                <div className="px-4 py-3 text-[13px] text-black">
-                  {selectedReportDetail.student_usn}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 border-b border-gray-300 md:grid-cols-[220px_minmax(0,1fr)_220px_minmax(0,1fr)]">
-                <div className="border-b border-gray-300 bg-white px-4 py-3 text-[13px] font-semibold text-black md:border-b-0 md:border-r">
-                  Counselling Date
-                </div>
-                <div className="border-b border-gray-300 px-4 py-3 text-[13px] text-black md:border-b-0 md:border-r">
-                  {formatDisplayDate(selectedReportDetail.counselling_date)}
-                </div>
-                <div className="border-b border-gray-300 bg-white px-4 py-3 text-[13px] font-semibold text-black md:border-b-0 md:border-r">
-                  Term
-                </div>
-                <div className="px-4 py-3 text-[13px] text-black">{selectedTermLabel}</div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-[220px_minmax(0,1fr)_220px_minmax(0,1fr)]">
-                <div className="border-b border-gray-300 bg-white px-4 py-3 text-[13px] font-semibold text-black md:border-b-0 md:border-r">
-                  Mentor Status
-                </div>
-                <div className="border-b border-gray-300 px-4 py-3 text-[13px] text-black md:border-b-0 md:border-r">
-                  {formatAgreementStatus(selectedReportDetail.mentor_status)}
-                </div>
-                <div className="border-b border-gray-300 bg-white px-4 py-3 text-[13px] font-semibold text-black md:border-b-0 md:border-r">
-                  Mentee Status
-                </div>
-                <div className="px-4 py-3 text-[13px] text-black">
-                  {formatAgreementStatus(selectedReportDetail.mentee_status)}
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-6 md:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-[13px] font-semibold text-black">
-                  Mentee Signature with Date
-                </label>
-                <input
-                  type="text"
-                  value={buildSignatureStatus(
-                    "Mentee Status",
-                    null,
-                    selectedReportDetail.mentee_status === AGREED_STATUS,
-                  )}
-                  readOnly
-                  className={`${inputClassName} h-[42px] w-full max-w-none bg-gray-50`}
-                  aria-label="Mentee Signature with Date"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-[13px] font-semibold text-black">
-                  Mentor Signature with Date
-                </label>
-                <input
-                  type="text"
-                  value={buildSignatureStatus(
-                    "Mentor Status",
-                    mentorSignatureDateForSelectedDetail,
-                    selectedReportDetail.mentor_status === AGREED_STATUS,
-                  )}
-                  readOnly
-                  className={`${inputClassName} h-[42px] w-full max-w-none bg-gray-50`}
-                  aria-label="Mentor Signature with Date"
-                />
-              </div>
-            </div>
-
-            <div className="text-[13px] font-semibold text-black">
-              Report Status: {isReportCompleted ? "Completed" : "In Progress"}
-            </div>
-
-            <div className="flex justify-end gap-3">
-              <UIButton
-                onClick={() => void handleDeleteReport()}
-                className="bg-[#d9534f] px-5 py-2 text-[13px] text-white hover:bg-[#c9302c]"
-                title="Delete"
-              >
-                Delete
-              </UIButton>
-              {!isMentorAgreed && (
-                <UIButton
-                  onClick={() => void handleExistingReportMentorAgree()}
-                  className="bg-[#337ab7] px-5 py-2 text-[13px] text-white hover:bg-[#286090]"
-                  disabled={isAgreeing}
-                  title="Mentor Agree"
-                >
-                  {isAgreeing ? "Agreeing..." : "Mentor Agree"}
-                </UIButton>
-              )}
-            </div>
-
-            <div>
-              <label className="mb-2 block text-[13px] font-semibold text-black">
-                Purpose of meeting / Issue reported
-              </label>
-              <div
-                className="min-h-[120px] rounded border border-gray-300 px-4 py-3 text-[13px] text-black"
-                dangerouslySetInnerHTML={{
-                  __html: selectedReportDetail.purpose_of_meeting_desc || "",
-                }}
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-[13px] font-semibold text-black">
-                Observations and Action Taken
-              </label>
-              <div
-                className="min-h-[120px] rounded border border-gray-300 px-4 py-3 text-[13px] text-black"
-                dangerouslySetInnerHTML={{
-                  __html: selectedReportDetail.observation_desc || "",
-                }}
-              />
-            </div>
-
-            <div className="rounded border border-gray-200">
-              <button
-                type="button"
-                onClick={() => setIsHistoryOpen((current) => !current)}
-                className="flex w-full items-center gap-2 px-4 py-3 text-left text-[15px] font-semibold text-[#337ab7] transition-colors hover:text-[#f0ad4e]"
-              >
-                {isHistoryOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-                <span>History</span>
-              </button>
-              {isHistoryOpen && (
-                <div className="border-t border-gray-200 px-4 py-4 text-sm text-gray-600">
-                  {reportHistory.length === 0 ? (
-                    "No history returned by backend for this report."
-                  ) : (
-                    <div className="space-y-3">
-                      {reportHistory.map((item) => (
-                        <div
-                          key={item.history_id}
-                          className="rounded border border-gray-200 px-3 py-3"
-                        >
-                          <p className="text-[13px] font-semibold text-black">
-                            {item.action_type}
-                          </p>
-                          <p className="text-[13px] text-gray-700">{item.report_title}</p>
-                          <p className="text-[12px] text-gray-600">
-                            Modified By: {item.modified_by || "-"}
-                          </p>
-                          <p className="text-[12px] text-gray-600">
-                            Action Time: {formatDisplayDate(item.action_timestamp)}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
           </div>
         )}
       </MmpModuleShell>

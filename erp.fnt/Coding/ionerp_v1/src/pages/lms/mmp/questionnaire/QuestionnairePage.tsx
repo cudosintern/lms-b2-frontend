@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaPencilAlt, FaRegTrashAlt } from "react-icons/fa";
+import { FaCaretDown, FaFilePdf, FaPencilAlt, FaRegFileAlt, FaRegTrashAlt } from "react-icons/fa";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { toast } from "react-toastify";
-import MmpModuleShell from "../components/MmpModuleShell";
 import axiosInstance from "../../../../utils/api";
 import { ApiEndpoint } from "../../../../utils/ApiEndpoint/emsapiEndpoint";
 import { FieldSettingOption, getQuestionnaireList } from "./responseInterface";
+import { FIELD_SETTING_PLACEHOLDER } from "./questionnaireConstants";
 
 interface QuestionnaireOption {
   questionnaire_options_id: number;
@@ -31,8 +31,15 @@ const getQuestionOptionLine = (option: QuestionnaireOption, index: number) =>
     option.specify_flag ? " __________ (Specify)" : ""
   }`;
 
+const normalizeFieldSettingDescription = (value: unknown) => {
+  const normalizedValue = typeof value === "string" ? value.trim() : "";
+  return normalizedValue && normalizedValue !== FIELD_SETTING_PLACEHOLDER
+    ? normalizedValue
+    : "";
+};
+
 const formatOptions = (options: QuestionnaireOption[]) => (
-  <div className="mt-1 grid grid-cols-1 gap-x-20 gap-y-1.5 pl-6 text-[15px] leading-7 md:grid-cols-2">
+  <div className="mt-1 grid grid-cols-1 gap-x-16 gap-y-1 pl-5 text-[13px] leading-6 md:grid-cols-2">
     {(options || []).map((option, index) => (
       <span key={option.questionnaire_options_id || index} className="whitespace-pre-wrap">
         {String.fromCharCode(65 + index)}. {option.que_option}
@@ -62,20 +69,23 @@ const QuestionnairePage: React.FC = () => {
     (questionnaire) => questionnaire.questionnaire_id === Number(selectedId),
   );
   const savedFieldSettingId =
+    selectedQuestionnaire?.access_level ??
     selectedQuestionnaire?.field_settings?.field_setting_id ??
     selectedQuestionnaire?.field_setting_id ??
+    detail?.access_level ??
     detail?.field_settings?.field_setting_id ??
     detail?.field_setting_id;
+  const matchedFieldSettingOption = fieldSettings.find(
+    (item) =>
+      normalizeFieldSettingValue(item.field_setting_id) ===
+      normalizeFieldSettingValue(savedFieldSettingId),
+  );
   const selectedFieldSettingDescription =
-    selectedQuestionnaire?.field_settings?.field_setting_desc ||
-    selectedQuestionnaire?.field_setting_desc ||
-    detail?.field_settings?.field_setting_desc ||
-    detail?.field_setting_desc ||
-    fieldSettings.find(
-      (item) =>
-        normalizeFieldSettingValue(item.field_setting_id) ===
-        normalizeFieldSettingValue(savedFieldSettingId),
-    )?.field_setting_desc ||
+    matchedFieldSettingOption?.field_setting_desc ||
+    normalizeFieldSettingDescription(selectedQuestionnaire?.field_settings?.field_setting_desc) ||
+    normalizeFieldSettingDescription(selectedQuestionnaire?.field_setting_desc) ||
+    normalizeFieldSettingDescription(detail?.field_settings?.field_setting_desc) ||
+    normalizeFieldSettingDescription(detail?.field_setting_desc) ||
     "";
 
   const loadQuestionnaireDetail = async (questionnaireId: number) => {
@@ -288,13 +298,10 @@ const QuestionnairePage: React.FC = () => {
       didDrawCell: (hookData) => {
         if (selectedFieldSettingDescription && hookData.section === "body" && hookData.row.index === 0) {
           const { cell } = hookData;
-          hookData.doc.setFont("times", "bold");
           hookData.doc.setFontSize(8.6);
-          hookData.doc.text("Field Setting:", cell.x + 2.2, cell.y + 4.2);
-          hookData.doc.setFont("times", "normal");
           hookData.doc.text(
-            selectedFieldSettingDescription,
-            cell.x + 2.2 + hookData.doc.getTextWidth("Field Setting: "),
+            `Field Setting: ${selectedFieldSettingDescription}`,
+            cell.x + 2.2,
             cell.y + 4.2,
           );
         }
@@ -319,14 +326,18 @@ const QuestionnairePage: React.FC = () => {
   };
 
   return (
-    <MmpModuleShell title="Questionnaires">
-      <div className="mb-14 flex items-start justify-between gap-6 px-4 pt-1">
-        <div className="w-[360px]">
-          <label className="mb-1.5 block text-[16px] font-normal leading-6">
+    <section className="min-h-[540px] w-full min-w-0 overflow-x-hidden rounded-md border border-gray-200 bg-white p-3 shadow-md md:p-4">
+      <div className="mb-3 flex items-center justify-between rounded-tl-[20px] rounded-tr-none rounded-br-[20px] rounded-bl-none bg-slate-800 px-5 py-[5px] text-white">
+        <h2 className="text-[18px] font-semibold leading-6">Questionnaires</h2>
+      </div>
+
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-4 px-2 pt-0.5">
+        <div className="w-full max-w-[340px]">
+          <label className="mb-1 block text-[14px] font-normal leading-5 text-slate-800">
             Questionnaire Title: <span className="text-red-500">*</span>
           </label>
           <select
-            className="h-[38px] w-full rounded border border-gray-300 px-4 text-[15px]"
+            className="h-[34px] w-full rounded border border-gray-300 px-3 text-[13px] text-slate-700"
             value={selectedId}
             onChange={(e) => handleSelect(e.target.value)}
           >
@@ -344,25 +355,28 @@ const QuestionnairePage: React.FC = () => {
         </div>
 
         {detailVisible && (
-          <div className="flex items-start gap-[84px] pt-11 pr-2">
+          <div className="flex items-center gap-3 pr-1 pt-[22px]">
             <div className="relative">
               <button
-                className="h-[34px] rounded bg-[#5cb85c] px-5 text-[15px] text-white"
+                className="inline-flex h-[32px] items-center gap-1.5 rounded bg-[#5cb85c] px-3.5 text-[13px] font-medium text-white"
                 onClick={() => setShowExport(!showExport)}
               >
-                Export v
+                <FaRegFileAlt className="text-[12px]" />
+                <span>Export</span>
+                <FaCaretDown className="text-[12px]" />
               </button>
               {showExport && (
                 <button
-                  className="absolute right-0 top-10 w-28 rounded border bg-white px-4 py-3 text-left text-sm shadow"
+                  className="absolute right-0 top-[36px] inline-flex h-[34px] w-[94px] items-center gap-2 rounded border border-gray-200 bg-white px-3 text-left text-[13px] text-gray-700 shadow-md"
                   onClick={exportPdf}
                 >
+                  <FaFilePdf className="text-[13px] text-red-600" />
                   .pdf
                 </button>
               )}
             </div>
             <button
-              className="h-[34px] rounded bg-[#337ab7] px-5 text-[15px] text-white"
+              className="h-[32px] rounded bg-[#337ab7] px-4 text-[13px] font-medium text-white"
               onClick={openSelectedQuestionnaire}
             >
               Add More Questions
@@ -371,26 +385,26 @@ const QuestionnairePage: React.FC = () => {
         )}
       </div>
 
-      <div className="overflow-x-auto px-4">
-      <table className="w-full min-w-[820px] border-collapse border border-gray-300 text-[15px]">
+      <div className="overflow-x-auto px-2">
+      <table className="w-full min-w-[780px] border-collapse border border-gray-300 text-[13px] text-slate-800">
         <thead className="bg-white">
           <tr>
-            <th className="w-[76px] border border-gray-300 px-5 py-4 text-left font-semibold">Q.No.</th>
-            <th className="border border-gray-300 px-4 py-4 text-left font-semibold">Questions</th>
-            <th className="w-[152px] border border-gray-300 px-4 py-4 text-left font-semibold">Action</th>
+            <th className="w-[72px] border border-gray-300 px-4 py-2.5 text-left font-semibold">Q.No.</th>
+            <th className="border border-gray-300 px-4 py-2.5 text-left font-semibold">Questions</th>
+            <th className="w-[128px] border border-gray-300 px-4 py-2.5 text-left font-semibold">Action</th>
           </tr>
         </thead>
         <tbody>
           {!detailVisible && (
             <tr>
-              <td className="border border-gray-300 px-4 py-4" colSpan={3}>
+              <td className="border border-gray-300 px-4 py-3" colSpan={3}>
                 No Data to display
               </td>
             </tr>
           )}
           {detailVisible && (
             <tr className="bg-sky-100">
-              <td className="border border-gray-300 px-4 py-[11px] text-[15px]" colSpan={3}>
+              <td className="border border-gray-300 px-4 py-2 text-[13px] align-middle" colSpan={3}>
                 <span className="font-semibold">Field Setting:</span>{" "}
                 {selectedFieldSettingDescription}
               </td>
@@ -399,25 +413,25 @@ const QuestionnairePage: React.FC = () => {
           {detailVisible &&
             questions.map((question, index) => (
               <tr key={question.questionnaire_que_id}>
-                <td className="border border-gray-300 px-4 py-4 text-center align-top leading-7">
+                <td className="border border-gray-300 px-4 py-3 text-center align-top leading-6">
                   {index + 1}
                 </td>
-                <td className="border border-gray-300 px-4 py-4 align-top text-[15px] leading-7">
-  <div className="pr-4">{question.question}</div>
+                <td className="border border-gray-300 px-4 py-3 align-top text-[13px] leading-6">
+  <div className="pr-3">{question.question}</div>
   {formatOptions(question.options)}
 </td>
 
-<td className="border border-gray-300 px-4 py-4 align-top">
-  <div className="flex flex-row items-center justify-center gap-8 whitespace-nowrap pt-1.5">
+<td className="border border-gray-300 px-4 py-3 align-top">
+  <div className="flex flex-row items-center justify-center gap-6 whitespace-nowrap pt-1">
     <FaPencilAlt
-      className="shrink-0 cursor-pointer text-[14px] text-[#337ab7]"
+      className="shrink-0 cursor-pointer text-[13px] text-[#337ab7]"
       onClick={() =>
         openQuestionEditor(question.questionnaire_que_id)
       }
     />
 
     <FaRegTrashAlt
-  className="shrink-0 cursor-pointer text-[14px] text-[#ff0000]"
+  className="shrink-0 cursor-pointer text-[13px] text-[#ff0000]"
   onClick={() =>
     handleDeleteQuestion(question.questionnaire_que_id)
   }
@@ -429,7 +443,7 @@ const QuestionnairePage: React.FC = () => {
         </tbody>
       </table>
       </div>
-    </MmpModuleShell>
+    </section>
   );
 };
 
