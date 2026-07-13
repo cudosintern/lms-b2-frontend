@@ -10,15 +10,133 @@ interface CourseItem {
   section: string;
   code: string;
   title: string;
-  type: "Core" | "Elective";
+  type: string;
   credits: number;
   totalMarks: number;
   owner: string;
   reviewer: string;
   mode: string;
   instructor: string;
-  status: "Register" | "Pending Approval" | "Registered";
+  status: string;
 }
+
+const AVAILABLE_MENTORS = [
+  "Dr. Ameen",
+  "Mr. C J Savanurmat",
+  "Dr. Anil Kumar",
+  "Prof. Sunita Rao",
+  "Dr. Ramesh Patil",
+  "Prof. Kavita Sharma",
+  "Dr. Vijay Singh",
+  "Prof. Deepa Nair",
+  "Dr. Suresh Menon",
+  "Dr. Priya Pillai",
+  "Dr. Smith",
+  "Prof. Johnson"
+];
+
+const DEFAULT_COURSES: Record<string, CourseItem[]> = {
+  "999_1": [
+    {
+      id: "c1",
+      section: "",
+      code: "15EPHL101",
+      title: "Engineering Physics Lab",
+      type: "Practical",
+      credits: 1,
+      totalMarks: 100,
+      owner: "Mr. Ion Admin",
+      reviewer: "",
+      mode: "Theory",
+      instructor: "",
+      status: "Optional"
+    },
+    {
+      id: "c2",
+      section: "",
+      code: "15EHSL101",
+      title: "Social Innovation",
+      type: "Humanities Science",
+      credits: 2,
+      totalMarks: 100,
+      owner: "Mr. Ion Admin",
+      reviewer: "",
+      mode: "Theory",
+      instructor: "",
+      status: "Optional"
+    },
+    {
+      id: "c3",
+      section: "",
+      code: "15EEEF101",
+      title: "Basic Electrical Engineering",
+      type: "Basic",
+      credits: 3,
+      totalMarks: 100,
+      owner: "Mr. A S S Bennal",
+      reviewer: "Mrs. Rohini B Jyoti",
+      mode: "Theory",
+      instructor: "",
+      status: "Optional"
+    },
+    {
+      id: "c4",
+      section: "",
+      code: "15EMEL101",
+      title: "Computer Aided Engineering Drawing",
+      type: "Practical",
+      credits: 3,
+      totalMarks: 100,
+      owner: "Mr. A S S Bennal",
+      reviewer: "Mr. C M Koti",
+      mode: "Theory",
+      instructor: "",
+      status: "Optional"
+    },
+    {
+      id: "c5",
+      section: "",
+      code: "15ECVF101",
+      title: "Engineering Mechanics",
+      type: "Basic",
+      credits: 4,
+      totalMarks: 100,
+      owner: "Mr. A S S Bennal",
+      reviewer: "",
+      mode: "Theory",
+      instructor: "",
+      status: "Optional"
+    },
+    {
+      id: "c6",
+      section: "",
+      code: "15EPHB101",
+      title: "Engineering Physics",
+      type: "Basic Science",
+      credits: 3,
+      totalMarks: 100,
+      owner: "Mr. Ion Admin",
+      reviewer: "",
+      mode: "Theory",
+      instructor: "",
+      status: "Optional"
+    },
+    {
+      id: "c7",
+      section: "",
+      code: "15EMAB101",
+      title: "Analytical Geometry and Calculus",
+      type: "Basic Science",
+      credits: 5,
+      totalMarks: 100,
+      owner: "Mr. Ion Admin",
+      reviewer: "",
+      mode: "Theory",
+      instructor: "",
+      status: "Optional"
+    }
+  ]
+};
 
 const CourseRegistrationPage: React.FC = () => {
   const [curriculums, setCurriculums] = useState<any[]>([]);
@@ -35,20 +153,24 @@ const CourseRegistrationPage: React.FC = () => {
 
   // Sorting
   const [sortConfig, setSortConfig] = useState<{ key: keyof CourseItem; direction: "asc" | "desc" } | null>({
-    key: "section",
+    key: "code",
     direction: "asc"
   });
 
   // Course registrations state
   const [courses, setCourses] = useState<CourseItem[]>([]);
-  const [registeringIds, setRegisteringIds] = useState<string[]>([]);
+
+  // Assign Modal state
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [selectedCourseForAssign, setSelectedCourseForAssign] = useState<CourseItem | null>(null);
+  const [assignSection, setAssignSection] = useState("");
+  const [assignInstructor, setAssignInstructor] = useState("");
 
   // Fetch curriculums
   useEffect(() => {
     const fetchCurriculums = async () => {
       setCurriculumsLoading(true);
       try {
-        // Safe check using general mentoringSession endpoint
         const url = LmsApiEndpoint.mentoringSession.curriculumList;
         const res = await axiosInstance.get<any>(url);
         if (res.data && res.data.status && res.data.data && res.data.data.length > 0) {
@@ -57,9 +179,16 @@ const CourseRegistrationPage: React.FC = () => {
             code: b.academic_batch_code,
             desc: b.academic_batch_desc || `${b.academic_batch_name || ""} ${b.academic_batch_code || ""}`.trim(),
           }));
+          
+          // Ensure "B. E in CSE 2022-2026" is in the mapped list
+          const hasTarget = mapped.some((m: any) => m.desc.toLowerCase().includes("cse 2022") || m.desc.toLowerCase().includes("2022-2026"));
+          if (!hasTarget) {
+            mapped.unshift({ id: "999", code: "BE-CSE-2022", desc: "B. E in CSE 2022-2026" });
+          }
           setCurriculums(mapped);
         } else {
           setCurriculums([
+            { id: "999", code: "BE-CSE-2022", desc: "B. E in CSE 2022-2026" },
             { id: "1", code: "BE-CSE-2019", desc: "B. E in CSE 2019-2023" },
             { id: "2", code: "BE-ECE-2020", desc: "B. E in ECE 2020-2024" },
             { id: "3", code: "BE-ISE-2021", desc: "B. E in ISE 2021-2025" }
@@ -67,6 +196,7 @@ const CourseRegistrationPage: React.FC = () => {
         }
       } catch (err) {
         setCurriculums([
+          { id: "999", code: "BE-CSE-2022", desc: "B. E in CSE 2022-2026" },
           { id: "1", code: "BE-CSE-2019", desc: "B. E in CSE 2019-2023" },
           { id: "2", code: "BE-ECE-2020", desc: "B. E in ECE 2020-2024" },
           { id: "3", code: "BE-ISE-2021", desc: "B. E in ISE 2021-2025" }
@@ -78,10 +208,10 @@ const CourseRegistrationPage: React.FC = () => {
     fetchCurriculums();
   }, []);
 
-  // Default to B. E in CSE 2019-2023 if loaded
+  // Default to B. E in CSE 2022-2026 if loaded
   useEffect(() => {
     if (curriculums.length > 0 && !selectedCurriculum) {
-      const defaultCur = curriculums.find(c => c.desc.includes("CSE 2019") || c.desc.includes("CSE"));
+      const defaultCur = curriculums.find(c => c.desc.includes("2022-2026") || c.desc.includes("CSE 2022"));
       if (defaultCur) {
         setSelectedCurriculum(defaultCur.id);
       } else {
@@ -103,34 +233,42 @@ const CourseRegistrationPage: React.FC = () => {
         const url = `${LmsApiEndpoint.mentoringSession.semestersByCurriculum}/${selectedCurriculum}`;
         const res = await axiosInstance.get<any>(url);
         if (res.data && res.data.status && res.data.data && res.data.data.length > 0) {
-          const mapped = res.data.data.map((s: any) => ({
-            id: String(s.semester_id),
-            code: s.semester_code,
-            desc: s.semester_desc,
-          }));
+          const mapped = res.data.data.map((s: any) => {
+            const num = s.semester_desc ? s.semester_desc.match(/\d+/) : null;
+            const desc = num ? `${num[0]} - Semester` : s.semester_desc;
+            return {
+              id: String(s.semester_id),
+              code: s.semester_code,
+              desc: desc,
+            };
+          });
+          const hasSEM1 = mapped.some((s: any) => s.desc.includes("1 - Semester") || s.id === "1");
+          if (!hasSEM1 && selectedCurriculum === "999") {
+            mapped.unshift({ id: "1", code: "SEM1", desc: "1 - Semester" });
+          }
           setSemesters(mapped);
         } else {
           setSemesters([
-            { id: "1", code: "SEM1", desc: "Semester 1" },
-            { id: "2", code: "SEM2", desc: "Semester 2" },
-            { id: "3", code: "SEM3", desc: "Semester 3" },
-            { id: "4", code: "SEM4", desc: "Semester 4" },
-            { id: "5", code: "SEM5", desc: "Semester 5" },
-            { id: "6", code: "SEM6", desc: "Semester 6" },
-            { id: "7", code: "SEM7", desc: "Semester 7" },
-            { id: "8", code: "SEM8", desc: "Semester 8" }
+            { id: "1", code: "SEM1", desc: "1 - Semester" },
+            { id: "2", code: "SEM2", desc: "2 - Semester" },
+            { id: "3", code: "SEM3", desc: "3 - Semester" },
+            { id: "4", code: "SEM4", desc: "4 - Semester" },
+            { id: "5", code: "SEM5", desc: "5 - Semester" },
+            { id: "6", code: "SEM6", desc: "6 - Semester" },
+            { id: "7", code: "SEM7", desc: "7 - Semester" },
+            { id: "8", code: "SEM8", desc: "8 - Semester" }
           ]);
         }
       } catch (err) {
         setSemesters([
-          { id: "1", code: "SEM1", desc: "Semester 1" },
-          { id: "2", code: "SEM2", desc: "Semester 2" },
-          { id: "3", code: "SEM3", desc: "Semester 3" },
-          { id: "4", code: "SEM4", desc: "Semester 4" },
-          { id: "5", code: "SEM5", desc: "Semester 5" },
-          { id: "6", code: "SEM6", desc: "Semester 6" },
-          { id: "7", code: "SEM7", desc: "Semester 7" },
-          { id: "8", code: "SEM8", desc: "Semester 8" }
+          { id: "1", code: "SEM1", desc: "1 - Semester" },
+          { id: "2", code: "SEM2", desc: "2 - Semester" },
+          { id: "3", code: "SEM3", desc: "3 - Semester" },
+          { id: "4", code: "SEM4", desc: "4 - Semester" },
+          { id: "5", code: "SEM5", desc: "5 - Semester" },
+          { id: "6", code: "SEM6", desc: "6 - Semester" },
+          { id: "7", code: "SEM7", desc: "7 - Semester" },
+          { id: "8", code: "SEM8", desc: "8 - Semester" }
         ]);
       } finally {
         setSemestersLoading(false);
@@ -139,6 +277,18 @@ const CourseRegistrationPage: React.FC = () => {
     fetchSemesters();
   }, [selectedCurriculum]);
 
+  // Default to 1 - Semester
+  useEffect(() => {
+    if (semesters.length > 0 && !selectedTerm) {
+      const defaultSem = semesters.find(s => s.desc.includes("1 - Semester") || s.id === "1");
+      if (defaultSem) {
+        setSelectedTerm(defaultSem.id);
+      } else {
+        setSelectedTerm(semesters[0].id);
+      }
+    }
+  }, [semesters, selectedTerm]);
+
   // Load mock course registration list based on selections
   useEffect(() => {
     if (!selectedCurriculum || !selectedTerm) {
@@ -146,94 +296,108 @@ const CourseRegistrationPage: React.FC = () => {
       return;
     }
 
-    // Mock data populated once curriculum and term are chosen
-    const mockCourses: CourseItem[] = [
-      {
-        id: "c1",
-        section: "A",
-        code: "18CS61",
-        title: "System Software and Compilers",
-        type: "Core",
-        credits: 4,
-        totalMarks: 100,
-        owner: "Dr. Suresh Kumar",
-        reviewer: "Prof. Anita Rao",
-        mode: "Lecture",
-        instructor: "Dr. Ramesh Dev",
-        status: "Register",
-      },
-      {
-        id: "c2",
-        section: "A",
-        code: "18CS62",
-        title: "Computer Graphics and Visualization",
-        type: "Core",
-        credits: 4,
-        totalMarks: 100,
-        owner: "Dr. Mamatha J",
-        reviewer: "Dr. Kiran K",
-        mode: "Lecture",
-        instructor: "Mrs. Deepa Gowda",
-        status: "Register",
-      },
-      {
-        id: "c3",
-        section: "A",
-        code: "18CS63",
-        title: "Web Technology and its Applications",
-        type: "Core",
-        credits: 3,
-        totalMarks: 100,
-        owner: "Mr. Harish Kumar",
-        reviewer: "Dr. Raghavendra",
-        mode: "Lecture + Practical",
-        instructor: "Mr. Harish Kumar",
-        status: "Register",
-      },
-      {
-        id: "c4",
-        section: "A",
-        code: "18CSE641",
-        title: "Advanced Computer Architecture",
-        type: "Elective",
-        credits: 3,
-        totalMarks: 100,
-        owner: "Dr. Asha Latha",
-        reviewer: "Prof. Naveen S",
-        mode: "Lecture",
-        instructor: "Dr. Asha Latha",
-        status: "Register",
-      },
-      {
-        id: "c5",
-        section: "B",
-        code: "18CSE652",
-        title: "Introduction to Data Science",
-        type: "Elective",
-        credits: 3,
-        totalMarks: 100,
-        owner: "Dr. Prem Singh",
-        reviewer: "Dr. Asha Latha",
-        mode: "Lecture",
-        instructor: "Dr. Prem Singh",
-        status: "Register",
+    const key = `${selectedCurriculum}_${selectedTerm}`;
+    const stored = localStorage.getItem(`lms_course_reg_${key}`);
+    if (stored) {
+      try {
+        setCourses(JSON.parse(stored));
+        return;
+      } catch (e) {
+        // ignore
       }
-    ];
-    setCourses(mockCourses);
+    }
+
+    if (DEFAULT_COURSES[key]) {
+      setCourses(DEFAULT_COURSES[key]);
+      localStorage.setItem(`lms_course_reg_${key}`, JSON.stringify(DEFAULT_COURSES[key]));
+    } else {
+      // Fallback/Generic mock courses for other terms
+      const genericCourses: CourseItem[] = [
+        {
+          id: `${key}_c1`,
+          section: "",
+          code: "15EPHL101",
+          title: "Engineering Physics Lab",
+          type: "Practical",
+          credits: 1,
+          totalMarks: 100,
+          owner: "Mr. Ion Admin",
+          reviewer: "",
+          mode: "Theory",
+          instructor: "",
+          status: "Optional",
+        },
+        {
+          id: `${key}_c2`,
+          section: "",
+          code: "15EHSL101",
+          title: "Social Innovation",
+          type: "Humanities Science",
+          credits: 2,
+          totalMarks: 100,
+          owner: "Mr. Ion Admin",
+          reviewer: "",
+          mode: "Theory",
+          instructor: "",
+          status: "Optional",
+        }
+      ];
+      setCourses(genericCourses);
+      localStorage.setItem(`lms_course_reg_${key}`, JSON.stringify(genericCourses));
+    }
   }, [selectedCurriculum, selectedTerm]);
 
-  // Handle course registration click
-  const handleRegister = (courseId: string, title: string) => {
-    setRegisteringIds(prev => [...prev, courseId]);
+  // Assign modal triggers
+  const openAssignModal = (course: CourseItem) => {
+    setSelectedCourseForAssign(course);
+    setAssignSection(course.section || "");
+    setAssignInstructor(course.instructor || "");
+    setIsAssignModalOpen(true);
+  };
+
+  const handleAssignSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCourseForAssign) return;
+
+    const updatedCourses = courses.map(c => {
+      if (c.id === selectedCourseForAssign.id) {
+        return {
+          ...c,
+          section: assignSection,
+          instructor: assignInstructor,
+        };
+      }
+      return c;
+    });
+
+    setCourses(updatedCourses);
+    const key = `${selectedCurriculum}_${selectedTerm}`;
+    localStorage.setItem(`lms_course_reg_${key}`, JSON.stringify(updatedCourses));
     
-    // Mock network request delay
-    setTimeout(() => {
-      setCourses(prev =>
-        prev.map(c => (c.id === courseId ? { ...c, status: "Registered" as const } : c))
-      );
-      setRegisteringIds(prev => prev.filter(id => id !== courseId));
-      toast.success(`Successfully registered for course: ${title}!`);
-    }, 1000);
+    setIsAssignModalOpen(false);
+    toast.success(`Section & Instructor updated for ${selectedCourseForAssign.title}!`);
+  };
+
+  const handleClearAssignment = () => {
+    if (!selectedCourseForAssign) return;
+
+    const updatedCourses = courses.map(c => {
+      if (c.id === selectedCourseForAssign.id) {
+        return {
+          ...c,
+          section: "",
+          instructor: "",
+        };
+      }
+      return c;
+    });
+
+    setCourses(updatedCourses);
+    const key = `${selectedCurriculum}_${selectedTerm}`;
+    localStorage.setItem(`lms_course_reg_${key}`, JSON.stringify(updatedCourses));
+
+    setIsAssignModalOpen(false);
+    toast.info(`Assignment cleared for ${selectedCourseForAssign.title}.`);
   };
 
   // Sorting logic
@@ -285,7 +449,7 @@ const CourseRegistrationPage: React.FC = () => {
 
   return (
     <CurriculumPageLayout>
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden border border-slate-200 dark:border-slate-700">
+      <div className="bg-white dark:bg-gray-800 rounded shadow overflow-hidden border border-slate-200 dark:border-slate-700">
         
         {/* Dark Header Title Bar */}
         <div className="bg-[#1e293b] text-white px-5 py-3 flex items-center justify-between shadow-sm">
@@ -304,50 +468,48 @@ const CourseRegistrationPage: React.FC = () => {
         </div>
 
         {/* Dropdowns Selection Panel */}
-        <div className="p-5 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl">
-            {/* Curriculum Select */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-gray-700 dark:text-gray-200">
-                Curriculum:<span className="text-red-500 font-bold ml-0.5">*</span>
-              </label>
-              <select
-                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-slate-500 text-xs shadow-sm transition-colors"
-                value={selectedCurriculum}
-                onChange={(e) => {
-                  setSelectedCurriculum(e.target.value);
-                  setSelectedTerm("");
-                  setCurrentPage(1);
-                }}
-                disabled={curriculumsLoading}
-              >
-                <option value="">{curriculumsLoading ? "Loading..." : "Select Curriculum"}</option>
-                {curriculums.map(c => (
-                  <option key={c.id} value={c.id}>{c.desc}</option>
-                ))}
-              </select>
-            </div>
+        <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700 bg-white dark:bg-gray-800 flex flex-wrap items-center gap-8 text-[13px] text-gray-700 dark:text-gray-300">
+          {/* Curriculum Select */}
+          <div className="flex items-center gap-2">
+            <label className="font-semibold whitespace-nowrap">
+              Curriculum:<span className="text-red-500 font-bold ml-0.5">*</span>
+            </label>
+            <select
+              className="px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-slate-500 text-xs shadow-xs transition-colors w-72 h-8"
+              value={selectedCurriculum}
+              onChange={(e) => {
+                setSelectedCurriculum(e.target.value);
+                setSelectedTerm("");
+                setCurrentPage(1);
+              }}
+              disabled={curriculumsLoading}
+            >
+              <option value="">{curriculumsLoading ? "Loading..." : "Select Curriculum"}</option>
+              {curriculums.map(c => (
+                <option key={c.id} value={c.id}>{c.desc}</option>
+              ))}
+            </select>
+          </div>
 
-            {/* Term/Semester Select */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-gray-700 dark:text-gray-200">
-                Term:<span className="text-red-500 font-bold ml-0.5">*</span>
-              </label>
-              <select
-                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-slate-500 text-xs shadow-sm transition-colors disabled:opacity-50"
-                value={selectedTerm}
-                onChange={(e) => {
-                  setSelectedTerm(e.target.value);
-                  setCurrentPage(1);
-                }}
-                disabled={!selectedCurriculum || semestersLoading}
-              >
-                <option value="">{semestersLoading ? "Loading..." : "Select Term"}</option>
-                {semesters.map(s => (
-                  <option key={s.id} value={s.id}>{s.desc}</option>
-                ))}
-              </select>
-            </div>
+          {/* Term/Semester Select */}
+          <div className="flex items-center gap-2">
+            <label className="font-semibold whitespace-nowrap">
+              Term:<span className="text-red-500 font-bold ml-0.5">*</span>
+            </label>
+            <select
+              className="px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-slate-500 text-xs shadow-xs transition-colors h-8 w-44 disabled:opacity-50"
+              value={selectedTerm}
+              onChange={(e) => {
+                setSelectedTerm(e.target.value);
+                setCurrentPage(1);
+              }}
+              disabled={!selectedCurriculum || semestersLoading}
+            >
+              <option value="">{semestersLoading ? "Loading..." : "Select Term"}</option>
+              {semesters.map(s => (
+                <option key={s.id} value={s.id}>{s.desc}</option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -416,41 +578,45 @@ const CourseRegistrationPage: React.FC = () => {
               {paginatedCourses.length > 0 ? (
                 paginatedCourses.map((c, index) => {
                   const siNo = (currentPage - 1) * entriesPerPage + index + 1;
-                  const isRegistering = registeringIds.includes(c.id);
 
                   return (
                     <tr key={c.id} className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50/50 dark:hover:bg-slate-900/10 transition-colors">
                       <td className="px-4 py-3 border-r border-slate-200 dark:border-slate-700 text-slate-500 font-semibold">{siNo}</td>
-                      <td className="px-4 py-3 border-r border-slate-200 dark:border-slate-700 font-semibold">{c.section}</td>
+                      <td className="px-4 py-3 border-r border-slate-200 dark:border-slate-700 font-semibold text-center">{c.section || "-"}</td>
                       <td className="px-4 py-3 border-r border-slate-200 dark:border-slate-700 font-mono text-slate-600 dark:text-slate-300">{c.code}</td>
                       <td className="px-4 py-3 border-r border-slate-200 dark:border-slate-700 font-semibold text-slate-800 dark:text-slate-100">{c.title}</td>
                       <td className="px-4 py-3 border-r border-slate-200 dark:border-slate-700">
-                        <span className={`px-2 py-0.5 rounded-full font-medium text-[10px] ${
-                          c.type === "Core" ? "bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400" : "bg-purple-50 text-purple-600 dark:bg-purple-950/30 dark:text-purple-400"
-                        }`}>
+                        <span className="font-medium text-slate-700 dark:text-slate-300">
                           {c.type}
                         </span>
                       </td>
                       <td className="px-4 py-3 border-r border-slate-200 dark:border-slate-700 text-center font-bold text-slate-700 dark:text-slate-300">{c.credits}</td>
                       <td className="px-4 py-3 border-r border-slate-200 dark:border-slate-700 text-center font-semibold text-slate-500">{c.totalMarks}</td>
                       <td className="px-4 py-3 border-r border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-350">{c.owner}</td>
-                      <td className="px-4 py-3 border-r border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-350">{c.reviewer}</td>
+                      <td className="px-4 py-3 border-r border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-355">{c.reviewer || "-"}</td>
                       <td className="px-4 py-3 border-r border-slate-200 dark:border-slate-700">{c.mode}</td>
-                      <td className="px-4 py-3 border-r border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">{c.instructor}</td>
-                      <td className="px-4 py-3">
-                        {c.status === "Register" ? (
+                      <td className="px-4 py-3 border-r border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
+                        <div className="flex flex-col gap-1">
+                          {c.instructor ? (
+                            <span className="font-semibold text-slate-800 dark:text-slate-200">{c.instructor}</span>
+                          ) : null}
                           <button
-                            onClick={() => handleRegister(c.id, c.title)}
-                            disabled={isRegistering}
-                            className="px-3 py-1 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 text-white rounded text-[10px] font-bold shadow-xs cursor-pointer transition select-none"
+                            onClick={() => openAssignModal(c)}
+                            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-bold hover:underline transition text-left cursor-pointer"
                           >
-                            {isRegistering ? "Registering..." : "Register"}
+                            Add / Edit
                           </button>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 font-bold text-[10px]">
-                            ✓ Registered
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col items-start gap-1 py-1">
+                          <span className="px-3 py-1 bg-orange-500 hover:bg-orange-600 text-white rounded text-[10px] font-bold tracking-wider uppercase text-center shadow-xs cursor-pointer select-none">
+                            Optional
                           </span>
-                        )}
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold pl-1">
+                            N/A
+                          </span>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -495,6 +661,112 @@ const CourseRegistrationPage: React.FC = () => {
         </div>
 
       </div>
+
+      {/* Modal Backdrop / Overlay for assigning section & instructor */}
+      {isAssignModalOpen && selectedCourseForAssign && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-x-hidden overflow-y-auto outline-none focus:outline-none">
+          <div className="fixed inset-0 bg-black/50 transition-opacity" onClick={() => setIsAssignModalOpen(false)}></div>
+          
+          <div className="relative w-full max-w-md mx-auto my-6 z-50 px-4">
+            <div className="relative flex flex-col w-full bg-white dark:bg-gray-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl outline-none focus:outline-none overflow-hidden">
+              
+              {/* Modal Header */}
+              <div className="flex items-center justify-between p-5 border-b border-solid border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+                <div>
+                  <h3 className="text-[15px] font-bold text-slate-900 dark:text-white">
+                    Assign Section & Instructor
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 font-mono">
+                    {selectedCourseForAssign.code} - {selectedCourseForAssign.title}
+                  </p>
+                </div>
+                <button
+                  className="p-1 ml-auto bg-transparent border-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 float-right text-2xl leading-none font-semibold outline-none focus:outline-none cursor-pointer"
+                  onClick={() => setIsAssignModalOpen(false)}
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Modal Form */}
+              <form onSubmit={handleAssignSubmit}>
+                <div className="relative p-6 flex-auto space-y-4 text-xs">
+                  {/* Section select */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="font-semibold text-slate-700 dark:text-slate-300">
+                      Section:
+                    </label>
+                    <select
+                      value={assignSection}
+                      onChange={(e) => setAssignSection(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-gray-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                    >
+                      <option value="">-- Select Section --</option>
+                      <option value="A">Section A</option>
+                      <option value="B">Section B</option>
+                      <option value="C">Section C</option>
+                      <option value="D">Section D</option>
+                    </select>
+                  </div>
+
+                  {/* Instructor/Mentor select */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="font-semibold text-slate-700 dark:text-slate-300">
+                      Course Instructor (Mentor): <span className="text-red-500 font-bold">*</span>
+                    </label>
+                    <select
+                      value={assignInstructor}
+                      onChange={(e) => setAssignInstructor(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-gray-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                      required
+                    >
+                      <option value="">-- Select Instructor --</option>
+                      {AVAILABLE_MENTORS.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Modal Footer */}
+                <div className="flex flex-wrap items-center justify-between p-4 border-t border-solid border-slate-200 dark:border-slate-700 rounded-b bg-slate-50 dark:bg-slate-800/30 gap-2">
+                  <div>
+                    {(selectedCourseForAssign.section || selectedCourseForAssign.instructor) && (
+                      <button
+                        type="button"
+                        onClick={handleClearAssignment}
+                        className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-950/20 dark:hover:bg-red-900/30 dark:text-red-400 rounded text-xs font-semibold transition cursor-pointer"
+                      >
+                        Clear Assignment
+                      </button>
+                    )}
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsAssignModalOpen(false)}
+                      className="px-4 py-2 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-xs font-semibold transition cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold shadow transition cursor-pointer"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              </form>
+
+            </div>
+          </div>
+        </div>
+      )}
+
     </CurriculumPageLayout>
   );
 };
