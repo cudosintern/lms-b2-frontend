@@ -1,8 +1,18 @@
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Home from "../pages/ems/home";
 import Bos from "../pages/ioncudos/configuration/bos/Bos";
 import AddExistingUser from "../pages/ioncudos/configuration/bos/AddExistingUser";
 import AddNewMember from "../pages/ioncudos/configuration/bos/AddNewMember";
+import MapMentorMenteeListPage from "../pages/lms/mmp/mapMentorMentee/MapMentorMenteeListPage";
+import MapMentorsPage from "../pages/lms/mmp/mapMentorMentee/MapMentorsPage";
 
+import MapMenteesPage from "../pages/lms/mmp/mapMentorMentee/MapMenteesPage";
+import MentoringSessionPage from "../pages/lms/mmp/mentoringSession/MentoringSessionPage";
+import MmpConfigurationPage from "../pages/lms/mmp/configuration/MmpConfigurationPage";
+import DeptConfigurationPage from "../pages/lms/mmp/deptConfiguration/DeptConfigurationPage";
+import MmpReportPage from "../pages/lms/mmp/reports/MmpReportPage";
+import MentorListPage from "../pages/lms/mmp/reports/MentorListPage";
+import IssueObservationReportPage from "../pages/lms/mmp/reports/IssueObservationReportPage";
 // import Masters from "../pages/ems/configuration/masters/mastersPage";
 // import UserRolePage from "../pages/ems/configuration/userRole/userRolePage";
 // import UserMasterPage from "../pages/ems/configuration/userMaster/userMasterPage";
@@ -93,6 +103,8 @@ import { Outlet } from "react-router-dom";
 // import EligibilityListReport from "../pages/ems/reports/EligibilityListReport/EligibilityListReport";
 // import AnalysisReport from "../pages/ems/reports/AnalysisReport/AnalysisReport";
 import ChangePasswordPage from "../pages/changepassword";
+import QuestionnairePage from "../pages/lms/mmp/questionnaire/QuestionnairePage";
+import QuestionnaireCreatePage from "../pages/lms/mmp/questionnaire/QuestionnaireCreatePage";
 
 export const EMSROUTE = [
   {
@@ -193,6 +205,191 @@ export const EMSROUTE = [
       //   },
     ],
   },
+  {
+    name: "Mentor Mentee Program",
+  href: "/mmp",
+  element: Outlet,
+  roles: [],
+  subItems: [
+    {
+      name: "Configuration",
+      href: "configuration",
+      element: MmpConfigurationPage,
+      roles: [],
+      subItems: [],
+    },
+    {
+      name: "Questionnaires",
+      href: "questionnaire",
+      element: Outlet,
+      roles: [],
+      subItems: [
+        { name: "", href: "", roles: [], element: QuestionnairePage },
+        { name: "", href: "create", roles: [], element: QuestionnaireCreatePage },
+        { name: "", href: "edit/:id", roles: [], element: QuestionnaireCreatePage },
+      ],
+    },
+    {
+      name: "Dept. Configuration",
+      href: "dept-configuration",
+      element: DeptConfigurationPage,
+      roles: [],
+      subItems: [],
+    },
+
+    {
+  name: "Map Mentor Mentee",
+  href: "map-mentor-mentee",
+  element: Outlet,
+  roles: [],
+  subItems: [
+    {
+      name: "",
+      href: "",
+      roles: [],
+      element: MapMentorMenteeListPage,
+    },
+
+    {
+      name: "",
+      href: "map-mentors",
+      roles: [],
+      element: MapMentorsPage,
+    },
+
+    {
+      name: "",
+      href: "map-mentees",
+      roles: [],
+      element: MapMenteesPage,
+    },
+    {
+      name: "",
+      href: "map-mentees/:mentors_group_id/:academic_batch_id",
+      roles: [],
+      element: MapMenteesPage,
+    },
+  ],
+},
+
+    {
+      name: "Mentoring Session",
+      href: "mentoring-session",
+      element: MentoringSessionPage,
+      roles: [],
+      subItems: [],
+    },
+    {
+      name: "MMP Report",
+      href: "mmp-report",
+      element: MmpReportPage,
+      roles: [],
+      subItems: [],
+    },
+    {
+      name: "Mentor List",
+      href: "mentor-list",
+      element: MentorListPage,
+      roles: [],
+      subItems: [],
+    },
+    {
+      name: "Issue & Observation Report",
+      href: "issue-observation-report",
+      element: IssueObservationReportPage,
+      roles: [],
+      subItems: [],
+    },
+  ],
+},
+{
+  name: "",
+  href: "/lms_mmp/questionnaire",
+  element: QuestionnairePage,
+  roles: [],
+  hidden: true,
+  subItems: [],
+},
+{
+  name: "",
+  href: "/lms_mmp/questionnaire/create",
+  element: QuestionnaireCreatePage,
+  roles: [],
+  hidden: true,
+  subItems: [],
+},
+{
+  name: "",
+  href: "/lms_mmp/questionnaire/edit/:id",
+  element: QuestionnaireCreatePage,
+  roles: [],
+  hidden: true,
+  subItems: [],
+},
+{
+  name: "",
+  href: "/lms_mmp/map_mentor_mentee",
+  element: MapMentorMenteeListPage,
+  roles: [],
+  hidden: true,
+  subItems: [],
+},
+{
+  name: "",
+  href: "/lms_mmp/map_mentor_mentee/map-mentors",
+  element: MapMentorsPage,
+  roles: [],
+  hidden: true,
+  subItems: [],
+},
+{
+  name: "",
+  href: "/lms_mmp/map_mentor_mentee/map-mentees",
+  element: MapMenteesPage,
+  roles: [],
+  hidden: true,
+  subItems: [],
+},
+{
+  name: "",
+  href: "/lms_mmp/map_mentor_mentee/map-mentees/:mentors_group_id/:academic_batch_id",
+  element: MapMenteesPage,
+  roles: [],
+  hidden: true,
+  subItems: [],
+},
+{
+  name: "",
+  href: "/lms_mmp/schedule_mentor",
+  element: MentoringSessionPage,
+  roles: [],
+  hidden: true,
+  subItems: [],
+},
+{
+  name: "",
+  href: "/lms_mmp/mmp_report",
+  element: MmpReportPage,
+  roles: [],
+  hidden: true,
+  subItems: [],
+},
+{
+  name: "",
+  href: "/lms_mmp/mentor_list",
+  element: MentorListPage,
+  roles: [],
+  hidden: true,
+  subItems: [],
+},
+{
+  name: "",
+  href: "/lms_mmp/lms_issues_observations_report",
+  element: IssueObservationReportPage,
+  roles: [],
+  hidden: true,
+  subItems: [],
+},
   // {
   //   name: "Academics",
   //   href: "",

@@ -24,11 +24,38 @@ import { getRoleName } from "../../utils/data";
 interface MenuItemProps {
   item: RouteItem;
   level?: number;
+  parentHref?: string;
 }
 
-const MenuItem: React.FC<MenuItemProps> = ({ item, level = 0 }) => {
-  const [isOpen, setIsOpen] = useState(false);
+const joinMenuPath = (parentHref: string, href: string) => {
+  if (!href) return parentHref || "/";
+  if (href.startsWith("/")) return href;
+  return `${parentHref}/${href}`.replace(/\/+/g, "/");
+};
+
+const normalizeMmpPath = (pathname: string) => {
+  const aliases: Record<string, string> = {
+    "/lms_mmp/questionnaire": "/mmp/questionnaire",
+    "/lms_mmp/map_mentor_mentee": "/mmp/map-mentor-mentee",
+    "/lms_mmp/schedule_mentor": "/mmp/mentoring-session",
+    "/lms_mmp/mmp_report": "/mmp/mmp-report",
+    "/lms_mmp/mentor_list": "/mmp/mentor-list",
+    "/lms_mmp/lms_issues_observations_report": "/mmp/issue-observation-report",
+  };
+  const alias = Object.keys(aliases).find(
+    (path) => pathname === path || pathname.startsWith(`${path}/`),
+  );
+  return alias ? pathname.replace(alias, aliases[alias]) : pathname;
+};
+
+const MenuItem: React.FC<MenuItemProps> = ({ item, level = 0, parentHref = "" }) => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const itemHref = joinMenuPath(parentHref, item.href);
+  const normalizedPath = normalizeMmpPath(location.pathname);
+  const isMentoring = item.name === "Mentoring";
+  const isMentoringPath = normalizedPath === "/mmp" || normalizedPath.startsWith("/mmp/");
+  const [isOpen, setIsOpen] = useState(isMentoring && isMentoringPath);
   const hasChildren =
     item.subItems &&
     item.subItems.length > 0 &&
@@ -40,9 +67,19 @@ const MenuItem: React.FC<MenuItemProps> = ({ item, level = 0 }) => {
   const toggleSubmenu = (e: React.MouseEvent) => {
     if (hasChildren) {
       e.preventDefault();
-      setIsOpen(!isOpen);
+      if (isMentoring) {
+        setIsOpen(true);
+        navigate("/mmp/configuration");
+        return;
+      }
+      const nextOpen = !isOpen;
+      setIsOpen(nextOpen);
     }
   };
+
+  useEffect(() => {
+    if (isMentoring && isMentoringPath) setIsOpen(true);
+  }, [isMentoring, isMentoringPath]);
 
   const menuItemClasses = (isActive: boolean) => `
   flex items-center justify-between font-normal px-3 py-1 my-1 rounded-md transition-colors w-full
@@ -55,17 +92,21 @@ const MenuItem: React.FC<MenuItemProps> = ({ item, level = 0 }) => {
 
   const shouldHighlight = (item: any) => {
     if (item.name === "" && item.element === Outlet) return false;
+    const path = joinMenuPath(parentHref, item.href);
+    if (isMentoring) return isMentoringPath;
+    if (hasChildren) return normalizedPath === path;
     return (
-      location.pathname === item.href ||
-      (hasChildren && item.href !== "" && location.pathname === "/" + item.href) ||
-      (item.subItems?.some((subItem: any) => shouldHighlight(subItem)) ?? false)
+      normalizedPath === path ||
+      (path !== "/" && normalizedPath.startsWith(`${path}/`))
     );
   };
+
+  if (item.name === "" || item.hidden) return null; // Don't render invisible items
 
   return (
     <div className='w-full'>
       {item.href && !hasChildren ? (
-        <Link to={item.href} className={menuItemClasses(shouldHighlight(item))}>
+        <Link to={itemHref} className={menuItemClasses(shouldHighlight(item))}>
           <span className='flex items-center text-sm'>
             {item.icon && <span className='mr-1.5'>{item.icon}</span>}
             {item.name}
@@ -92,7 +133,7 @@ const MenuItem: React.FC<MenuItemProps> = ({ item, level = 0 }) => {
             {item?.subItems?.map(
               (child, index) =>
                 child.name !== "" && !child.hidden && (
-                  <MenuItem key={`${child.name}-${index}`} item={child} level={level + 1} />
+                  <MenuItem key={`${child.name}-${index}`} item={child} level={level + 1} parentHref={itemHref} />
                 ),
             )}
           </div>
@@ -165,6 +206,15 @@ const VerticalLayout: React.FC = () => {
   // const { theme, toggleTheme } = useTheme();
   const { handleOpenOrgModal } = useModalWithForm();
   const routesForRole = roleRoutes[applicationRole as string];
+  const sidebarRoutes = React.useMemo(() => {
+    if (!Array.isArray(routesForRole)) return [];
+    const home = routesForRole.find((item) => item.href === "/");
+    const mentoring = routesForRole.find((item) => item.href === "/mmp");
+    return [
+      home,
+      mentoring ? { ...mentoring, name: "Mentoring" } : undefined,
+    ].filter(Boolean) as RouteItem[];
+  }, [routesForRole]);
 
   // Toggle Layout mode
   const toggleLayoutMode = () => {
@@ -209,11 +259,9 @@ const VerticalLayout: React.FC = () => {
         {/* Navigation Menu - Make it scrollable */}
         <style>{scrollbarStyles}</style>
         <nav className='flex-1 overflow-y-auto py-2 px-3' data-custom-scrollbar>
-          {routesForRole &&
-            Array.isArray(routesForRole) &&
-            routesForRole
-              .filter((item) => item.href !== "/change_password")
-              .map((item, index) => <MenuItem key={`${item.name}-${index}`} item={item} />)}
+          {sidebarRoutes.map((item, index) => (
+            <MenuItem key={`${item.name}-${index}`} item={item} />
+          ))}
         </nav>
 
         {/* User Profile and Logout - Fixed at bottom */}

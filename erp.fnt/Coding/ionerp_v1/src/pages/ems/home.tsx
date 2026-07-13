@@ -496,29 +496,7 @@ const Home: React.FC = () => {
   ], [dashboardData]);
 
   return (
-    <div>
-      <div className='mb-4 max-w-lg'>
-        <label htmlFor='examEvent' className='block text-sm font-medium text-gray-700 dark:text-gray-300'>
-          Exam Event
-        </label>
-        <select
-          className='w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 transition duration-300 appearance-none border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-300 sm:text-sm'
-          value={examEvent}
-          onChange={handleExamEventChange}
-        >
-          <option key='placeholder' value=''>
-            Select Exam Event
-          </option>
-          {responseData?.map((item, index) => (
-            <option key={index} value={item.result_year_dd}>
-              {item.result_year_dd}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <Tabs items={tabItems} onSelectTab={setActiveIndex} activeTab={activeIndex} />
-    </div>
+    <div aria-label='Home' />
   );
 };
 

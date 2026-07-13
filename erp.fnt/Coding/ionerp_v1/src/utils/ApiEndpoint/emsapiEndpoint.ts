@@ -1,7 +1,7 @@
 export const ApiEndpoint = {
-  login: "api/v1/staff_student_login/staff_login",
-  change_password: "api/v1/auth/change-password",
-  FORGOT_PASSWORD: "api/v1/auth/forgot-password",
+  login: "auth/staff_login",
+  change_password: "auth/change-password",
+  FORGOT_PASSWORD: "auth/forgot-password",
   master_soft_delete: "comman_function/soft_delete",
 
   dashboard_info: "dashboard_info_route/dashboard_info",
@@ -12,6 +12,44 @@ export const ApiEndpoint = {
   department: {
     save_department: "department/save_department",
     department_list: "comman_function/department_list",
+  },
+
+  questionnaire: {
+    questionnaire_list: "lms_mmp_questionnaire/get_questionnaire_list",
+    questionnaire_full: "lms_mmp_questionnaire/get_questionnaire_full",
+    save_questionnaire: "lms_mmp_questionnaire/save_questionnaire",
+    delete_questionnaire: "lms_mmp_questionnaire/delete_questionnaire",
+    delete_question: "lms_mmp_questionnaire/delete_question",
+    delete_option: "lms_mmp_questionnaire/delete_option",
+    field_setting_list:
+      "lms_questionnaire_field_setting/get_questionnaire_field_setting",
+  },
+
+  question_type: {
+    get_question_type_list: "lms_question_type/get_question_type_list",
+    get_questionnaire_type_list: "lms_questionnaire_type/get_questionnaire_type_list",
+  },
+
+  mentorMentee: {
+    group_list: "lms_mentor_group/get_mentors_group_list",
+    academic_batch_list: "lms_mentors_group/get_academic_batch_list",
+    semesters_by_academic_batch:
+      "lms_mentors_group/get_semesters_by_academic_batch",
+    groups_by_academic_batch:
+      "lms_mentors_group/get_groups_by_academic_batch",
+    save_group: "lms_mentors_group/save_mentors_group",
+    group_complete: "lms_mentors_group/get_group_complete",
+    dropdowns: "lms_mmp/common_dropdowns",
+    terms: "lms_mentor_group_term/get_mentors_group_terms",
+    save_mentors: "lms_mentors_group/map_mentors",
+    mentors: "lms_mentors_group/get_group_mentors",
+    save_mentees: "lms_mentors_group/map_mentees",
+    mentees: "lms_mentors_group/get_group_mentees",
+    delete_mentee: "lms_mentors_group/delete_mentee",
+  },
+
+  mentoringSession: {
+    group_mentees: "lms_mentoring_session/get_group_mentees",
   },
 
   bos: {
