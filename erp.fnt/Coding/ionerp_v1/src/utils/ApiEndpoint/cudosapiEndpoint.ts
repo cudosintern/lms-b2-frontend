@@ -10,7 +10,7 @@ export const ApiEndpoint = {
   // Bloom's Domain specific endpoints
   bloomDomain: {
     save_bloom_domain: "bloom_domain/save_bloom_domain", // Create/Update Bloom's Domain
-    bloom_domain_list: "bloom_domain/bloom_domain_list", // Fetch all Bloom's Domains
+    bloom_domain_list: "comman_function/bloom_domain_list", // Fetch all Bloom's Domains
   },
 
   // Bloom's Level specific endpoints (for future implementation)
@@ -19,14 +19,10 @@ export const ApiEndpoint = {
     bloom_level_list: "comman_function/bloom_level_list",
   },
 
-  // Program Outcome specific endpoints
-  program: {
-    outcome_list: "comman_function/program_outcome_list",
-  },
-
   // Additional CUDOS endpoints can be added here
   // Example:
   // programOutcome: {
   //   save_program_outcome: "program_outcome/save_program_outcome",
+  //   program_outcome_list: "comman_function/program_outcome_list",
   // },
 } as const;

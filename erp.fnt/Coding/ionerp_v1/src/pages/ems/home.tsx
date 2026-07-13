@@ -452,7 +452,6 @@ const Home: React.FC = () => {
     loader: true,
     payload: { show_all: 1 },
     shouldFetch: true,
-    withCredentials: false,
   });
 
   // Memoize the API call function
@@ -476,7 +475,7 @@ const Home: React.FC = () => {
       setExamEvent(initialEvent);
       callDashboardApi(initialEvent);
     }
-  }, [responseData]);
+  }, [responseData, callDashboardApi]);
 
   // Handle select change
   const handleExamEventChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {

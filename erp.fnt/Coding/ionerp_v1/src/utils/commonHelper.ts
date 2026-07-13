@@ -6,20 +6,16 @@ import * as XLSX from "xlsx";
 // import { CourseListInterface } from "../pages/ems/academics/course/responceinterface";
 // import { ProgramListresponse } from "../pages/ems/configuration/program/responceinterface";
 import { OptionsResponse } from "../pages/login/loginModel";
-import { commonAPi, commonAPiResponse, Department, ProgramType, Outcome } from "../types/auth";
+import { commonAPi, commonAPiResponse, Department, ProgramType } from "../types/auth";
 import {
   BatchCycleInterface,
   CityListInterface,
   countryListInterface,
   CourseGroupInterface,
-  CourseListOptionInterface,
   eventCalenterTypeList,
-  ExamEventInterface,
   GetBatchTermListInterface,
   getCourseRelatedUSNOInterface,
-  getOccationListOptionInterface,
   GetOccupationList,
-  LabBatchListOptionInterface,
   OccasionOptionListInterface,
   OccasionTypeInterface,
   sectionOptionlistInterface,
@@ -65,8 +61,8 @@ export const getDeptOptionList = (): commonAPi | null => {
 };
 // export const // Helper to add/update department or program type
 export const updateCookieCommonApiData = (
-  key: "departments" | "program_types" | "outcomes",
-  newData: Department | ProgramType | Outcome,
+  key: "departments" | "program_types",
+  newData: Department | ProgramType,
 ) => {
   let cookieOptions = LocalStorageHelper.getObject<commonAPi>(AUTH_COOKIE_Department_KEY);
   // Retrieve the existing data from local storage
@@ -75,7 +71,6 @@ export const updateCookieCommonApiData = (
     cookieOptions = {
       departments: [],
       program_types: [],
-      outcomes: [],
     };
   }
 
@@ -107,18 +102,6 @@ export const updateCookieCommonApiData = (
     } else {
       // Otherwise, add a new program type
       cookieOptions.program_types.push(newData as ProgramType);
-    }
-  } else if (key === "outcomes") {
-    const index = cookieOptions.outcomes.findIndex(
-      (outcome) => outcome.po_id === (newData as Outcome).po_id,
-    );
-
-    if (index !== -1) {
-      // If outcome already exists, update it
-      cookieOptions.outcomes[index] = newData as Outcome;
-    } else {
-      // Otherwise, add a new outcome
-      cookieOptions.outcomes.push(newData as Outcome);
     }
   }
 
@@ -161,16 +144,15 @@ export const fetchallExamEventOptions = async (endpoint?: string, params?: any) 
     const response = await axiosInstance.post<ApiResponse<allexamEventInterface[]>>(
       endpoint ? endpoint : ApiEndpoint.fetch_result_year_options,
       { ...params }, // Move params to the request body
-      { withCredentials: false }
     );
 
     const res = response.data;
     return res && res.data
       ? res.data.map((item: allexamEventInterface) => ({
-        ...item,
-        value: item.result_year,
-        label: item.result_year,
-      }))
+          ...item,
+          value: item.result_year,
+          label: item.result_year,
+        }))
       : []; // Change null to an empty array
   } catch (error) {
     console.error("Error fetching all EXAMEVENT options:", error);
@@ -322,9 +304,9 @@ export const fetchBatchCycleOptions = async (endpoint?: string, params?: any) =>
     const res = response.data;
     return res && res.data
       ? res.data.map((item: BatchCycleInterface) => ({
-        value: item.batch_cycle_id ? item.batch_cycle_id.toString() : "",
-        label: item.batch_cycle_code,
-      }))
+          value: item.batch_cycle_id ? item.batch_cycle_id.toString() : "",
+          label: item.batch_cycle_code,
+        }))
       : []; // Change null to an empty array
   } catch (error) {
     console.error("Error fetching EXAMEVENT options:", error);
@@ -353,9 +335,9 @@ export const fetchsemesterOptions = async (endpoint?: string, params?: any) => {
 
     return res && res.data
       ? res.data.map((item: SemesterListInterface) => ({
-        value: item.semester ? item.semester.toString() : "",
-        label: item.semester,
-      }))
+          value: item.semester ? item.semester.toString() : "",
+          label: item.semester,
+        }))
       : null;
   } catch (error) {
     console.error("Error fetching semester options:", error);
@@ -375,9 +357,9 @@ export const fetchcyclesemesterOptions = async (endpoint?: string, params?: any)
 
     return res && res.data
       ? res.data.map((item: SemesterListInterface) => ({
-        value: item.semester ? item.semester.toString() : "",
-        label: item.semester,
-      }))
+          value: item.semester ? item.semester.toString() : "",
+          label: item.semester,
+        }))
       : null;
   } catch (error) {
     console.error("Error fetching semester options:", error);
@@ -426,9 +408,9 @@ export const fetchcycleStudentsectionOptions = async (endpoint?: string, params?
 
     return res && res.data
       ? res.data.map((item: sectionOptionlistInterface) => ({
-        value: item.section,
-        label: item.section,
-      }))
+          value: item.section,
+          label: item.section,
+        }))
       : null;
   } catch (error) {
     console.error("Error fetching semester options:", error);
@@ -775,11 +757,11 @@ export const fetchCourseGroupOptions = async (endpoint?: string, params?: any) =
     LocalStorageHelper.setObject("courseGroupList", res);
     return res && Array.isArray(res)
       ? res
-        .filter((item: CourseGroupInterface) => item.status === 1)
-        .map((item: CourseGroupInterface) => ({
-          value: item.course_type_id.toString(),
-          label: item.course_type_code,
-        }))
+          .filter((item: CourseGroupInterface) => item.status === 1)
+          .map((item: CourseGroupInterface) => ({
+            value: item.course_type_id.toString(),
+            label: item.course_type_code,
+          }))
       : null;
   } catch (error) {
     console.error("Error fetching course group options:", error);
@@ -811,9 +793,9 @@ export const fetchsectionOptions = async (endpoint?: string, params?: any) => {
 
     return res && res.data
       ? res.data.map((item: SemesterListInterface) => ({
-        value: item.semester ? item.semester.toString() : "",
-        label: item.semester,
-      }))
+          value: item.semester ? item.semester.toString() : "",
+          label: item.semester,
+        }))
       : null;
   } catch (error) {
     console.error("Error fetching get_section_list options:", error);
@@ -834,9 +816,9 @@ export const fetchUSNOptionslist = async (endpoint?: string, params?: any) => {
     const res = response.data;
     return res && res.data
       ? res.data.map((item: getCourseRelatedUSNOInterface) => ({
-        value: item.usno,
-        label: item.usno,
-      }))
+          value: item.usno,
+          label: item.usno,
+        }))
       : null;
   } catch (error) {
     console.error("Error fetching fetchUSNOptionslist options:", error);
@@ -855,9 +837,9 @@ export const fetchstudentUSNOptionslist = async (endpoint?: string, params?: any
     const res = response.data;
     return res && res.data
       ? res.data.map((item: getCourseRelatedUSNOInterface) => ({
-        value: item.usno,
-        label: item.usno,
-      }))
+          value: item.usno,
+          label: item.usno,
+        }))
       : null;
   } catch (error) {
     console.error("Error fetching fetchUSNOptionslist options:", error);
@@ -1058,9 +1040,9 @@ export const fetchOccutationOptions = async (endpoint?: string, params?: any) =>
     const res = response.data;
     return res && res.data
       ? res.data.map((item: OccasionOptionListInterface) => ({
-        value: item.cia_occasion ? item.cia_occasion.toUpperCase().trim() : "",
-        label: item.cia_occasion,
-      }))
+          value: item.cia_occasion ? item.cia_occasion.toUpperCase().trim() : "",
+          label: item.cia_occasion,
+        }))
       : []; // Change null to an empty array
   } catch (error) {
     console.error("Error fetching Occutation options:", error);
@@ -1103,9 +1085,9 @@ export const fetchOccutationTypeOptions = async (endpoint?: string, params?: any
     const res = response.data;
     return res && res.data
       ? res.data.map((item: OccasionTypeInterface) => ({
-        value: item.cia_occasion_type_id,
-        label: item.cia_occasion_type_code,
-      }))
+          value: item.cia_occasion_type_id,
+          label: item.cia_occasion_type_code,
+        }))
       : []; // Change null to an empty array
   } catch (error) {
     console.error("Error fetching OccutationType options:", error);
@@ -1166,9 +1148,9 @@ export const fetchTimetableSessionOptions = async (endpoint?: string, params?: a
     const res = response.data;
     return res && res.data
       ? res.data.map((item: { section: string }) => ({
-        value: item.section,
-        label: item.section,
-      }))
+          value: item.section,
+          label: item.section,
+        }))
       : null;
   } catch (error) {
     console.error("Error fetching batch options:", error);
@@ -1188,9 +1170,9 @@ export const fetchOccupationOptions = async (endpoint?: string, params?: any) =>
     const res = response.data;
     return res && res.data
       ? res.data.map((item: GetOccupationList) => ({
-        value: item.occupation_id ? item.occupation_id.toString() : "",
-        label: item.occupation_description,
-      }))
+          value: item.occupation_id ? item.occupation_id.toString() : "",
+          label: item.occupation_description,
+        }))
       : []; // Change null to an empty array
   } catch (error) {
     console.error("Error fetching GetOccupationList options:", error);
@@ -1210,9 +1192,9 @@ export const fetchCountryListOptions = async (endpoint?: string, params?: any) =
     const res = response.data;
     return res && res.data
       ? res.data.map((item: countryListInterface) => ({
-        value: item.country_id ? item.country_id.toString() : "",
-        label: item.country_name,
-      }))
+          value: item.country_id ? item.country_id.toString() : "",
+          label: item.country_name,
+        }))
       : []; // Change null to an empty array
   } catch (error) {
     console.error("Error fetching country_list options:", error);
@@ -1230,9 +1212,9 @@ export const fetchStateListOptions = async (endpoint?: string, params?: any) => 
     const res = response.data;
     return res && res.data
       ? res.data.map((item: StateListInterface) => ({
-        value: item.state_id ? item.state_id.toString() : "",
-        label: item.name,
-      }))
+          value: item.state_id ? item.state_id.toString() : "",
+          label: item.name,
+        }))
       : []; // Change null to an empty array
   } catch (error) {
     console.error("Error fetching fetchStateListOptions options:", error);
@@ -1251,9 +1233,9 @@ export const fetchCityListOptions = async (endpoint?: string, params?: any) => {
     const res = response.data;
     return res && res.data
       ? res.data.map((item: CityListInterface) => ({
-        value: item.city_id ? item.city_id.toString() : "",
-        label: item.city_name,
-      }))
+          value: item.city_id ? item.city_id.toString() : "",
+          label: item.city_name,
+        }))
       : []; // Change null to an empty array
   } catch (error) {
     console.error("Error fetching fetchCityListOptions options:", error);

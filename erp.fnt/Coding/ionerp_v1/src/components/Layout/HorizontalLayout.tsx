@@ -3,8 +3,6 @@ import {
   Columns,
   LayoutGrid,
   Menu,
-  Moon,
-  Sun,
   X,
   LandPlot,
   ChevronDown,
@@ -66,8 +64,9 @@ const MenuItem: React.FC<{
       item.subItems &&
       item.subItems.length > 0 &&
       !item.subItems.some(
-        (subItem) => subItem.name === "" || subItem.hidden || subItem.name === "Create" || subItem.name === "Update",
-      );
+        (subItem) => subItem.name === "" || subItem.name === "Create" || subItem.name === "Update"
+      ) &&
+      item.subItems.some((subItem) => !subItem.hidden);
 
     const menuRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
@@ -325,7 +324,7 @@ const HorizontalLayout: React.FC = () => {
             {routesForRole &&
               Array.isArray(routesForRole) &&
               routesForRole
-                .filter((item) => item.href !== "/change_password" && !item.hidden)
+                .filter((item) => item.href !== "/change_password")
                 .map((item, index) => (
                   <MenuItem
                     key={`${item.name}-${index}`}
@@ -438,7 +437,7 @@ const HorizontalLayout: React.FC = () => {
                 </button>
               </div>
               <nav className='px-2 py-3 h-[calc(100vh-64px)] overflow-x-hidden overflow-y-auto'>
-                {routesForRole.filter((item) => !item.hidden).map((item, index) => (
+                {routesForRole.map((item, index) => (
                   <MenuItem
                     key={`${item.name}-${index}`}
                     item={item}

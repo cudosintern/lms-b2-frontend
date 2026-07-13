@@ -1,12 +1,86 @@
+import React from "react";
 import MainPage from "../pages/mainPage";
-import DepartmentPage from "../pages/ems/configuration/departmentDetail/departmentPage";
-import { Outlet } from "react-router-dom";
 import ChangePasswordPage from "../pages/changepassword";
+import ConfigurationTypePage from "../pages/mentoring/ConfigurationTypePage";
+import DeptConfigurationPage from "../pages/mentoring/DeptConfigurationPage";
+import MentorListPage from "../pages/mentoring/MentorListPage";
+import QuestionnairePage from "../pages/mentoring/QuestionnairePage";
+import MentoringSessionPage from "../pages/mentoring/MentoringSessionPage";
+import MapMentorMenteePage from "../pages/mentoring/MapMentorMenteePage";
+import MmpReportPage from "../pages/mentoring/MmpReportPage";
+import CourseRegistrationPage from "../pages/curriculum/CourseRegistrationPage";
+import { FaHome, FaUsers, FaBook } from "react-icons/fa";
+
 export const MAINROUTE = [
   {
     name: "Home",
     href: "/",
     element: MainPage,
+    icon: React.createElement("div", { className: "w-6 h-6 rounded bg-red-600 flex items-center justify-center text-white mr-1.5" }, React.createElement(FaHome, { size: 11 })),
+    roles: [],
+    subItems: [],
+  },
+  {
+    name: "Mentoring",
+    href: "/mentoring",
+    element: ConfigurationTypePage,
+    icon: React.createElement("div", { className: "w-6 h-6 rounded bg-emerald-600 flex items-center justify-center text-white mr-1.5" }, React.createElement(FaUsers, { size: 11 })),
+    roles: [],
+    subItems: [],
+  },
+  {
+    name: "",
+    href: "/mentoring/dept_configuration",
+    element: DeptConfigurationPage,
+    roles: [],
+    subItems: [],
+    hidden: true,
+  },
+  {
+    name: "",
+    href: "/mentoring/mentor_list",
+    element: MentorListPage,
+    roles: [],
+    subItems: [],
+    hidden: true,
+  },
+  {
+    name: "",
+    href: "/mentoring/questionnaires",
+    element: QuestionnairePage,
+    roles: [],
+    subItems: [],
+    hidden: true,
+  },
+  {
+    name: "",
+    href: "/mentoring/mentoring_session",
+    element: MentoringSessionPage,
+    roles: [],
+    subItems: [],
+    hidden: true,
+  },
+  {
+    name: "",
+    href: "/mentoring/map_mentor_mentee",
+    element: MapMentorMenteePage,
+    roles: [],
+    subItems: [],
+    hidden: true,
+  },
+  {
+    name: "",
+    href: "/mentoring/mmp_report",
+    element: MmpReportPage,
+    roles: [],
+    subItems: [],
+    hidden: true,
+  },
+  {
+    name: "Curriculum",
+    href: "/curriculum",
+    element: CourseRegistrationPage,
+    icon: React.createElement("div", { className: "w-6 h-6 rounded bg-indigo-600 flex items-center justify-center text-white mr-1.5" }, React.createElement(FaBook, { size: 11 })),
     roles: [],
     subItems: [],
   },
@@ -17,7 +91,6 @@ export const MAINROUTE = [
     roles: [],
     subItems: [],
   },
-
   // {
   //   name: "User",
   //   href: "",

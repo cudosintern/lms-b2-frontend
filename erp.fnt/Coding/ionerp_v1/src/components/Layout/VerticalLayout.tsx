@@ -3,8 +3,6 @@ import {
   Menu,
   X,
   ChevronRight,
-  Sun,
-  Moon,
   LandPlot,
   Columns,
   LayoutGrid,
@@ -61,13 +59,10 @@ const MenuItem: React.FC<MenuItemProps> = ({ item, level = 0, parentHref = "" })
   const hasChildren =
     item.subItems &&
     item.subItems.length > 0 &&
-    item.subItems.some(
-      (subItem) =>
-        subItem.name !== "" &&
-        !subItem.hidden &&
-        subItem.name !== "Create" &&
-        subItem.name !== "Update"
-    );
+    !item.subItems.some(
+      (subItem) => subItem.name === "" || subItem.name === "Create" || subItem.name === "Update"
+    ) &&
+    item.subItems.some((subItem) => !subItem.hidden);
 
   const toggleSubmenu = (e: React.MouseEvent) => {
     if (hasChildren) {

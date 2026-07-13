@@ -15,9 +15,9 @@ const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { loading, login } = useAuth();
 
-  // React.useEffect(() => {
-  //   LocalStorageHelper.removeAll();
-  // }, []);
+  React.useEffect(() => {
+    LocalStorageHelper.removeAll();
+  }, []);
 
   const [showPassword, setShowPassword] = useState(false);
   // const [loginData, setLoginData] = useState<loginPayload>({
@@ -54,10 +54,6 @@ const LoginPage: React.FC = () => {
     fields: [
       {
         ...field,
-
-
-
-
         customProps:
           field.name === "password"
             ? {
@@ -75,7 +71,10 @@ const LoginPage: React.FC = () => {
 
   return (
     <div className='min-h-screen flex items-center justify-center bg-gradient-to-br from-white-50 to-blue-100 dark:from-gray-900 dark:to-gray-800 p-4'>
-      <div
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5 }}
         className='w-full max-w-md bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700'
       >
         <div className='text-center mb-8'>
@@ -118,7 +117,7 @@ const LoginPage: React.FC = () => {
             Forgot Password?
           </a>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 };

@@ -5,7 +5,7 @@ interface ModalWithFormProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
-  size?: "sm" | "md" | "lg" | "xl" | "5xl" | "full";
+  size?: "sm" | "md" | "lg" | "xl" | "full";
   children: React.ReactNode;
 }
 
@@ -15,13 +15,12 @@ const ModalContainer: React.FC<ModalWithFormProps> = ({ isOpen, onClose, title, 
     md: "max-w-md",
     lg: "max-w-lg",
     xl: "max-w-xl",
-    "5xl": "max-w-5xl",
-    full: "max-w-full",
+    full: "max-w-full", // Add this line
   };
 
   return (
     <Transition show={isOpen} as={React.Fragment}>
-      <Dialog as='div' className='fixed inset-0 z-[100] overflow-visible overflow-y-auto' onClose={onClose}>
+      <Dialog as='div' className='fixed inset-0 overflow-visible overflow-y-auto' onClose={onClose}>
         <div className='min-h-screen px-4 text-center'>
           <Transition.Child
             as={React.Fragment}

@@ -41,25 +41,24 @@ export const useAxios = <TPayload, TResponse>(
         const response = await axiosInstance.request<ApiResponse<TResponse>>({
           url,
           method: mergedOptions.method || "get",
-          data: mergedOptions.method === "get" ? undefined : (mergedOptions.payload as any),
-          params: mergedOptions.method === "get" ? (mergedOptions.payload as any) : undefined,
+          data: mergedOptions.payload as any,
           ...mergedOptions,
         });
 
         // console.log("response", response);
-        
+
         if (!response || !response.data) {
           toast.error("Server is busy, please try again later");
           return null;
         }
-    
+
         if (!response.status && response.data.data === null) {
           return (response.data as ApiResponse<TResponse>) ?? null;
         }
 
         if (!response.status) {
           toast.error(response.data.message);
-           return (response.data as ApiResponse<TResponse>) ?? null;
+          return (response.data as ApiResponse<TResponse>) ?? null;
         }
 
         // console.log('asdas', response)
@@ -86,10 +85,8 @@ export const useAxios = <TPayload, TResponse>(
           const errorMessage = err.response?.data?.message || err.message || "Something went wrong";
           setError(errorMessage);
           // console.log("errrrrr =======>", err.response.data.message);
-          toast.dismiss(); 
           toast.error(errorMessage);
         }
-         
         return null;
       } finally {
         if (mergedOptions.loader !== false) {
@@ -141,32 +138,22 @@ export const useAxios = <TPayload, TResponse>(
         ) as TResponse;
         // console.log("editStateItem === 1", updatedData);
         setResponseData(updatedData);
-      } else if (responseData && typeof responseData === "object") {
-        // Handle nested array in object, e.g., { peos: [] }
-        if ('peos' in responseData && Array.isArray(responseData.peos)) {
-          const updatedPeos = responseData.peos.map((item: any) =>
-            item[keyName] === id ? { ...item, ...updatedItem } : item,
-          );
-          const updatedData = { ...responseData, peos: updatedPeos } as TResponse;
-          // console.log("editStateItem === nested array", updatedData);
-          setResponseData(updatedData);
-        } else if (id in responseData) {
-          const updatedData = { ...responseData, [id]: updatedItem } as TResponse;
-          // console.log("editStateItem === 2", updatedData);
-          setResponseData(updatedData);
-        }
+      } else if (responseData && typeof responseData === "object" && id in responseData) {
+        const updatedData = { ...responseData, [id]: updatedItem } as TResponse;
+        // console.log("editStateItem === 2", updatedData);
+        setResponseData(updatedData);
       }
     },
     [responseData],
   );
 
   const deleteStateItem = useCallback(
-    (keyName: string, id: number) => {
+    (key: number) => {
       if (responseData && Array.isArray(responseData)) {
-        const updatedData = responseData.filter((item: any) => item[keyName] !== id) as TResponse;
+        const updatedData = responseData.filter((item: any) => item.key !== key) as TResponse;
         setResponseData(updatedData);
-      } else if (responseData && typeof responseData === "object" && id in responseData) {
-        const { [id]: _, ...rest } = responseData as any;
+      } else if (responseData && typeof responseData === "object" && key in responseData) {
+        const { [key]: _, ...rest } = responseData as any;
         setResponseData(rest as TResponse);
       }
     },
@@ -200,7 +187,6 @@ export const useAxios = <TPayload, TResponse>(
         return response.data.data ?? null;
       } catch (error: any) {
         const errorMessage = error.response?.data?.message || error.message || "An error occurred while adding the item";
-        toast.dismiss(); 
         toast.error(errorMessage);
         console.error("Add item error:", error);
         return null;
@@ -211,43 +197,31 @@ export const useAxios = <TPayload, TResponse>(
 
   const editItem = useCallback(
     async (id: number | null, updatedItem: TPayload, endpoint: string): Promise<TResponse | null> => {
-      try {
-        const sanitizedEndpoint = endpoint.replace(/\/$/, '');
-        const response = await axiosInstance.request<{status: number, message: string, data: any}>({
-          method: "put",
-          url: `${sanitizedEndpoint}/${id}`,
-          data: updatedItem as any,
-        });
-        
-        const responseData = response.data;
-        if (!responseData?.status) {
-          toast.error(responseData?.message || "Failed to update");
-          return null;
-        }
-        
-        if (responseData.status && responseData.message === "Completed" && typeof responseData.data === "string") {
-          toast.success(responseData.data);
-          return responseData.data as unknown as TResponse;
-        }
-        toast.success(responseData.message === "Completed" ? "Saved Successfully" : responseData.message);
-        return responseData.data as TResponse | null;
-      } catch (error: any) {
-        const errorMessage = error.response?.data?.message || error.message || "An error occurred while updating the item";
-        toast.dismiss(); 
-        toast.error(errorMessage);
-        console.error("Edit item error:", error);
+      const response = await fetchData({
+        method: "put",
+        url: `${endpoint}/${id}`,
+        payload: updatedItem,
+      });
+      if (!response?.status) {
+        toast.error(response?.message);
         return null;
       }
+      if (response.status && response.message === "Completed" && typeof response.data === "string") {
+        // toast.success(response.data.data);
+        toast.success(response.data);
+        return response?.data || null;
+      }
+      toast.success(response?.message === "Completed" ? "Saved Successfully" : response?.message);
+      return response?.data || null;
     },
-    [],
+    [fetchData],
   );
 
   const deleteItem = useCallback(
     async (id: number | null, endpoint: string): Promise<TResponse | null> => {
-      const sanitizedEndpoint = endpoint.replace(/\/$/, '');
       const response = await fetchData({
         method: "delete",
-        url: `${sanitizedEndpoint}/${id}`,
+        url: `${endpoint}/${id}`,
       });
       if (!response?.status) {
         toast.error(response?.message);
@@ -270,8 +244,8 @@ export const useAxios = <TPayload, TResponse>(
       method: "get" | "post" | "put" | "delete",
       payload?: CustomPayload,
       showMessage?: true | false,
-      customOptions: Partial<typeof options> & { returnFullResponse?: boolean } = {},
-    ): Promise<any> => {
+      customOptions: Partial<typeof options> = {},
+    ): Promise<CustomResponse | null> => {
       setLoading(true);
       try {
         const response = await axiosInstance.request<ApiResponse<CustomResponse>>({
@@ -295,10 +269,6 @@ export const useAxios = <TPayload, TResponse>(
               ? response.data.data
               : response.data.message,
           );
-        }
-
-        if (customOptions.returnFullResponse) {
-          return response.data;
         }
         return response.data.data as CustomResponse | null;
         // return null;
@@ -427,7 +397,6 @@ export const useAxios = <TPayload, TResponse>(
       } catch (error: any) {
         const errorMessage = error.response?.data?.message || error.message || "Something went wrong";
         setError(errorMessage);
-        toast.dismiss(); 
         toast.error(errorMessage);
         console.error("File upload error:", error);
         return null;

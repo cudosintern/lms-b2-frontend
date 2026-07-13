@@ -6,6 +6,7 @@ import {
   IoArrowForward,
   IoSettingsSharp,
 } from "react-icons/io5";
+import { FaUsers, FaBook } from "react-icons/fa";
 import { MainPageCards } from "../utils/data";
 import { IconBaseProps } from "react-icons";
 import { LocalStorageHelper } from "../utils/localStorageHelper";
@@ -40,13 +41,11 @@ const MainPage: React.FC = () => {
 
   const { isAuthenticated, setApplicationRole } = useAuth();
 
-  const bypass = process.env.REACT_APP_BYPASS_LOGIN === "true";
-
   React.useEffect(() => {
-    if (!isAuthenticated && !bypass) {
+    if (!isAuthenticated) {
       navigator("/login");
     }
-  }, [isAuthenticated, navigator, bypass]);
+  }, [isAuthenticated, navigator]);
 
   // Map icon names from JSON to actual React Icon components
   const iconMapping: { [key: string]: React.ComponentType<IconBaseProps> } = {
@@ -54,6 +53,8 @@ const MainPage: React.FC = () => {
     transport: IoBus,
     admission: IoSchool,
     settings: IoSettingsSharp,
+    mentoring: FaUsers,
+    curriculum: FaBook,
   };
 
   const handleNavigate = React.useCallback(
