@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Editor } from "@tinymce/tinymce-react";
 import DatePicker from "react-datepicker";
 import { CalendarDays, ChevronDown, ChevronRight } from "lucide-react";
@@ -8,6 +9,7 @@ import { useAuth } from "../../../../hooks/useAuth";
 import { LocalStorageHelper } from "../../../../utils/localStorageHelper";
 import { loginData } from "../../../login/loginModel";
 import MmpModuleShell from "../components/MmpModuleShell";
+import MentoringPageLayout from "../../../../mentoring/MentoringPageLayout";
 import {
   deleteIssueObservation,
   getIssueObservationCurriculumTerms,
@@ -503,6 +505,8 @@ const resolveMentorUserId = (authState: loginData | null) => {
 };
 
 const IssueObservationReportPage: React.FC = () => {
+  const location = useLocation();
+  const isMentoringPath = location.pathname.startsWith("/mentoring");
   const { authState: authStateFromHook } = useAuth();
   const authState =
     authStateFromHook ?? LocalStorageHelper.getObject<loginData>(AUTH_COOKIE_KEY);
@@ -629,7 +633,7 @@ const IssueObservationReportPage: React.FC = () => {
     const fallbackToFirstTerm = options?.fallbackToFirstTerm ?? true;
     const resolvedCurriculumValue =
       options?.preferredCurriculumValue &&
-      nextCurriculumOptions.some((item) => item.value === options.preferredCurriculumValue)
+        nextCurriculumOptions.some((item) => item.value === options.preferredCurriculumValue)
         ? options.preferredCurriculumValue
         : nextCurriculumOptions[0]?.value || "";
 
@@ -648,7 +652,7 @@ const IssueObservationReportPage: React.FC = () => {
         : undefined;
     const resolvedTermValue =
       normalizedPreferredTerm &&
-      nextTermOptions.some((term) => term.value === normalizedPreferredTerm)
+        nextTermOptions.some((term) => term.value === normalizedPreferredTerm)
         ? normalizedPreferredTerm
         : matchedTermByLabel?.value || (fallbackToFirstTerm ? nextTermOptions[0]?.value || "" : "");
 
@@ -1139,7 +1143,7 @@ const IssueObservationReportPage: React.FC = () => {
     }
   };
 
-  return (
+  const pageContent = (
     <div className="issue-observation-report-page">
       <style>
         {`
@@ -1933,9 +1937,8 @@ const IssueObservationReportPage: React.FC = () => {
                             <button
                               key={`${curriculum.value}-${term.value}`}
                               type="button"
-                              className={`curriculum-term-term-row${
-                                selectedTerm === term.value ? " is-selected" : ""
-                              }`}
+                              className={`curriculum-term-term-row${selectedTerm === term.value ? " is-selected" : ""
+                                }`}
                               onClick={() => handleTermChange(term.value)}
                               role="treeitem"
                               aria-selected={selectedTerm === term.value}
@@ -2229,13 +2232,19 @@ const IssueObservationReportPage: React.FC = () => {
           </div>
         )}
 
-        {isLoadingSelectedReport && !shouldShowCreateForm && (
+         {isLoadingSelectedReport && !shouldShowCreateForm && (
           <div className="mt-10 rounded border border-gray-200 px-4 py-4 text-sm text-gray-600">
             Loading report details...
           </div>
         )}
       </MmpModuleShell>
     </div>
+  );
+
+  return isMentoringPath ? (
+    <MentoringPageLayout>{pageContent}</MentoringPageLayout>
+  ) : (
+    pageContent
   );
 };
 
