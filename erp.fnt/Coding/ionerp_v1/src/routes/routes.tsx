@@ -44,7 +44,6 @@ const renderRoutes = (
         (s) => s.name !== "" && s.name !== "Create" && s.name !== "Update" && !s.hidden
       );
 
-    const hasChildRoutes = Boolean(route.subItems && route.subItems.length > 0);
     return (
       <Route
         key={fullPath}
@@ -52,7 +51,6 @@ const renderRoutes = (
         element={
           <ProtectedRoute
             element={hasNamedChildren ? <Outlet /> : <route.element />}
-            element={hasChildRoutes ? <Outlet /> : <route.element />}
             roles={route.roles}
           />
         }
@@ -67,7 +65,6 @@ const renderRoutes = (
         {route.subItems && route.subItems.length === 0 && (
           <Route index element={<route.element />} />
         )}
-        {hasChildRoutes && renderRoutes(route.subItems || [], fullPath)}
       </Route>
     );
   });
