@@ -9,7 +9,7 @@ import { useAuth } from "../../../../hooks/useAuth";
 import { LocalStorageHelper } from "../../../../utils/localStorageHelper";
 import { loginData } from "../../../login/loginModel";
 import MmpModuleShell from "../components/MmpModuleShell";
-import MentoringPageLayout from "../../../../mentoring/MentoringPageLayout";
+import MentoringPageLayout from "../../../mentoring/MentoringPageLayout";
 import {
   deleteIssueObservation,
   getIssueObservationCurriculumTerms,
