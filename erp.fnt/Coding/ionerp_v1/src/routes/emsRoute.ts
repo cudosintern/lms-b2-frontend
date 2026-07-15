@@ -36,15 +36,11 @@ import DepartmentPage from "../pages/ems/configuration/departmentDetail/departme
 import RegistrationSetup from "../pages/lms/studentCourseRegitsrtion/studentCourseRegistration";
 import type { RouteItem } from "./routeTypes";
 
-// Import all Mentoring pages
-import ConfigurationType from "../pages/lms/Mentoring/ConfigurationType/ConfigurationType";
-import DeptConfiguration from "../pages/lms/Mentoring/DeptConfiguration/DeptConfiguration";
-import Questionnaires from "../pages/lms/Mentoring/Questionnaires/Questionnaires";
+
 import MentorMentee from "../pages/lms/Mentoring/mentorMentee";
 import MentoringSession from "../pages/lms/Mentoring/MentoringSession/MentoringSession";
 //import MyMentoringSessions from "../pages/lms/Mentoring/MyMentoringSessions/MyMentoringSessions";
-import MMPReport from "../pages/lms/Mentoring/MMPReport/MMPReport";
-import MentorList from "../pages/lms/Mentoring/MentorList/MentorList";
+
 import IssueObservationReport from "../pages/lms/Mentoring/IssueObservationReport/IssueObservationReport";
 
 export const EMSROUTE: RouteItem[] = [
@@ -796,34 +792,8 @@ export const EMSROUTE: RouteItem[] = [
     element: Outlet,
     roles: [],
     subItems: [
-      {
-        name: "Configuration Type",
-        href: "/lms/configuration-type",
-        roles: [],
-        element: ConfigurationType,
-        subItems: [],
-      },
-      {
-        name: "Dept. Configuration",
-        href: "/lms/dept-configuration",
-        roles: [],
-        element: DeptConfiguration,
-        subItems: [],
-      },
-      {
-        name: "Questionnaires",
-        href: "/lms/questionnaires",
-        roles: [],
-        element: Questionnaires,
-        subItems: [],
-      },
-      {
-        name: "Map Mentor Mentee",
-        href: "/lms/mentor-mentee",
-        roles: [],
-        element: MentorMentee,
-        subItems: [],
-      },
+      
+      
       {
         name: "Mentoring Session",
         href: "/lms/mentoring-session",
@@ -838,20 +808,7 @@ export const EMSROUTE: RouteItem[] = [
         //element: MyMentoringSessions,
         //subItems: [],
       //},
-      {
-        name: "MMP Report",
-        href: "/lms/mmp-report",
-        roles: [],
-        element: MMPReport,
-        subItems: [],
-      },
-      {
-        name: "Mentor List",
-        href: "/lms/mentor-list",
-        roles: [],
-        element: MentorList,
-        subItems: [],
-      },
+     
       {
         name: "Issue & Observation Report",
         href: "/lms/issue-observation-report",

@@ -4,7 +4,7 @@ import { EMSROUTE } from "./emsRoute";
 // import { HOSTELROUTE } from "./hostelRoute";
 import { MAINROUTE } from "./mainRoute";
 import { CUDOSROUTE } from "./cudosRoute";
-import { PLACEMENTROUTE } from "./placementRoute";
+
 import type { RoleRoutes } from "./routeTypes";
 
 export type { RoleRoutes, RouteItem } from "./routeTypes";
@@ -16,4 +16,5 @@ export const roleRoutes: RoleRoutes = {
   // ionadmission: ADMISSIONROUTE,
   // iontransport: TRANSPORTROUTE,
   // ionhostel: HOSTELROUTE,
+  
 };

@@ -293,3 +293,13 @@ export const MAINROUTE = [
   //   ]
   // }
 ];
+//   {
+//     name: "Registration",
+//     href: "/registration",
+//     element: Outlet,
+//     roles: ["faculty", "admin"],
+//     subItems: [
+     
+//     ]
+//   }
+// ];

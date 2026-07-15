@@ -1,6 +1,6 @@
 import { Outlet } from "react-router-dom";
 import BloomDomainPage from "../pages/ioncudos/configuration/bloomDomain/bloomDomainPage";
-import MentorMentee from "../pages/lms/Mentoring/mentorMentee";
+
 import type { RouteItem } from "./routeTypes";
 
 /**
@@ -24,12 +24,7 @@ export const CUDOSROUTE: RouteItem[] = [
         element: BloomDomainPage,
         roles: [],
       },
-      {
-        name: "Map Mentor Mentee",
-        href: "mentor-mentee", // Relative path - will be combined with parent
-        element: MentorMentee,
-        roles: [],
-      },
+    
     ],
   },
 ];
