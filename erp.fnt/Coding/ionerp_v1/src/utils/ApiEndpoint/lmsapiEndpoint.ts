@@ -29,4 +29,12 @@ export const ApiEndpoint = {
   // programOutcome: {
   //   save_program_outcome: "program_outcome/save_program_outcome",
   // },
+  studentCourseRegistration: {
+    checkRegistrationStatus:
+      "student-course-registration/check_registration_status",
+    registrationAcademicBatchList:
+      "student-course-registration/get_registration_academic_batch_list",
+    registrationSemesterList:
+      "student-course-registration/get_registration_semester_list",
+  },
 } as const;

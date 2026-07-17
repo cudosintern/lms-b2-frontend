@@ -44,6 +44,24 @@ interface GroupApiItem {
   config_type_id: number | null;
   questionnaire_id: number | null;
   mentors: GroupMentorApi[];
+  mentoring_sessions?: GroupMentoringSessionApi[];
+  sub_groups?: GroupSubGroupApi[];
+}
+
+interface GroupSessionDateApi {
+  start_date?: string | null;
+  end_date?: string | null;
+  start_time?: string | null;
+  end_time?: string | null;
+  status?: string | number | null;
+}
+
+interface GroupSubGroupApi {
+  dates?: GroupSessionDateApi[];
+}
+
+interface GroupMentoringSessionApi {
+  sub_groups?: GroupSubGroupApi[];
 }
 
 interface CurrentGroupMentorApi {
@@ -88,6 +106,8 @@ interface TableRow {
   questionnaire_id: number | null;
   mentors: { id: number; name: string; mentors_group_terms_id: number }[];
   mentees: { id: number; name: string }[];
+  sessionDate: string;
+  sessionStatus: string;
   groupTitleSortKey: string;
   mentorSortKey: string;
   menteeSortKey: string;
@@ -213,6 +233,58 @@ const buildMentorDisplaySummary = (names: string[]) => {
   };
 };
 
+const getFirstSessionDateRecord = (group: GroupApiItem) => {
+  for (const mentoringSession of group.mentoring_sessions || []) {
+    for (const subGroup of mentoringSession.sub_groups || []) {
+      for (const dateRecord of subGroup.dates || []) {
+        if (dateRecord && typeof dateRecord === "object") {
+          return dateRecord;
+        }
+      }
+    }
+  }
+
+  for (const subGroup of group.sub_groups || []) {
+    for (const dateRecord of subGroup.dates || []) {
+      if (dateRecord && typeof dateRecord === "object") {
+        return dateRecord;
+      }
+    }
+  }
+
+  return null;
+};
+
+const buildSessionDateText = (dateRecord: GroupSessionDateApi | null) => {
+  const startDate = dateRecord?.start_date?.trim() || "";
+  const startTime = dateRecord?.start_time?.trim() || "";
+  const sessionDateText = [startDate, startTime].filter((value) => value.length > 0).join(" ");
+
+  return sessionDateText || "-";
+};
+
+const buildSessionDateSortKey = (dateRecord: GroupSessionDateApi | null) => {
+  const startDate = dateRecord?.start_date?.trim() || "";
+  const startTime = dateRecord?.start_time?.trim() || "";
+  const dateTimeText = [startDate, startTime].filter((value) => value.length > 0).join(" ");
+
+  if (!dateTimeText) {
+    return null;
+  }
+
+  const parsedTimestamp = Date.parse(dateTimeText.replace(" ", "T"));
+  return Number.isNaN(parsedTimestamp) ? null : parsedTimestamp;
+};
+
+const buildSessionStatusText = (dateRecord: GroupSessionDateApi | null) => {
+  if (!dateRecord || dateRecord.status === null || dateRecord.status === undefined) {
+    return "-";
+  }
+
+  const statusText = String(dateRecord.status).trim();
+  return statusText.length > 0 ? statusText : "-";
+};
+
 const formatGroupRows = (
   groups: GroupApiItem[],
   currentMentorsByGroupId: Map<number, CurrentGroupMentorApi[]>,
@@ -249,6 +321,9 @@ const formatGroupRows = (
     });
 
     const mentors = Array.from(mentorDisplayMap.values());
+    const firstSessionDateRecord = getFirstSessionDateRecord(group);
+    const sessionDate = buildSessionDateText(firstSessionDateRecord);
+    const sessionStatus = buildSessionStatusText(firstSessionDateRecord);
 
     const menteeMap = new Map<number, string>();
     (group.mentors || []).forEach((mentor) => {
@@ -271,13 +346,15 @@ const formatGroupRows = (
       questionnaire_id: group.questionnaire_id,
       mentors,
       mentees: Array.from(menteeMap.entries()).map(([id, name]) => ({ id, name })),
+      sessionDate,
+      sessionStatus,
       groupTitleSortKey: buildNormalizedSortKey([group.mentors_pgm_title]),
       mentorSortKey: buildNormalizedSortKey(mentors.map((mentor) => mentor.name)),
       menteeSortKey: buildNormalizedSortKey(
         Array.from(menteeMap.entries()).map(([, name]) => name),
       ),
-      sessionDateSortKey: null,
-      sessionStatusSortKey: "",
+      sessionDateSortKey: buildSessionDateSortKey(firstSessionDateRecord),
+      sessionStatusSortKey: sessionStatus === "-" ? "" : sessionStatus,
       actionSortKey: buildNormalizedSortKey(["Edit"]),
     };
   });
@@ -1524,8 +1601,12 @@ const MapMentorMenteeListPage: React.FC = () => {
                       </button>
                     )}
                   </td>
-                  <td className="border border-gray-300 px-[10px] py-[7px] align-top text-gray-700"></td>
-                  <td className="border border-gray-300 px-[10px] py-[7px] align-top text-gray-700"></td>
+                  <td className="border border-gray-300 px-[10px] py-[7px] align-top text-gray-700">
+                    {group.sessionDate}
+                  </td>
+                  <td className="border border-gray-300 px-[10px] py-[7px] align-top text-gray-700">
+                    {group.sessionStatus}
+                  </td>
                   <td className={actionCellClassName}>
                     <button
                       type="button"
