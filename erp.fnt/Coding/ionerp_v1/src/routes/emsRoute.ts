@@ -27,13 +27,13 @@ import BloomDomainPage from "../pages/ioncudos/configuration/bloomDomain/bloomDo
 // import AcademicCalenderForm from "../pages/ems/academics/academicCalendar/academicCalenderForm";
 // src/routes/emsRoute.ts
 
-import Home from "../pages/ems/home";
+
 import { Outlet } from "react-router-dom";
 import ChangePasswordPage from "../pages/changepassword";
 import QuestionnairePage from "../pages/lms/mmp/questionnaire/QuestionnairePage";
 import QuestionnaireCreatePage from "../pages/lms/mmp/questionnaire/QuestionnaireCreatePage";
-import DepartmentPage from "../pages/ems/configuration/departmentDetail/departmentPage";
-import RegistrationSetup from "../pages/lms/studentCourseRegitsrtion/studentCourseRegistration";
+import RegistrationSetup from "../pages/lms/studentCourseRegistration/studentCourseRegistration";
+
 import type { RouteItem } from "./routeTypes";
 
 
@@ -74,32 +74,39 @@ export const EMSROUTE: RouteItem[] = [
   },
 
   {
-    name: "Configurations",
-    href: "",
-  {
-    name: "Configuration",
-    href: "/configuration",
-    element: Outlet,
-    roles: [],
-    subItems: [
-      {
-        name: "Department1",
-        href: "department",
-        roles: [],
-        element: DepartmentPage,
-      },
-      {
-        name: "Bloom's Domain",
-        href: "bloom_domain",
-        roles: [],
-        element: BloomDomainPage,
-      },
-      {
-        name: "BoS Members",
-        href: "bos",
-        roles: [],
-        element: Bos
-      },
+  name: "Configurations",
+  href: "",
+  element: Outlet,
+  roles: [],
+  subItems: [
+    {
+      name: "Configuration",
+      href: "/configuration",
+      element: Outlet,
+      roles: [],
+      subItems: [
+        {
+          name: "Department1",
+          href: "department",
+          roles: [],
+          element: DepartmentPage,
+        },
+        {
+          name: "Bloom's Domain",
+          href: "bloom_domain",
+          roles: [],
+          element: BloomDomainPage,
+        },
+        {
+          name: "BoS Members",
+          href: "bos",
+          roles: [],
+          element: Bos,
+        },
+      ],
+    },
+  ],
+},
 
       //   { name: "Program Type", href: "program_type", roles: [], element: ProgramTypePage },
       //   { name: "Program", href: "program", roles: [], element: ProgramPage },
@@ -109,8 +116,8 @@ export const EMSROUTE: RouteItem[] = [
       //     roles: [],
       //     element: CourseAllocation,
       //   },
-    ],
-  },
+    
+  
   {
     name: "Mentor Mentee Program",
   href: "/mmp",
@@ -778,13 +785,12 @@ export const EMSROUTE: RouteItem[] = [
   //     { name: "Transcript", href: "transcript_report", roles: [], element: Transcript },
   //   ],
   // },
-        name: "Registration Setup",
-        href: "/configuration/registration-setup",
-        roles: ["faculty", "admin"],
-        element: RegistrationSetup,
-        subItems: [],
-      },
-    ],
+  {
+    name: "Registration Setup",
+    href: "/configuration/registration-setup",
+    roles: ["faculty", "admin"],
+    element: RegistrationSetup,
+    subItems: [],
   },
   {
     name: "LMS - Mentoring",
@@ -792,8 +798,6 @@ export const EMSROUTE: RouteItem[] = [
     element: Outlet,
     roles: [],
     subItems: [
-      
-      
       {
         name: "Mentoring Session",
         href: "/lms/mentoring-session",
@@ -808,7 +812,6 @@ export const EMSROUTE: RouteItem[] = [
         //element: MyMentoringSessions,
         //subItems: [],
       //},
-     
       {
         name: "Issue & Observation Report",
         href: "/lms/issue-observation-report",
