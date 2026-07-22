@@ -1,18 +1,21 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { useLocation } from "react-router-dom";
 import CurriculumPageLayout from "./CurriculumPageLayout";
 import { toast } from "react-toastify";
 import axiosInstance from "../../utils/api";
-import { LmsApiEndpoint } from "../../utils/ApiEndpoint/lmsApiEndpoint";
+import { ApiEndpoint } from "../../utils/ApiEndpoint/lmsapiEndpoint";
 import { Info, HelpCircle, List, ArrowUpDown } from "lucide-react";
 
 interface CourseItem {
   id: string;
+  courseId: number | null;
+  sectionId: string;
   section: string;
   code: string;
   title: string;
   type: string;
   credits: number;
-  totalMarks: number;
+  totalMarks: number | null;
   owner: string;
   reviewer: string;
   mode: string;
@@ -20,131 +23,110 @@ interface CourseItem {
   status: string;
 }
 
-const AVAILABLE_MENTORS = [
-  "Dr. Ameen",
-  "Mr. C J Savanurmat",
-  "Dr. Anil Kumar",
-  "Prof. Sunita Rao",
-  "Dr. Ramesh Patil",
-  "Prof. Kavita Sharma",
-  "Dr. Vijay Singh",
-  "Prof. Deepa Nair",
-  "Dr. Suresh Menon",
-  "Dr. Priya Pillai",
-  "Dr. Smith",
-  "Prof. Johnson"
-];
+interface CurriculumOption {
+  id: string;
+  code: string;
+  desc: string;
+}
 
-const DEFAULT_COURSES: Record<string, CourseItem[]> = {
-  "999_1": [
-    {
-      id: "c1",
-      section: "",
-      code: "15EPHL101",
-      title: "Engineering Physics Lab",
-      type: "Practical",
-      credits: 1,
-      totalMarks: 100,
-      owner: "Mr. Ion Admin",
-      reviewer: "",
-      mode: "Theory",
-      instructor: "",
-      status: "Optional"
-    },
-    {
-      id: "c2",
-      section: "",
-      code: "15EHSL101",
-      title: "Social Innovation",
-      type: "Humanities Science",
-      credits: 2,
-      totalMarks: 100,
-      owner: "Mr. Ion Admin",
-      reviewer: "",
-      mode: "Theory",
-      instructor: "",
-      status: "Optional"
-    },
-    {
-      id: "c3",
-      section: "",
-      code: "15EEEF101",
-      title: "Basic Electrical Engineering",
-      type: "Basic",
-      credits: 3,
-      totalMarks: 100,
-      owner: "Mr. A S S Bennal",
-      reviewer: "Mrs. Rohini B Jyoti",
-      mode: "Theory",
-      instructor: "",
-      status: "Optional"
-    },
-    {
-      id: "c4",
-      section: "",
-      code: "15EMEL101",
-      title: "Computer Aided Engineering Drawing",
-      type: "Practical",
-      credits: 3,
-      totalMarks: 100,
-      owner: "Mr. A S S Bennal",
-      reviewer: "Mr. C M Koti",
-      mode: "Theory",
-      instructor: "",
-      status: "Optional"
-    },
-    {
-      id: "c5",
-      section: "",
-      code: "15ECVF101",
-      title: "Engineering Mechanics",
-      type: "Basic",
-      credits: 4,
-      totalMarks: 100,
-      owner: "Mr. A S S Bennal",
-      reviewer: "",
-      mode: "Theory",
-      instructor: "",
-      status: "Optional"
-    },
-    {
-      id: "c6",
-      section: "",
-      code: "15EPHB101",
-      title: "Engineering Physics",
-      type: "Basic Science",
-      credits: 3,
-      totalMarks: 100,
-      owner: "Mr. Ion Admin",
-      reviewer: "",
-      mode: "Theory",
-      instructor: "",
-      status: "Optional"
-    },
-    {
-      id: "c7",
-      section: "",
-      code: "15EMAB101",
-      title: "Analytical Geometry and Calculus",
-      type: "Basic Science",
-      credits: 5,
-      totalMarks: 100,
-      owner: "Mr. Ion Admin",
-      reviewer: "",
-      mode: "Theory",
-      instructor: "",
-      status: "Optional"
-    }
-  ]
+interface SemesterOption {
+  id: string;
+  code: string;
+  desc: string;
+}
+
+interface SectionOption {
+  id: string;
+  name: string;
+}
+
+interface RegistrationStatusData {
+  registration_open: boolean;
+  academic_batch_id: number;
+  semester_id: number;
+  registration_start?: string;
+  registration_end?: string;
+}
+
+interface RegistrationDueDateData {
+  status: boolean;
+  enroll_start_date?: string;
+  enroll_start_time?: string;
+  enroll_end_date?: string;
+  enroll_end_time?: string;
+  formatted_enroll_start_date?: string;
+  formatted_enroll_start_time?: string;
+  formatted_enroll_end_date?: string;
+  formatted_enroll_end_time?: string;
+  is_registration_open?: boolean;
+  registration_status?: string;
+  validate_date?: number;
+  status_message?: string;
+  status_color?: string;
+  remaining_days?: number;
+  remaining_hours?: number;
+  remaining_minutes?: number;
+  remaining_seconds?: number;
+}
+
+interface RegisteredCourseApiItem {
+  mcstd_id: number;
+  course_id: number;
+  course_code: string;
+  course_name: string;
+  course_type: string;
+  component?: string | null;
+  credits: number;
+  section_id?: number | null;
+  section_name?: string | null;
+  batch_id?: number | null;
+  registration_flag?: string | null;
+  status?: number | string | null;
+  registered_date?: string | null;
+}
+
+interface ApiListResponse<T> {
+  status: boolean;
+  message: string;
+  data: T[];
+}
+
+interface ApiStatusResponse<T> {
+  status: boolean;
+  message: string;
+  data: T;
+}
+
+const toPositiveInteger = (value: string | null): number | null => {
+  if (!value) {
+    return null;
+  }
+
+  const normalizedValue = value.trim();
+  if (!/^\d+$/.test(normalizedValue)) {
+    return null;
+  }
+
+  const parsedValue = Number(normalizedValue);
+  return Number.isInteger(parsedValue) && parsedValue > 0 ? parsedValue : null;
 };
 
 const CourseRegistrationPage: React.FC = () => {
-  const [curriculums, setCurriculums] = useState<any[]>([]);
+  const location = useLocation();
+
+  const [curriculums, setCurriculums] = useState<CurriculumOption[]>([]);
   const [selectedCurriculum, setSelectedCurriculum] = useState("");
-  const [semesters, setSemesters] = useState<any[]>([]);
+  const [semesters, setSemesters] = useState<SemesterOption[]>([]);
   const [selectedTerm, setSelectedTerm] = useState("");
+  const [sections, setSections] = useState<SectionOption[]>([]);
   const [curriculumsLoading, setCurriculumsLoading] = useState(false);
   const [semestersLoading, setSemestersLoading] = useState(false);
+  const [sectionsLoading, setSectionsLoading] = useState(false);
+  const [coursesLoading, setCoursesLoading] = useState(false);
+  const [registrationStatusLoading, setRegistrationStatusLoading] = useState(false);
+  const [registrationStatus, setRegistrationStatus] = useState<RegistrationStatusData | null>(null);
+  const [registrationMessage, setRegistrationMessage] = useState("");
+  const [registrationDueDate, setRegistrationDueDate] = useState<RegistrationDueDateData | null>(null);
 
   // Table controls
   const [entriesPerPage, setEntriesPerPage] = useState(20);
@@ -166,204 +148,412 @@ const CourseRegistrationPage: React.FC = () => {
   const [assignSection, setAssignSection] = useState("");
   const [assignInstructor, setAssignInstructor] = useState("");
 
+  const queryStudentContext = useMemo(() => {
+    const searchParams = new URLSearchParams(location.search);
+
+    const studentId = toPositiveInteger(searchParams.get("student_id"));
+    const baseAcademicBatchId = toPositiveInteger(
+      searchParams.get("academic_batch_id"),
+    );
+    const baseSemesterId = toPositiveInteger(searchParams.get("semester_id"));
+
+    const isValid = Boolean(
+      studentId && baseAcademicBatchId && baseSemesterId,
+    );
+
+    return {
+      studentId,
+      baseAcademicBatchId,
+      baseSemesterId,
+      isValid,
+    };
+  }, [location.search]);
+
+  const { studentId, baseAcademicBatchId, baseSemesterId } = queryStudentContext;
+
+  const baseDetailsUnavailableMessage = !queryStudentContext.isValid
+    ? "Student academic batch details are unavailable."
+    : "";
+
+  const registrationActionsDisabled =
+    Boolean(baseDetailsUnavailableMessage) ||
+    registrationStatusLoading ||
+    !selectedCurriculum ||
+    !selectedTerm ||
+    registrationDueDate?.is_registration_open === false ||
+    registrationStatus?.registration_open !== true;
+
+  const registrationDisplayMessage =
+    registrationDueDate?.status_message?.trim() || registrationMessage;
+
   // Fetch curriculums
   useEffect(() => {
+    if (!baseAcademicBatchId || !baseSemesterId) {
+      setCurriculums([]);
+      setSelectedCurriculum("");
+      setSemesters([]);
+      setSelectedTerm("");
+      setSections([]);
+      setCourses([]);
+      setRegistrationStatus(null);
+      setRegistrationDueDate(null);
+      setRegistrationMessage(baseDetailsUnavailableMessage);
+      return;
+    }
+
     const fetchCurriculums = async () => {
       setCurriculumsLoading(true);
       try {
-        const url = LmsApiEndpoint.mentoringSession.curriculumList;
-        const res = await axiosInstance.get<any>(url);
-        if (res.data && res.data.status && res.data.data && res.data.data.length > 0) {
-          const mapped = res.data.data.map((b: any) => ({
-            id: String(b.academic_batch_id),
-            code: b.academic_batch_code,
-            desc: b.academic_batch_desc || `${b.academic_batch_name || ""} ${b.academic_batch_code || ""}`.trim(),
+        const res = await axiosInstance.get<
+          ApiListResponse<{
+            academic_batch_id: number;
+            academic_batch_code: string;
+            academic_batch_desc: string;
+          }>
+        >(ApiEndpoint.studentCourseRegistration.registrationAcademicBatchList, {
+          params: {
+            base_academic_batch_id: baseAcademicBatchId,
+          },
+        });
+
+        if (res.data?.status) {
+          const mapped = (res.data.data || []).map((batch) => ({
+            id: String(batch.academic_batch_id),
+            code: batch.academic_batch_code,
+            desc: batch.academic_batch_desc,
           }));
-          
-          // Ensure "B. E in CSE 2022-2026" is in the mapped list
-          const hasTarget = mapped.some((m: any) => m.desc.toLowerCase().includes("cse 2022") || m.desc.toLowerCase().includes("2022-2026"));
-          if (!hasTarget) {
-            mapped.unshift({ id: "999", code: "BE-CSE-2022", desc: "B. E in CSE 2022-2026" });
-          }
+
           setCurriculums(mapped);
         } else {
-          setCurriculums([
-            { id: "999", code: "BE-CSE-2022", desc: "B. E in CSE 2022-2026" },
-            { id: "1", code: "BE-CSE-2019", desc: "B. E in CSE 2019-2023" },
-            { id: "2", code: "BE-ECE-2020", desc: "B. E in ECE 2020-2024" },
-            { id: "3", code: "BE-ISE-2021", desc: "B. E in ISE 2021-2025" }
-          ]);
+          setCurriculums([]);
+          toast.error(res.data?.message || "Unable to load curriculum list.");
         }
-      } catch (err) {
-        setCurriculums([
-          { id: "999", code: "BE-CSE-2022", desc: "B. E in CSE 2022-2026" },
-          { id: "1", code: "BE-CSE-2019", desc: "B. E in CSE 2019-2023" },
-          { id: "2", code: "BE-ECE-2020", desc: "B. E in ECE 2020-2024" },
-          { id: "3", code: "BE-ISE-2021", desc: "B. E in ISE 2021-2025" }
-        ]);
+      } catch (error: any) {
+        setCurriculums([]);
+        toast.error(
+          error?.response?.data?.message || "Unable to load curriculum list.",
+        );
       } finally {
         setCurriculumsLoading(false);
       }
     };
+
     fetchCurriculums();
-  }, []);
+  }, [baseAcademicBatchId, baseSemesterId, baseDetailsUnavailableMessage]);
 
-  // Default to B. E in CSE 2022-2026 if loaded
-  useEffect(() => {
-    if (curriculums.length > 0 && !selectedCurriculum) {
-      const defaultCur = curriculums.find(c => c.desc.includes("2022-2026") || c.desc.includes("CSE 2022"));
-      if (defaultCur) {
-        setSelectedCurriculum(defaultCur.id);
-      } else {
-        setSelectedCurriculum(curriculums[0].id);
-      }
-    }
-  }, [curriculums, selectedCurriculum]);
-
-  // Fetch terms/semesters based on curriculum
   useEffect(() => {
     if (!selectedCurriculum) {
       setSemesters([]);
       setSelectedTerm("");
+      setSections([]);
+      setCourses([]);
+      setRegistrationStatus(null);
+      setRegistrationDueDate(null);
+      setRegistrationMessage(baseDetailsUnavailableMessage);
       return;
     }
+
+    if (!baseSemesterId) {
+      setSemesters([]);
+      setSelectedTerm("");
+      setSections([]);
+      setCourses([]);
+      setRegistrationStatus(null);
+      setRegistrationDueDate(null);
+      setRegistrationMessage("Student academic batch details are unavailable.");
+      return;
+    }
+
     const fetchSemesters = async () => {
       setSemestersLoading(true);
       try {
-        const url = `${LmsApiEndpoint.mentoringSession.semestersByCurriculum}/${selectedCurriculum}`;
-        const res = await axiosInstance.get<any>(url);
-        if (res.data && res.data.status && res.data.data && res.data.data.length > 0) {
-          const mapped = res.data.data.map((s: any) => {
-            const num = s.semester_desc ? s.semester_desc.match(/\d+/) : null;
-            const desc = num ? `${num[0]} - Semester` : s.semester_desc;
-            return {
-              id: String(s.semester_id),
-              code: s.semester_code,
-              desc: desc,
-            };
-          });
-          const hasSEM1 = mapped.some((s: any) => s.desc.includes("1 - Semester") || s.id === "1");
-          if (!hasSEM1 && selectedCurriculum === "999") {
-            mapped.unshift({ id: "1", code: "SEM1", desc: "1 - Semester" });
-          }
+        const res = await axiosInstance.get<
+          ApiListResponse<{
+            semester_id: number;
+            semester: number;
+            semester_code: string;
+            semester_desc: string;
+            term_name: string;
+          }>
+        >(ApiEndpoint.studentCourseRegistration.registrationSemesterList, {
+          params: {
+            registration_academic_batch_id: Number(selectedCurriculum),
+            base_semester_id: baseSemesterId,
+          },
+        });
+
+        if (res.data?.status) {
+          const mapped = (res.data.data || []).map((semester) => ({
+            id: String(semester.semester_id),
+            code: semester.semester_code,
+            desc:
+              semester.semester_desc?.trim() ||
+              semester.term_name?.trim() ||
+              `Semester ${semester.semester}`,
+          }));
+
           setSemesters(mapped);
         } else {
-          setSemesters([
-            { id: "1", code: "SEM1", desc: "1 - Semester" },
-            { id: "2", code: "SEM2", desc: "2 - Semester" },
-            { id: "3", code: "SEM3", desc: "3 - Semester" },
-            { id: "4", code: "SEM4", desc: "4 - Semester" },
-            { id: "5", code: "SEM5", desc: "5 - Semester" },
-            { id: "6", code: "SEM6", desc: "6 - Semester" },
-            { id: "7", code: "SEM7", desc: "7 - Semester" },
-            { id: "8", code: "SEM8", desc: "8 - Semester" }
-          ]);
+          setSemesters([]);
+          toast.error(res.data?.message || "Unable to load term list.");
         }
-      } catch (err) {
-        setSemesters([
-          { id: "1", code: "SEM1", desc: "1 - Semester" },
-          { id: "2", code: "SEM2", desc: "2 - Semester" },
-          { id: "3", code: "SEM3", desc: "3 - Semester" },
-          { id: "4", code: "SEM4", desc: "4 - Semester" },
-          { id: "5", code: "SEM5", desc: "5 - Semester" },
-          { id: "6", code: "SEM6", desc: "6 - Semester" },
-          { id: "7", code: "SEM7", desc: "7 - Semester" },
-          { id: "8", code: "SEM8", desc: "8 - Semester" }
-        ]);
+      } catch (error: any) {
+        setSemesters([]);
+        toast.error(error?.response?.data?.message || "Unable to load term list.");
       } finally {
         setSemestersLoading(false);
       }
     };
-    fetchSemesters();
-  }, [selectedCurriculum]);
 
-  // Default to 1 - Semester
+    fetchSemesters();
+  }, [selectedCurriculum, baseSemesterId, baseDetailsUnavailableMessage]);
+
   useEffect(() => {
-    if (semesters.length > 0 && !selectedTerm) {
-      const defaultSem = semesters.find(s => s.desc.includes("1 - Semester") || s.id === "1");
-      if (defaultSem) {
-        setSelectedTerm(defaultSem.id);
-      } else {
-        setSelectedTerm(semesters[0].id);
-      }
+    if (curriculums.length === 0) {
+      setSelectedCurriculum("");
+      return;
+    }
+
+    if (!selectedCurriculum || !curriculums.some((curriculum) => curriculum.id === selectedCurriculum)) {
+      setSelectedCurriculum(curriculums[0].id);
+    }
+  }, [curriculums, selectedCurriculum]);
+
+  useEffect(() => {
+    if (semesters.length === 0) {
+      setSelectedTerm("");
+      return;
+    }
+
+    if (!selectedTerm || !semesters.some((semester) => semester.id === selectedTerm)) {
+      setSelectedTerm(semesters[0].id);
     }
   }, [semesters, selectedTerm]);
 
-  // Load mock course registration list based on selections
   useEffect(() => {
     if (!selectedCurriculum || !selectedTerm) {
+      setSections([]);
+      setCourses([]);
+      setRegistrationStatus(null);
+      setRegistrationDueDate(null);
+      setRegistrationMessage(baseDetailsUnavailableMessage);
+      return;
+    }
+
+    const fetchRegistrationStatus = async () => {
+      setRegistrationStatusLoading(true);
+      try {
+        const res = await axiosInstance.get<ApiStatusResponse<RegistrationStatusData>>(
+          ApiEndpoint.studentCourseRegistration.checkRegistrationStatus,
+          {
+            params: {
+              academic_batch_id: Number(selectedCurriculum),
+              semester_id: Number(selectedTerm),
+            },
+          },
+        );
+
+        if (res.data?.status) {
+          setRegistrationStatus(res.data.data || null);
+          setRegistrationMessage(res.data.message || "");
+        } else {
+          setRegistrationStatus(null);
+          setRegistrationMessage(res.data?.message || "");
+          toast.error(res.data?.message || "Unable to check registration status.");
+        }
+      } catch (error: any) {
+        setRegistrationStatus(null);
+        setRegistrationMessage("");
+        toast.error(
+          error?.response?.data?.message || "Unable to check registration status.",
+        );
+      } finally {
+        setRegistrationStatusLoading(false);
+      }
+    };
+
+    fetchRegistrationStatus();
+  }, [selectedCurriculum, selectedTerm, baseDetailsUnavailableMessage]);
+
+  useEffect(() => {
+    if (!selectedCurriculum || !selectedTerm) {
+      setRegistrationDueDate(null);
+      return;
+    }
+
+    const fetchRegistrationDueDate = async () => {
+      try {
+        const res = await axiosInstance.get<
+          ApiStatusResponse<RegistrationDueDateData>
+        >(ApiEndpoint.studentCourseRegistration.validateRegistrationDueDate, {
+          params: {
+            academic_batch_id: Number(selectedCurriculum),
+            semester_id: Number(selectedTerm),
+          },
+        });
+
+        if (res.data?.status) {
+          setRegistrationDueDate(res.data.data || null);
+        } else {
+          setRegistrationDueDate(null);
+        }
+      } catch {
+        setRegistrationDueDate(null);
+      }
+    };
+
+    fetchRegistrationDueDate();
+  }, [selectedCurriculum, selectedTerm]);
+
+  useEffect(() => {
+    if (!selectedCurriculum || !selectedTerm) {
+      setSections([]);
+      return;
+    }
+
+    const fetchSections = async () => {
+      setSectionsLoading(true);
+      try {
+        const res = await axiosInstance.post<
+          ApiListResponse<{
+            section_id: number;
+            section_name: string;
+          }>
+        >(ApiEndpoint.studentCourseRegistration.registrationSectionList, {
+          academic_batch_id: Number(selectedCurriculum),
+          semester_id: Number(selectedTerm),
+        });
+
+        if (res.data?.status) {
+          const mapped = (res.data.data || []).map((section) => ({
+            id: String(section.section_id),
+            name: section.section_name,
+          }));
+          setSections(mapped);
+        } else {
+          setSections([]);
+          toast.error(res.data?.message || "Unable to load section list.");
+        }
+      } catch (error: any) {
+        setSections([]);
+        toast.error(
+          error?.response?.data?.message || "Unable to load section list.",
+        );
+      } finally {
+        setSectionsLoading(false);
+      }
+    };
+
+    fetchSections();
+  }, [selectedCurriculum, selectedTerm]);
+
+  useEffect(() => {
+    if (registrationActionsDisabled && isAssignModalOpen) {
+      setIsAssignModalOpen(false);
+    }
+  }, [registrationActionsDisabled, isAssignModalOpen]);
+
+  useEffect(() => {
+    if (
+      !studentId ||
+      !baseAcademicBatchId ||
+      !baseSemesterId ||
+      !selectedCurriculum ||
+      !selectedTerm
+    ) {
       setCourses([]);
       return;
     }
 
-    const key = `${selectedCurriculum}_${selectedTerm}`;
-    const stored = localStorage.getItem(`lms_course_reg_${key}`);
-    if (stored) {
+    const fetchRegisteredCourses = async () => {
+      setCoursesLoading(true);
       try {
-        setCourses(JSON.parse(stored));
-        return;
-      } catch (e) {
-        // ignore
-      }
-    }
+        const res = await axiosInstance.post<
+          ApiListResponse<RegisteredCourseApiItem>
+        >(ApiEndpoint.studentCourseRegistration.registeredCourses, {
+          parent_academic_batch_id: baseAcademicBatchId,
+          parent_semester_id: baseSemesterId,
+          student_id: studentId,
+        });
 
-    if (DEFAULT_COURSES[key]) {
-      setCourses(DEFAULT_COURSES[key]);
-      localStorage.setItem(`lms_course_reg_${key}`, JSON.stringify(DEFAULT_COURSES[key]));
-    } else {
-      // Fallback/Generic mock courses for other terms
-      const genericCourses: CourseItem[] = [
-        {
-          id: `${key}_c1`,
-          section: "",
-          code: "15EPHL101",
-          title: "Engineering Physics Lab",
-          type: "Practical",
-          credits: 1,
-          totalMarks: 100,
-          owner: "Mr. Ion Admin",
-          reviewer: "",
-          mode: "Theory",
-          instructor: "",
-          status: "Optional",
-        },
-        {
-          id: `${key}_c2`,
-          section: "",
-          code: "15EHSL101",
-          title: "Social Innovation",
-          type: "Humanities Science",
-          credits: 2,
-          totalMarks: 100,
-          owner: "Mr. Ion Admin",
-          reviewer: "",
-          mode: "Theory",
-          instructor: "",
-          status: "Optional",
+        if (res.data?.status) {
+          const mapped = (res.data.data || []).map((course) => ({
+            id: String(course.mcstd_id ?? course.course_id),
+            courseId:
+              typeof course.course_id === "number" ? course.course_id : null,
+            sectionId:
+              course.section_id !== null && course.section_id !== undefined
+                ? String(course.section_id)
+                : "",
+            section: course.section_name?.trim() || "",
+            code: course.course_code || "",
+            title: course.course_name || "",
+            type: course.course_type || course.component || "",
+            credits:
+              typeof course.credits === "number" ? course.credits : 0,
+            totalMarks: null,
+            owner: "",
+            reviewer: "",
+            mode: "",
+            instructor: "",
+            status:
+              course.registration_flag ||
+              course.component ||
+              (course.status !== null && course.status !== undefined
+                ? String(course.status)
+                : ""),
+          }));
+
+          setCourses(mapped);
+        } else {
+          setCourses([]);
+          toast.error(res.data?.message || "Unable to load registered courses.");
         }
-      ];
-      setCourses(genericCourses);
-      localStorage.setItem(`lms_course_reg_${key}`, JSON.stringify(genericCourses));
-    }
-  }, [selectedCurriculum, selectedTerm]);
+      } catch (error: any) {
+        setCourses([]);
+        toast.error(
+          error?.response?.data?.message || "Unable to load registered courses.",
+        );
+      } finally {
+        setCoursesLoading(false);
+      }
+    };
+
+    fetchRegisteredCourses();
+  }, [
+    studentId,
+    baseAcademicBatchId,
+    baseSemesterId,
+    selectedCurriculum,
+    selectedTerm,
+  ]);
 
   // Assign modal triggers
   const openAssignModal = (course: CourseItem) => {
+    if (registrationActionsDisabled) {
+      toast.info(registrationDisplayMessage || "Registration is closed.");
+      return;
+    }
+
     setSelectedCourseForAssign(course);
-    setAssignSection(course.section || "");
+    setAssignSection(course.sectionId || "");
     setAssignInstructor(course.instructor || "");
     setIsAssignModalOpen(true);
   };
 
   const handleAssignSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedCourseForAssign) return;
+    if (!selectedCourseForAssign || registrationActionsDisabled) return;
 
     const updatedCourses = courses.map(c => {
       if (c.id === selectedCourseForAssign.id) {
+        const selectedSectionOption = sections.find(
+          (section) => section.id === assignSection,
+        );
         return {
           ...c,
-          section: assignSection,
+          sectionId: assignSection,
+          section: selectedSectionOption?.name || "",
           instructor: assignInstructor,
         };
       }
@@ -371,20 +561,18 @@ const CourseRegistrationPage: React.FC = () => {
     });
 
     setCourses(updatedCourses);
-    const key = `${selectedCurriculum}_${selectedTerm}`;
-    localStorage.setItem(`lms_course_reg_${key}`, JSON.stringify(updatedCourses));
-    
     setIsAssignModalOpen(false);
     toast.success(`Section & Instructor updated for ${selectedCourseForAssign.title}!`);
   };
 
   const handleClearAssignment = () => {
-    if (!selectedCourseForAssign) return;
+    if (!selectedCourseForAssign || registrationActionsDisabled) return;
 
     const updatedCourses = courses.map(c => {
       if (c.id === selectedCourseForAssign.id) {
         return {
           ...c,
+          sectionId: "",
           section: "",
           instructor: "",
         };
@@ -393,9 +581,6 @@ const CourseRegistrationPage: React.FC = () => {
     });
 
     setCourses(updatedCourses);
-    const key = `${selectedCurriculum}_${selectedTerm}`;
-    localStorage.setItem(`lms_course_reg_${key}`, JSON.stringify(updatedCourses));
-
     setIsAssignModalOpen(false);
     toast.info(`Assignment cleared for ${selectedCourseForAssign.title}.`);
   };
@@ -479,10 +664,16 @@ const CourseRegistrationPage: React.FC = () => {
               value={selectedCurriculum}
               onChange={(e) => {
                 setSelectedCurriculum(e.target.value);
+                setSemesters([]);
                 setSelectedTerm("");
+                setSections([]);
+                setCourses([]);
+                setRegistrationStatus(null);
+                setRegistrationDueDate(null);
+                setRegistrationMessage("");
                 setCurrentPage(1);
               }}
-              disabled={curriculumsLoading}
+              disabled={curriculumsLoading || Boolean(baseDetailsUnavailableMessage)}
             >
               <option value="">{curriculumsLoading ? "Loading..." : "Select Curriculum"}</option>
               {curriculums.map(c => (
@@ -501,9 +692,14 @@ const CourseRegistrationPage: React.FC = () => {
               value={selectedTerm}
               onChange={(e) => {
                 setSelectedTerm(e.target.value);
+                setSections([]);
+                setCourses([]);
+                setRegistrationStatus(null);
+                setRegistrationDueDate(null);
+                setRegistrationMessage("");
                 setCurrentPage(1);
               }}
-              disabled={!selectedCurriculum || semestersLoading}
+              disabled={!selectedCurriculum || semestersLoading || Boolean(baseDetailsUnavailableMessage)}
             >
               <option value="">{semestersLoading ? "Loading..." : "Select Term"}</option>
               {semesters.map(s => (
@@ -511,6 +707,33 @@ const CourseRegistrationPage: React.FC = () => {
               ))}
             </select>
           </div>
+        </div>
+
+        <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 text-xs">
+          {baseDetailsUnavailableMessage ? (
+            <span className="font-semibold text-amber-700 dark:text-amber-300">
+              {baseDetailsUnavailableMessage}
+            </span>
+          ) : registrationStatusLoading ? (
+            <span className="text-slate-500 dark:text-slate-400">Checking registration status...</span>
+          ) : registrationDisplayMessage ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <span
+                className={`font-semibold ${
+                  registrationDueDate?.is_registration_open === false ||
+                  registrationStatus?.registration_open === false
+                    ? "text-red-600 dark:text-red-400"
+                    : "text-emerald-700 dark:text-emerald-400"
+                }`}
+              >
+                {registrationDisplayMessage}
+              </span>
+            </div>
+          ) : (
+            <span className="text-slate-500 dark:text-slate-400">
+              Select Curriculum and Term to check registration status.
+            </span>
+          )}
         </div>
 
         {/* Table Controls (Show entries and Search) */}
@@ -591,30 +814,34 @@ const CourseRegistrationPage: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-4 py-3 border-r border-slate-200 dark:border-slate-700 text-center font-bold text-slate-700 dark:text-slate-300">{c.credits}</td>
-                      <td className="px-4 py-3 border-r border-slate-200 dark:border-slate-700 text-center font-semibold text-slate-500">{c.totalMarks}</td>
-                      <td className="px-4 py-3 border-r border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-350">{c.owner}</td>
+                      <td className="px-4 py-3 border-r border-slate-200 dark:border-slate-700 text-center font-semibold text-slate-500">{c.totalMarks ?? "-"}</td>
+                      <td className="px-4 py-3 border-r border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-350">{c.owner || "-"}</td>
                       <td className="px-4 py-3 border-r border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-355">{c.reviewer || "-"}</td>
-                      <td className="px-4 py-3 border-r border-slate-200 dark:border-slate-700">{c.mode}</td>
+                      <td className="px-4 py-3 border-r border-slate-200 dark:border-slate-700">{c.mode || "-"}</td>
                       <td className="px-4 py-3 border-r border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
                         <div className="flex flex-col gap-1">
                           {c.instructor ? (
                             <span className="font-semibold text-slate-800 dark:text-slate-200">{c.instructor}</span>
                           ) : null}
-                          <button
-                            onClick={() => openAssignModal(c)}
-                            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-bold hover:underline transition text-left cursor-pointer"
-                          >
-                            Add / Edit
-                          </button>
+                          {registrationActionsDisabled ? (
+                            <span className="font-bold text-slate-400 dark:text-slate-500 no-underline cursor-not-allowed opacity-70 select-none">
+                              Add / Edit
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => openAssignModal(c)}
+                              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-bold hover:underline transition text-left cursor-pointer"
+                            >
+                              Add / Edit
+                            </button>
+                          )}
                         </div>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-col items-start gap-1 py-1">
                           <span className="px-3 py-1 bg-orange-500 hover:bg-orange-600 text-white rounded text-[10px] font-bold tracking-wider uppercase text-center shadow-xs cursor-pointer select-none">
-                            Optional
-                          </span>
-                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold pl-1">
-                            N/A
+                            {c.status || "-"}
                           </span>
                         </div>
                       </td>
@@ -624,7 +851,11 @@ const CourseRegistrationPage: React.FC = () => {
               ) : (
                 <tr>
                   <td colSpan={12} className="px-4 py-8 text-center text-slate-400 dark:text-slate-500 italic bg-slate-50/20">
-                    {selectedCurriculum && selectedTerm ? "No data matched the search query." : "No data available in table"}
+                    {coursesLoading
+                      ? "Loading courses..."
+                      : selectedCurriculum && selectedTerm
+                        ? "No data matched the search query."
+                        : "No data available in table"}
                   </td>
                 </tr>
               )}
@@ -699,13 +930,17 @@ const CourseRegistrationPage: React.FC = () => {
                     <select
                       value={assignSection}
                       onChange={(e) => setAssignSection(e.target.value)}
+                      disabled={sectionsLoading || sections.length === 0}
                       className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-gray-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-slate-500"
                     >
-                      <option value="">-- Select Section --</option>
-                      <option value="A">Section A</option>
-                      <option value="B">Section B</option>
-                      <option value="C">Section C</option>
-                      <option value="D">Section D</option>
+                      <option value="">
+                        {sectionsLoading ? "Loading sections..." : "Select Section"}
+                      </option>
+                      {sections.map((section) => (
+                        <option key={section.id} value={section.id}>
+                          {section.name}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
@@ -714,19 +949,14 @@ const CourseRegistrationPage: React.FC = () => {
                     <label className="font-semibold text-slate-700 dark:text-slate-300">
                       Course Instructor (Mentor): <span className="text-red-500 font-bold">*</span>
                     </label>
-                    <select
+                    <input
+                      type="text"
                       value={assignInstructor}
                       onChange={(e) => setAssignInstructor(e.target.value)}
+                      placeholder="Enter Instructor"
                       className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-gray-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-slate-500"
                       required
-                    >
-                      <option value="">-- Select Instructor --</option>
-                      {AVAILABLE_MENTORS.map((m) => (
-                        <option key={m} value={m}>
-                          {m}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </div>
                 </div>
 
@@ -737,6 +967,7 @@ const CourseRegistrationPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={handleClearAssignment}
+                        disabled={registrationActionsDisabled}
                         className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-950/20 dark:hover:bg-red-900/30 dark:text-red-400 rounded text-xs font-semibold transition cursor-pointer"
                       >
                         Clear Assignment
@@ -754,6 +985,7 @@ const CourseRegistrationPage: React.FC = () => {
                     </button>
                     <button
                       type="submit"
+                      disabled={registrationActionsDisabled}
                       className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold shadow transition cursor-pointer"
                     >
                       Save
