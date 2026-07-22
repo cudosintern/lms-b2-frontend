@@ -36,5 +36,13 @@ export const ApiEndpoint = {
       "student-course-registration/get_registration_academic_batch_list",
     registrationSemesterList:
       "student-course-registration/get_registration_semester_list",
+    validateRegistrationDueDate:
+      "student-course-registration/validate_registration_due_date",
+    availableCourses:
+      "student-course-registration/available-courses",
+    registrationSectionList:
+      "student-course-registration/get_registration_section_list",
+    registeredCourses:
+      "student-course-registration/registered-courses",
   },
 } as const;
