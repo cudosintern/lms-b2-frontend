@@ -3,7 +3,7 @@ import { useLocation } from "react-router-dom";
 import CurriculumPageLayout from "./CurriculumPageLayout";
 import { toast } from "react-toastify";
 import axiosInstance from "../../utils/api";
-import { ApiEndpoint } from "../../utils/ApiEndpoint/lmsapiEndpoint";
+import { ApiEndpoint } from "../../utils/ApiEndpoint/lmsApiEndpoint";
 import { Info, HelpCircle, List, ArrowUpDown } from "lucide-react";
 
 interface CourseItem {

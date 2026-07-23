@@ -298,6 +298,15 @@ const formatGroupRows = (
     >();
 
     const currentMappedMentors = currentMentorsByGroupId.get(group.mentors_group_id) || [];
+    const mappedGroupMentorIds = new Set(
+      currentMappedMentors
+        .map((mentor) => Number(mentor.group_mentor_id ?? 0))
+        .filter((groupMentorId) => groupMentorId > 0),
+    );
+    const relevantGroupMentors =
+      mappedGroupMentorIds.size > 0
+        ? (group.mentors || []).filter((mentor) => mappedGroupMentorIds.has(mentor.group_mentor_id))
+        : group.mentors || [];
 
     currentMappedMentors.forEach((mentor) => {
       const mentorId = normalizeMentorId(mentor.mentor_id);
@@ -309,7 +318,7 @@ const formatGroupRows = (
         pickRealMentorName(mentor) ||
         mentorLookup.get(mentorId) ||
         `Mentor ID: ${mentorId}`;
-      const matchingGroupMentor = (group.mentors || []).find(
+      const matchingGroupMentor = relevantGroupMentors.find(
         (groupMentor) => normalizeMentorId(groupMentor.mentor_id) === mentorId,
       );
 
@@ -326,7 +335,7 @@ const formatGroupRows = (
     const sessionStatus = buildSessionStatusText(firstSessionDateRecord);
 
     const menteeMap = new Map<number, string>();
-    (group.mentors || []).forEach((mentor) => {
+    relevantGroupMentors.forEach((mentor) => {
       (mentor.mentees || []).forEach((mentee) => {
         if (!menteeMap.has(mentee.student_id)) {
           menteeMap.set(
