@@ -3,7 +3,7 @@ import { useLocation } from "react-router-dom";
 import CurriculumPageLayout from "./CurriculumPageLayout";
 import { toast } from "react-toastify";
 import axiosInstance from "../../utils/api";
-import { ApiEndpoint } from "../../utils/ApiEndpoint/lmsapiEndpoint";
+import { LmsApiEndpoint } from "../../utils/ApiEndpoint/lmsApiEndpoint";
 import { Info, HelpCircle, List, ArrowUpDown } from "lucide-react";
 
 interface CourseItem {
@@ -210,7 +210,7 @@ const CourseRegistrationPage: React.FC = () => {
             academic_batch_code: string;
             academic_batch_desc: string;
           }>
-        >(ApiEndpoint.studentCourseRegistration.registrationAcademicBatchList, {
+        >(LmsApiEndpoint.studentCourseRegistration.registrationAcademicBatchList, {
           params: {
             base_academic_batch_id: baseAcademicBatchId,
           },
@@ -275,7 +275,7 @@ const CourseRegistrationPage: React.FC = () => {
             semester_desc: string;
             term_name: string;
           }>
-        >(ApiEndpoint.studentCourseRegistration.registrationSemesterList, {
+        >(LmsApiEndpoint.studentCourseRegistration.registrationSemesterList, {
           params: {
             registration_academic_batch_id: Number(selectedCurriculum),
             base_semester_id: baseSemesterId,
@@ -344,7 +344,7 @@ const CourseRegistrationPage: React.FC = () => {
       setRegistrationStatusLoading(true);
       try {
         const res = await axiosInstance.get<ApiStatusResponse<RegistrationStatusData>>(
-          ApiEndpoint.studentCourseRegistration.checkRegistrationStatus,
+          LmsApiEndpoint.studentCourseRegistration.checkRegistrationStatus,
           {
             params: {
               academic_batch_id: Number(selectedCurriculum),
@@ -385,7 +385,7 @@ const CourseRegistrationPage: React.FC = () => {
       try {
         const res = await axiosInstance.get<
           ApiStatusResponse<RegistrationDueDateData>
-        >(ApiEndpoint.studentCourseRegistration.validateRegistrationDueDate, {
+        >(LmsApiEndpoint.studentCourseRegistration.validateRegistrationDueDate, {
           params: {
             academic_batch_id: Number(selectedCurriculum),
             semester_id: Number(selectedTerm),
@@ -419,7 +419,7 @@ const CourseRegistrationPage: React.FC = () => {
             section_id: number;
             section_name: string;
           }>
-        >(ApiEndpoint.studentCourseRegistration.registrationSectionList, {
+        >(LmsApiEndpoint.studentCourseRegistration.registrationSectionList, {
           academic_batch_id: Number(selectedCurriculum),
           semester_id: Number(selectedTerm),
         });
@@ -470,7 +470,7 @@ const CourseRegistrationPage: React.FC = () => {
       try {
         const res = await axiosInstance.post<
           ApiListResponse<RegisteredCourseApiItem>
-        >(ApiEndpoint.studentCourseRegistration.registeredCourses, {
+        >(LmsApiEndpoint.studentCourseRegistration.registeredCourses, {
           parent_academic_batch_id: baseAcademicBatchId,
           parent_semester_id: baseSemesterId,
           student_id: studentId,
