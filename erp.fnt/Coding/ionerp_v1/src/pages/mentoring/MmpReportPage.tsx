@@ -245,7 +245,7 @@ const MmpReportPage: React.FC = () => {
         `api/v1/student-details/info?student_id=${selectedStudent}`,
         "get"
       );
-      if (res && (res.status as any) === "success") {
+      if (res && res.status === true) {
         setStudentReport(res.data);
       } else {
         setStudentReport(null);
