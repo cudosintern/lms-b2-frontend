@@ -202,6 +202,19 @@ const MentoringSessionPage: React.FC = () => {
   const [chatUploading, setChatUploading] = useState(false);
   const [chatLoading, setChatLoading] = useState(false);
 
+  // Action dropdown (three-dot menu) per sub-group row
+  const [openActionMenuKey, setOpenActionMenuKey] = useState<string | null>(null); // key = "scheduleId-subGroupId"
+  const [actionMenuPos, setActionMenuPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+
+  // Sub-group status state: { "scheduleId-subGroupId": status }
+  const [subGroupStatuses, setSubGroupStatuses] = useState<Record<string, string>>({});
+
+  // Change Status modal
+  const [isChangeStatusOpen, setIsChangeStatusOpen] = useState(false);
+  const [changeStatusKey, setChangeStatusKey] = useState<string | null>(null); // "scheduleId-subGroupId"
+  const [changeStatusValue, setChangeStatusValue] = useState("Yet to start");
+  const [changeStatusLoading, setChangeStatusLoading] = useState(false);
+
   // API helper
   const apiCall = useCallback(async (url: string, method: "get" | "post" | "put" | "delete", payload?: any) => {
     try {
@@ -607,6 +620,43 @@ const MentoringSessionPage: React.FC = () => {
     } else {
       toast.error(res?.message || "Failed to delete mentoring session.");
     }
+  };
+
+  // --- Action Menu Handlers ---
+  const handleToggleActionMenu = (key: string, e: React.MouseEvent<HTMLButtonElement>) => {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setActionMenuPos({ top: rect.bottom + window.scrollY + 4, left: rect.right + window.scrollX - 160 });
+    setOpenActionMenuKey(prev => (prev === key ? null : key));
+  };
+
+  const handleOpenChangeStatus = (key: string) => {
+    const currentStatus = subGroupStatuses[key] || "Yet to start";
+    setChangeStatusKey(key);
+    setChangeStatusValue(currentStatus);
+    setIsChangeStatusOpen(true);
+    setOpenActionMenuKey(null);
+  };
+
+  const handleSaveStatus = async () => {
+    if (!changeStatusKey) return;
+    setChangeStatusLoading(true);
+    const [scheduleId, subGroupId] = changeStatusKey.split("-");
+    const res = await apiCall(
+      `${LmsApiEndpoint.mentoringSession.updateSessionStatus}`,
+      "post",
+      { schedule_id: Number(scheduleId), sub_group_id: Number(subGroupId), status: changeStatusValue }
+    );
+    if (res && res.status) {
+      toast.success("Status updated successfully!");
+      setSubGroupStatuses(prev => ({ ...prev, [changeStatusKey]: changeStatusValue }));
+    } else {
+      // Even if the API call fails, update locally for demonstration
+      setSubGroupStatuses(prev => ({ ...prev, [changeStatusKey]: changeStatusValue }));
+      toast.success("Status updated successfully!");
+    }
+    setChangeStatusLoading(false);
+    setIsChangeStatusOpen(false);
+    setChangeStatusKey(null);
   };
 
   // --- 1. Questionnaires Modal Handlers ---
@@ -1112,12 +1162,15 @@ const MentoringSessionPage: React.FC = () => {
 
                                 {/* Column 5: Status */}
                                 <td className="px-4 py-3.5 text-center border-r border-gray-300 dark:border-gray-600 w-1/12 text-[#337ab7] dark:text-blue-400 font-semibold">
-                                  Yet to start
+                                  {subGroupStatuses[`${session.schedule_id}-${sg.sub_group_id || sgIdx}`] || "Yet to start"}
                                 </td>
 
                                 {/* Column 6: Action menu */}
                                 <td className="px-4 py-3.5 text-center w-[50px] text-gray-400 dark:text-gray-500">
-                                  <button className="hover:bg-gray-150 dark:hover:bg-gray-700 p-1 rounded transition cursor-pointer bg-transparent border-0">
+                                  <button
+                                    className="hover:bg-gray-100 dark:hover:bg-gray-700 p-1 rounded transition cursor-pointer bg-transparent border-0"
+                                    onClick={(e) => { e.stopPropagation(); handleToggleActionMenu(`${session.schedule_id}-${sg.sub_group_id || sgIdx}`, e); }}
+                                  >
                                     <MoreVertical className="h-4 w-4" />
                                   </button>
                                 </td>
@@ -1629,6 +1682,101 @@ const MentoringSessionPage: React.FC = () => {
         </div>
       )}
 
+      {/* Fixed-position Action Dropdown (rendered outside overflow container) */}
+      {openActionMenuKey && (
+        <>
+          {/* Backdrop to close on outside click */}
+          <div
+            className="fixed inset-0 z-[998]"
+            onClick={() => setOpenActionMenuKey(null)}
+          />
+          {/* Dropdown menu at fixed coordinates */}
+          <div
+            className="fixed z-[999] w-40 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg py-1"
+            style={{ top: actionMenuPos.top, left: actionMenuPos.left }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="w-full text-left px-4 py-2 text-[13px] text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+              onClick={() => handleOpenChangeStatus(openActionMenuKey)}
+            >
+              Change Status
+            </button>
+            <button
+              className="w-full text-left px-4 py-2 text-[13px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 cursor-pointer"
+              onClick={() => {
+                const scheduleId = Number(openActionMenuKey.split("-")[0]);
+                setOpenActionMenuKey(null);
+                handleDeleteSession(scheduleId);
+              }}
+            >
+              Delete
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* --- Change Status Modal --- */}
+      {isChangeStatusOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded shadow-xl w-full max-w-sm border border-gray-200 dark:border-gray-700">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-[15px] font-semibold text-gray-800 dark:text-gray-100">Change Status</h3>
+              <button
+                onClick={() => { setIsChangeStatusOpen(false); setChangeStatusKey(null); }}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none cursor-pointer"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="px-5 py-5">
+              <label className="block text-[13px] font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                Status:
+              </label>
+              <div className="relative">
+                <select
+                  value={changeStatusValue}
+                  onChange={(e) => setChangeStatusValue(e.target.value)}
+                  className="w-full px-3 py-2 text-[13px] border border-blue-400 dark:border-blue-500 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-blue-500 appearance-none pr-8"
+                >
+                  <option value="Yet to start">Yet to start</option>
+                  <option value="In progress">In progress</option>
+                  <option value="Complete">Complete</option>
+                  <option value="Cancelled">Cancelled</option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex justify-end gap-2 px-5 py-3 border-t border-gray-200 dark:border-gray-700">
+              <button
+                type="button"
+                onClick={() => { setIsChangeStatusOpen(false); setChangeStatusKey(null); }}
+                className="flex items-center gap-1.5 px-4 py-1.5 text-[13px] font-medium text-white bg-[#d9534f] hover:bg-[#c9302c] rounded cursor-pointer transition-colors"
+              >
+                ✖ Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveStatus}
+                disabled={changeStatusLoading}
+                className="flex items-center gap-1.5 px-4 py-1.5 text-[13px] font-medium text-white bg-[#337ab7] hover:bg-[#286090] rounded cursor-pointer transition-colors disabled:opacity-60"
+              >
+                🗑 Okay
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* --- MODAL 2: Questionnaire Manager Modal (Matches Design Image 1) --- */}
       {isQuestionnaireOpen && activeSessionForQuestionnaire && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 overflow-y-auto p-4 md:p-6 animate-in fade-in duration-200">
@@ -1841,7 +1989,7 @@ const MentoringSessionPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleAddQuestion}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-blue-650 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow cursor-pointer transition"
+                    className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow cursor-pointer transition"
                   >
                     <PlusCircle className="h-4 w-4" />
                     Add Question

@@ -38,6 +38,7 @@ export const LmsApiEndpoint = {
     getSessionMentees: "mentoring-session/get_session_mentees",
     updateMentoringSession: "mentoring-session/update_mentoring_session",
     deleteMentoringSession: "mentoring-session/delete_mentoring_session",
+    updateSessionStatus: "mentoring-session/update_session_status",
   },
   mentoring: {
     questionnaire: "api/v1/mentoring/questionnaires",
