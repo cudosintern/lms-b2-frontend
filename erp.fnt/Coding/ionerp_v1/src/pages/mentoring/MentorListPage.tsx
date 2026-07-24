@@ -5,38 +5,13 @@ import { toast } from "react-toastify";
 import { useAxios } from "../../hooks/useAxios";
 import { LmsApiEndpoint } from "../../utils/ApiEndpoint/lmsApiEndpoint";
 
-interface DepartmentItem {
-  dept_id: number;
-  dept_name: string;
-}
-
-interface ProgramItem {
-  pgm_id: number;
-  pgm_title: string;
-  pgm_acronym: string;
-}
-
-interface CurriculumItem {
-  crclm_id: number;
-  crclm_name: string;
-}
-
-interface MenteeItem {
-  student_id: number;
-  student_name: string;
-  student_usn: string;
-  student_email: string;
-}
-
-interface MentorMenteeRecord {
-  group_mentor_id: number;
-  mentor_id: number;
-  mentor_name: string;
-  mentor_email: string;
-  mentor_dept: string;
-  group_title: string;
-  mentees: MenteeItem[];
-}
+import {
+  DepartmentItem,
+  ProgramItem,
+  CurriculumItem,
+  MenteeItem,
+  MentorMenteeRecord,
+} from "./types/mentorList";
 
 const MentorListPage: React.FC = () => {
   const [departmentId, setDepartmentId] = useState("");

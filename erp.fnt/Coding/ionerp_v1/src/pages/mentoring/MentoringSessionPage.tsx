@@ -27,81 +27,17 @@ import { toast } from "react-toastify";
 import axiosInstance from "../../utils/api";
 import { LmsApiEndpoint } from "../../utils/ApiEndpoint/lmsApiEndpoint";
 
-// Type definitions
-interface DateTimeSlot {
-  id: number;
-  startDate: string;
-  endDate: string;
-  startTime: string;
-  endTime: string;
-}
-
-interface SubGroup {
-  id: number;
-  sub_group_id?: number;
-  name: string;
-  slots: DateTimeSlot[];
-  locationUrl: string;
-  menteeCount: number;
-  menteeIds: number[];
-}
-
-interface CurriculumItem {
-  curriculum_id: number;
-  curriculum_code: string;
-  curriculum_desc: string;
-}
-
-interface SemesterItem {
-  semester_id: number;
-  semester: number;
-  semester_desc: string;
-}
-
-interface GroupItem {
-  mentors_group_id: number;
-  mentors_pgm_title: string;
-  questionnaire_id: number;
-  mentors: any[];
-}
-
-interface MenteeItem {
-  student_id: number;
-  student_name: string;
-}
-
-interface MentoringSession {
-  schedule_id: number;
-  curriculum_id: number;
-  group_name: string;
-  semester_id: number;
-  questionnaire_id: number;
-  session_agenda: string;
-  sub_groups: {
-    sub_group_id: number;
-    sub_group_name: string;
-    location: string;
-    dates?: {
-      start_date: string;
-      end_date: string;
-      start_time: string;
-      end_time: string;
-    }[];
-  }[];
-  mentor_names?: string[];
-}
-
-// Question types mapping
-const QUESTION_TYPES = [
-  { id: 1, label: "Single Select" },
-  { id: 2, label: "Multiple Select" },
-  { id: 3, label: "Open Ended" }
-];
-
-const QUESTIONNAIRE_CATEGORIES = [
-  { id: 1, label: "Self-Assessment / Personal Questionnaire" },
-  { id: 2, label: "Academic and Non Academic skills" }
-];
+import {
+  DateTimeSlot,
+  SubGroup,
+  CurriculumItem,
+  SemesterItem,
+  GroupItem,
+  MenteeItem,
+  MentoringSession,
+  QUESTION_TYPES,
+  QUESTIONNAIRE_CATEGORIES,
+} from "./types/mentoringSession";
 
 // Helper to parse time strings in various formats (12h/24h/HH:MM:SS)
 const parseTime = (timeStr: string) => {
