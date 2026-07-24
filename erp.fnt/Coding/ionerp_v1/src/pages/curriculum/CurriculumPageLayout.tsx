@@ -2,9 +2,7 @@ import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ChevronRight } from "lucide-react";
 
-interface CurriculumPageLayoutProps {
-  children: React.ReactNode;
-}
+import { CurriculumPageLayoutProps } from "./types/curriculumLayout";
 
 const CurriculumPageLayout: React.FC<CurriculumPageLayoutProps> = ({ children }) => {
   const location = useLocation();
