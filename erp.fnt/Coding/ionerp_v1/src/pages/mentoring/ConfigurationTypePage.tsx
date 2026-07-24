@@ -8,23 +8,7 @@ import MentoringPageLayout from "./MentoringPageLayout";
 import { useAxios } from "../../hooks/useAxios";
 import { LmsApiEndpoint } from "../../utils/ApiEndpoint/lmsApiEndpoint";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface ConfigurationType {
-  id: number;
-  config_type: string;
-  min_mentees: number;
-  max_mentees: number;
-}
-
-interface SavePayload {
-  config_type: string;
-  min_mentees: number;
-  max_mentees: number;
-  config_type_id?: number;
-}
+import { ConfigurationType, SavePayload } from "./types/configurationType";
 
 // ---------------------------------------------------------------------------
 // Component
