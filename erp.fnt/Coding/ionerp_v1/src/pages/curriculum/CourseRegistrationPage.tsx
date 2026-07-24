@@ -6,6 +6,11 @@ import axiosInstance from "../../utils/api";
 import { LmsApiEndpoint } from "../../utils/ApiEndpoint/lmsApiEndpoint";
 import { Info, HelpCircle, List, ArrowUpDown } from "lucide-react";
 
+import {
+  CourseItem,
+  AVAILABLE_MENTORS,
+  DEFAULT_COURSES,
+} from "./types/courseRegistration";
 interface CourseItem {
   id: string;
   courseId: number | null;
