@@ -1,6 +1,8 @@
 import { Outlet } from "react-router-dom";
 import BloomDomainPage from "../pages/ioncudos/configuration/bloomDomain/bloomDomainPage";
 
+import type { RouteItem } from "./routeTypes";
+
 /**
  * IonCUDOS Route Configuration
  * Defines navigation structure and routing for CUDOS module (Outcome-Based Education)
@@ -9,7 +11,7 @@ import BloomDomainPage from "../pages/ioncudos/configuration/bloomDomain/bloomDo
  * - Bloom's Domain (Cognitive, Affective, Psychomotor)
  */
 
-export const CUDOSROUTE = [
+export const CUDOSROUTE: RouteItem[] = [
   {
     name: "Configuration",
     href: "/configuration",
@@ -18,10 +20,12 @@ export const CUDOSROUTE = [
     subItems: [
       {
         name: "Bloom's Domain",
-        href: "/configuration/bloom_domain",
+        href: "bloom_domain", // Relative path - will be combined with parent
         element: BloomDomainPage,
         roles: [],
       },
+    
     ],
   },
 ];
+export default CUDOSROUTE;
