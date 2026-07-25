@@ -86,6 +86,11 @@ type AcademicBatchListResponse = ApiEnvelope<AcademicBatchRecord[]>;
 type GroupCompleteApiResponse = ApiEnvelope<GroupCompleteResponse>;
 
 type MentorMappingsApiResponse = ApiEnvelope<MentorMapping[]>;
+type ConfigurationTypesResponse = {
+  status?: boolean;
+  message?: string;
+  data?: ConfigurationType[];
+};
 
 type SemesterOptionRecord = {
   semester_id?: number;
@@ -162,8 +167,10 @@ type GroupByAcademicBatchRecord = {
 type ConfigurationType = {
   config_type_id: number;
   config_type_name: string;
-  min_mentees_per_mentor?: number;
-  max_mentees_per_mentor?: number;
+  min_mentees?: number;
+  max_mentees?: number;
+  allow_mentee_rating?: boolean;
+  rating_type_id?: number | null;
 };
 
 type TermOption = {
@@ -520,7 +527,7 @@ const MapMentorsPage: React.FC = () => {
   const [academicBatches, setAcademicBatches] = useState<AcademicBatchRecord[]>([]);
   const [mentorCandidates, setMentorCandidates] = useState<MentorCandidate[]>([]);
   const [mentorLoadError, setMentorLoadError] = useState("");
-  const [configurationTypes] = useState<ConfigurationType[]>([]);
+  const [configurationTypes, setConfigurationTypes] = useState<ConfigurationType[]>([]);
   const [termOptions, setTermOptions] = useState<TermOption[]>([]);
   const [isTermsOpen, setIsTermsOpen] = useState(false);
   const [termsSearch, setTermsSearch] = useState("");
@@ -717,6 +724,34 @@ const MapMentorsPage: React.FC = () => {
 
         setAcademicBatches(academicBatchResponse.data?.data || []);
 
+        const configurationTypesResponse =
+          await axiosInstance.get<ConfigurationTypesResponse>(
+            "lms_mentors_group/get_config_types",
+          );
+        if (!isMounted) return;
+
+        const nextConfigurationTypes = configurationTypesResponse.data?.data || [];
+        setConfigurationTypes(nextConfigurationTypes);
+        setFormState((current) => {
+          const hasSelectedConfiguration = nextConfigurationTypes.some(
+            (configuration) =>
+              Number(configuration.config_type_id) === Number(current.config_type_id),
+          );
+
+          if (hasSelectedConfiguration) {
+            return current;
+          }
+
+          if (nextConfigurationTypes.length === 1) {
+            return {
+              ...current,
+              config_type_id: Number(nextConfigurationTypes[0].config_type_id) || 0,
+            };
+          }
+
+          return current;
+        });
+
         if (!isMounted) return;
         setMentorCandidates([]);
         setSelected([]);
@@ -730,10 +765,15 @@ const MapMentorsPage: React.FC = () => {
 
           editGroupData = groupResponse.data?.data || null;
           if (editGroupData?.group) {
+            const editConfigTypeId = Number(editGroupData.group.config_type_id);
             setFormState({
               mentors_group_id: Number(editGroupData.group.mentors_group_id),
               academic_batch_id: Number(editGroupData.group.academic_batch_id),
-              config_type_id: Number(editGroupData.group.config_type_id),
+              config_type_id:
+                editConfigTypeId ||
+                (nextConfigurationTypes.length === 1
+                  ? Number(nextConfigurationTypes[0].config_type_id) || 0
+                  : 0),
               questionnaire_id: Number(editGroupData.group.questionnaire_id),
               mentors_pgm_title: editGroupData.group.mentors_pgm_title,
               semester_ids: (editGroupData.semester_ids || []).map((semesterId) =>
@@ -1096,6 +1136,14 @@ const MapMentorsPage: React.FC = () => {
     }
     if (!formState.questionnaire_id) {
       toast.error("Questionnaire is required");
+      return;
+    }
+    if (!formState.config_type_id) {
+      toast.error(
+        configurationTypes.length === 0
+          ? "Configuration types not available"
+          : "Configuration type is required",
+      );
       return;
     }
     if (formState.semester_ids.length === 0) {
@@ -1553,7 +1601,7 @@ const MapMentorsPage: React.FC = () => {
               <select
                 className="h-[39px] w-full max-w-[322px] rounded border border-gray-300 bg-white px-3 text-[13px] text-gray-800 shadow-sm focus:border-blue-500 focus:outline-none disabled:bg-gray-50 disabled:text-gray-500"
                 value={formState.config_type_id || ""}
-                disabled
+                disabled={configurationTypes.length === 0}
                 onChange={(event) =>
                   setFormState((current) => ({
                     ...current,
@@ -1561,7 +1609,11 @@ const MapMentorsPage: React.FC = () => {
                   }))
                 }
               >
-                <option value="">Configuration types not available</option>
+                <option value="">
+                  {configurationTypes.length === 0
+                    ? "Configuration types not available"
+                    : "Select configuration type"}
+                </option>
                 {configurationTypes.map((configuration) => (
                   <option
                     key={configuration.config_type_id}

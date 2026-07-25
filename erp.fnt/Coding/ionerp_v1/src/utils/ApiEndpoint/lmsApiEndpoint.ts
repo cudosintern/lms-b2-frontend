@@ -1,7 +1,46 @@
 /**
- * API Endpoint Configuration for IonLMS Module
- * Central location for all LMS-related API endpoints
+ * API Endpoint Configuration for IonLMS & IonCUDOS Modules
+ * Central location for LMS and CUDOS API endpoints
  */
+
+export const ApiEndpoint = {
+  // Common master delete endpoint (shared across modules)
+  master_soft_delete: "comman_function/soft_delete",
+
+  // Bloom's Domain specific endpoints
+  bloomDomain: {
+    save_bloom_domain: "bloom_domain/save_bloom_domain",
+    bloom_domain_list: "bloom_domain/bloom_domain_list",
+  },
+
+  // Bloom's Level specific endpoints
+  bloomLevel: {
+    save_bloom_level: "bloom_level/save_bloom_level",
+    bloom_level_list: "comman_function/bloom_level_list",
+  },
+
+  // Program Outcome specific endpoints
+  program: {
+    outcome_list: "comman_function/program_outcome_list",
+  },
+
+  studentCourseRegistration: {
+    checkRegistrationStatus:
+      "student-course-registration/check_registration_status",
+    registrationAcademicBatchList:
+      "student-course-registration/get_registration_academic_batch_list",
+    registrationSemesterList:
+      "student-course-registration/get_registration_semester_list",
+    validateRegistrationDueDate:
+      "student-course-registration/validate_registration_due_date",
+    availableCourses:
+      "student-course-registration/available-courses",
+    registrationSectionList:
+      "student-course-registration/get_registration_section_list",
+    registeredCourses:
+      "student-course-registration/registered-courses",
+  },
+} as const;
 
 export const LmsApiEndpoint = {
   configType: {
