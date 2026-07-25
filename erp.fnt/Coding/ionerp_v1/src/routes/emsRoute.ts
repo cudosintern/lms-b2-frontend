@@ -38,7 +38,7 @@ import RegistrationSetup from "../pages/lms/studentCourseRegistration/studentCou
 import type { RouteItem } from "./routeTypes";
 
 
-import MentorMentee from "../pages/lms/Mentoring/mentorMentee";
+// import MentorMentee from "../pages/lms/Mentoring/mentorMentee";
 import MentoringSession from "../pages/lms/Mentoring/MentoringSession/MentoringSession";
 //import MyMentoringSessions from "../pages/lms/Mentoring/MyMentoringSessions/MyMentoringSessions";
 

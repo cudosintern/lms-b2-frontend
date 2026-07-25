@@ -714,7 +714,7 @@ const DepartmentDropdown = () => {
     setLoading(true);
 
     try {
-      const response = await axios.post(
+      const response = await axios.post<any>(
         `${API_BASE_URL}/update-registration-settings`,
         updateData
       );
@@ -1168,7 +1168,7 @@ const DepartmentDropdown = () => {
               <label>Start Date*</label>
               <DatePicker
                 value={startDate}
-                onChange={(newValue) => setStartDate(newValue)}
+                onChange={(newValue: Dayjs | null) => setStartDate(newValue)}
                 format="DD-MM-YYYY"
                 slots={{ textField: customTextField }}
               />
@@ -1178,7 +1178,7 @@ const DepartmentDropdown = () => {
               <label>Start Time*</label>
               <TimePicker
                 value={startTime}
-                onChange={(newValue) => setStartTime(newValue)}
+                onChange={(newValue: Dayjs | null) => setStartTime(newValue)}
                 format="hh:mm A"
                 ampm
                 slots={{ textField: customTextField }}
@@ -1189,7 +1189,7 @@ const DepartmentDropdown = () => {
               <label>End Date*</label>
               <DatePicker
                 value={endDate}
-                onChange={(newValue) => setEndDate(newValue)}
+                onChange={(newValue: Dayjs | null) => setEndDate(newValue)}
                 format="DD-MM-YYYY"
                 slots={{ textField: customTextField }}
               />
@@ -1199,7 +1199,7 @@ const DepartmentDropdown = () => {
               <label>End Time*</label>
               <TimePicker
                 value={endTime}
-                onChange={(newValue) => setEndTime(newValue)}
+                onChange={(newValue: Dayjs | null) => setEndTime(newValue)}
                 format="hh:mm A"
                 ampm
                 slots={{ textField: customTextField }}
