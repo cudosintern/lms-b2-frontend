@@ -6,7 +6,7 @@ import "jspdf-autotable";
 import { toast } from "react-toastify";
 import MentoringPageLayout from "./MentoringPageLayout";
 import { useAxios } from "../../hooks/useAxios";
-import { LmsApiEndpoint } from "../../utils/ApiEndpoint/lmsApiEndpoint";
+import { LmsApiEndpoint } from "../../utils/ApiEndpoint/lmsapiEndpoint";
 
 import { ConfigurationType, SavePayload } from "./types/configurationType";
 

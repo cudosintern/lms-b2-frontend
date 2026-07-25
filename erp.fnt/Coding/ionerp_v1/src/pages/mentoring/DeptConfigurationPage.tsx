@@ -3,7 +3,7 @@ import { FaSort, FaSortUp, FaSortDown, FaSave } from "react-icons/fa";
 import { FiTrash2 } from "react-icons/fi";
 import MentoringPageLayout from "./MentoringPageLayout";
 import { useAxios } from "../../hooks/useAxios";
-import { LmsApiEndpoint } from "../../utils/ApiEndpoint/lmsApiEndpoint";
+import { LmsApiEndpoint } from "../../utils/ApiEndpoint/lmsapiEndpoint";
 import { LocalStorageHelper } from "../../utils/localStorageHelper";
 import { loginData } from "../login/loginModel";
 

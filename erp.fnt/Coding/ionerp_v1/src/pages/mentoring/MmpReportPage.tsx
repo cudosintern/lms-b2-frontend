@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { toast } from "react-toastify";
 import axiosInstance from "../../utils/api";
-import { LmsApiEndpoint } from "../../utils/ApiEndpoint/lmsApiEndpoint";
+import { LmsApiEndpoint } from "../../utils/ApiEndpoint/lmsapiEndpoint";
 
 import {
   CurriculumItem,

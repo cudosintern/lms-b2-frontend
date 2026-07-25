@@ -3,7 +3,7 @@ import MentoringPageLayout from "./MentoringPageLayout";
 import { FaFilePdf } from "react-icons/fa";
 import { toast } from "react-toastify";
 import { useAxios } from "../../hooks/useAxios";
-import { LmsApiEndpoint } from "../../utils/ApiEndpoint/lmsApiEndpoint";
+import { LmsApiEndpoint } from "../../utils/ApiEndpoint/lmsapiEndpoint";
 
 import {
   DepartmentItem,
