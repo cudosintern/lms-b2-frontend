@@ -5,15 +5,13 @@ import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { TimePicker } from "@mui/x-date-pickers/TimePicker";
-import { TextField } from "@mui/material";
 import "./studentCourseRegistration.css";
 
 // ============================================
 // API Base URL - Using Environment Variable
 // ============================================
 
-const API_BASE_URL =
-  process.env.REACT_APP_API_URL + '/student-course-registration';
+const API_BASE_URL = process.env.REACT_APP_API_URL + '/lms_student_course_registration';
 console.log("API_BASE_URL:", API_BASE_URL);
 
 // ============================================
@@ -1055,35 +1053,7 @@ const DepartmentDropdown = () => {
   // Custom TextField
   // ============================================
 
-  const customTextField = (params: any) => (
-  <TextField
-    {...params}
-    size="small"
-    sx={{
-      '& .MuiOutlinedInput-root': {
-        height: '38px', /* Match button height */
-        backgroundColor: '#ffffff',
-        borderRadius: '4px',
-        '& fieldset': {
-          borderColor: '#d0d7de',
-          borderWidth: '1px',
-        },
-        '&:hover fieldset': {
-          borderColor: '#d0d7de',
-        },
-        '&.Mui-focused fieldset': {
-          borderColor: '#1976d2',
-          borderWidth: '2px',
-        },
-      },
-      '& .MuiInputBase-input': {
-        fontSize: '13px',
-        padding: '6px 12px',
-        height: '24px',
-      },
-    }}
-  />
-);
+
 
   // ============================================
   // Render
@@ -1167,43 +1137,147 @@ const DepartmentDropdown = () => {
             <div className="form-group">
               <label>Start Date*</label>
               <DatePicker
-                value={startDate}
-                onChange={(newValue) => setStartDate(newValue)}
-                format="DD-MM-YYYY"
-                slots={{ textField: customTextField }}
-              />
+  value={startDate}
+  onChange={(newValue) => setStartDate(newValue)}
+  format="DD-MM-YYYY"
+  slotProps={{
+    textField: {
+      size: "small",
+      sx: {
+        "& .MuiOutlinedInput-root": {
+          height: "38px",
+          backgroundColor: "#ffffff",
+          borderRadius: "4px",
+          "& fieldset": {
+            borderColor: "#d0d7de",
+          },
+          "&:hover fieldset": {
+            borderColor: "#d0d7de",
+          },
+          "&.Mui-focused fieldset": {
+            borderColor: "#1976d2",
+            borderWidth: "2px",
+          },
+        },
+        "& .MuiInputBase-input": {
+          fontSize: "13px",
+          padding: "6px 12px",
+          height: "24px",
+        },
+      },
+    },
+  }}
+/>
             </div>
 
             <div className="form-group">
               <label>Start Time*</label>
               <TimePicker
-                value={startTime}
-                onChange={(newValue) => setStartTime(newValue)}
-                format="hh:mm A"
-                ampm
-                slots={{ textField: customTextField }}
-              />
+  value={startTime}
+  onChange={(newValue) => setStartTime(newValue)}
+  format="hh:mm A"
+  ampm
+  slotProps={{
+    textField: {
+      size: "small",
+      sx: {
+        "& .MuiOutlinedInput-root": {
+          height: "38px",
+          backgroundColor: "#ffffff",
+          borderRadius: "4px",
+          "& fieldset": {
+            borderColor: "#d0d7de",
+          },
+          "&:hover fieldset": {
+            borderColor: "#d0d7de",
+          },
+          "&.Mui-focused fieldset": {
+            borderColor: "#1976d2",
+            borderWidth: "2px",
+          },
+        },
+        "& .MuiInputBase-input": {
+          fontSize: "13px",
+          padding: "6px 12px",
+          height: "24px",
+        },
+      },
+    },
+  }}
+/>
             </div>
 
             <div className="form-group">
               <label>End Date*</label>
               <DatePicker
-                value={endDate}
-                onChange={(newValue) => setEndDate(newValue)}
-                format="DD-MM-YYYY"
-                slots={{ textField: customTextField }}
-              />
+  value={endDate}
+  onChange={(newValue) => setEndDate(newValue)}
+  format="DD-MM-YYYY"
+  slotProps={{
+    textField: {
+      size: "small",
+      sx: {
+        "& .MuiOutlinedInput-root": {
+          height: "38px",
+          backgroundColor: "#ffffff",
+          borderRadius: "4px",
+          "& fieldset": {
+            borderColor: "#d0d7de",
+          },
+          "&:hover fieldset": {
+            borderColor: "#d0d7de",
+          },
+          "&.Mui-focused fieldset": {
+            borderColor: "#1976d2",
+            borderWidth: "2px",
+          },
+        },
+        "& .MuiInputBase-input": {
+          fontSize: "13px",
+          padding: "6px 12px",
+          height: "24px",
+        },
+      },
+    },
+  }}
+/>
             </div>
 
             <div className="form-group">
               <label>End Time*</label>
               <TimePicker
-                value={endTime}
-                onChange={(newValue) => setEndTime(newValue)}
-                format="hh:mm A"
-                ampm
-                slots={{ textField: customTextField }}
-              />
+  value={endTime}
+  onChange={(newValue) => setEndTime(newValue)}
+  format="hh:mm A"
+  ampm
+  slotProps={{
+    textField: {
+      size: "small",
+      sx: {
+        "& .MuiOutlinedInput-root": {
+          height: "38px",
+          backgroundColor: "#ffffff",
+          borderRadius: "4px",
+          "& fieldset": {
+            borderColor: "#d0d7de",
+          },
+          "&:hover fieldset": {
+            borderColor: "#d0d7de",
+          },
+          "&.Mui-focused fieldset": {
+            borderColor: "#1976d2",
+            borderWidth: "2px",
+          },
+        },
+        "& .MuiInputBase-input": {
+          fontSize: "13px",
+          padding: "6px 12px",
+          height: "24px",
+        },
+      },
+    },
+  }}
+/>
             </div>
 
             <div className="form-group export-btn-wrapper">
