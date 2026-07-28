@@ -388,8 +388,8 @@ const MentorsFromTab: React.FC = () => {
       {/* ─── Add Mentor Form ─── */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden mt-6 animate-in fade-in slide-in-from-bottom-3 duration-200">
         {/* Form Banner */}
-        <div className="bg-slate-800 dark:bg-slate-950 px-6 py-3.5 flex items-center">
-          <h3 className="text-base font-semibold text-white tracking-wide">
+        <div className="bg-slate-800 dark:bg-slate-950 px-6 py-4 flex items-center">
+          <h3 className="text-lg font-bold text-white tracking-wide">
             Add mentor from another department
           </h3>
         </div>
@@ -476,7 +476,7 @@ const MentorsFromTab: React.FC = () => {
           <div className="mt-5 flex justify-end">
             <button
               type="submit"
-              className="flex items-center gap-2 px-5 py-2 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white text-sm font-semibold rounded shadow transition cursor-pointer"
+              className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-sm font-semibold rounded shadow transition cursor-pointer"
             >
               <FaSave size={13} />
               Save

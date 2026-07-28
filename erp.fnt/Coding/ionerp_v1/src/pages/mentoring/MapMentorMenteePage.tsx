@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { FaPlusCircle, FaSort, FaSortUp, FaSortDown } from "react-icons/fa";
+import { FaFilePdf, FaPlus, FaPlusCircle, FaSort, FaSortUp, FaSortDown } from "react-icons/fa";
 import { FiEdit2, FiTrash2, FiPlusCircle } from "react-icons/fi";
+import { jsPDF } from "jspdf";
+import "jspdf-autotable";
 import { toast } from "react-toastify";
 import MentoringPageLayout from "./MentoringPageLayout";
 
@@ -24,7 +26,7 @@ const MapMentorMenteePage: React.FC = () => {
   const [entriesPerPage, setEntriesPerPage] = useState(100);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  
+
   // Sorting state
   const [sortColumn, setSortColumn] = useState<keyof MentoringGroup | "">("");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
@@ -112,7 +114,7 @@ const MapMentorMenteePage: React.FC = () => {
 
     if (searchTerm.trim() !== "") {
       const term = searchTerm.toLowerCase();
-      result = result.filter(g => 
+      result = result.filter(g =>
         g.group_title.toLowerCase().includes(term) ||
         g.mentors.some(m => m.toLowerCase().includes(term)) ||
         g.mentees.some(m => m.toLowerCase().includes(term)) ||
@@ -178,6 +180,70 @@ const MapMentorMenteePage: React.FC = () => {
     if (paginatedGroups.length === 0) return false;
     return paginatedGroups.every(g => selectedIds.includes(g.id));
   }, [paginatedGroups, selectedIds]);
+
+  // --- PDF Export ---
+  const handleExportPDF = () => {
+    const recordsToExport =
+      selectedIds.length > 0
+        ? filteredAndSearchedGroups.filter((item) => selectedIds.includes(item.id))
+        : filteredAndSearchedGroups;
+
+    if (recordsToExport.length === 0) {
+      toast.warning("No records to export.");
+      return;
+    }
+
+    const doc = new jsPDF();
+    doc.setFont("Helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(31, 41, 55);
+    doc.text("Map Mentor Mentee Report", 14, 20);
+
+    doc.setFont("Helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(107, 114, 128);
+    doc.text(`Curriculum: ${selectedCurriculum}`, 14, 26);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 31);
+    doc.text(
+      selectedIds.length > 0
+        ? `Exporting ${recordsToExport.length} selected entries`
+        : `Exporting all ${recordsToExport.length} entries`,
+      14,
+      36
+    );
+
+    const tableHeaders = [
+      ["Sl No.", "Group Title", "Mentors", "Mentees", "Session Date", "Session Status"]
+    ];
+    const tableRows = recordsToExport.map((item, index) => [
+      index + 1,
+      item.group_title,
+      item.mentors.length > 0 ? item.mentors.join(", ") : "-",
+      item.mentees.length > 0 ? item.mentees.join(", ") : "-",
+      item.session_date || "-",
+      item.session_status || "-",
+    ]);
+
+    (doc as any).autoTable({
+      head: tableHeaders,
+      body: tableRows,
+      startY: 42,
+      theme: "grid",
+      headStyles: { fillColor: [67, 120, 128], textColor: [255, 255, 255], fontStyle: "bold" },
+      styles: { fontSize: 9, cellPadding: 3 },
+      columnStyles: {
+        0: { cellWidth: 15, halign: "center" },
+        1: { cellWidth: 35 },
+        2: { cellWidth: 45 },
+        3: { cellWidth: 45 },
+        4: { cellWidth: 25, halign: "center" },
+        5: { cellWidth: 25, halign: "center" },
+      },
+    });
+
+    doc.save(`Map_Mentor_Mentee_${new Date().toISOString().slice(0, 10)}.pdf`);
+    toast.success("PDF exported successfully!");
+  };
 
   // --- Add Page Operations ---
   const handleOpenAddView = () => {
@@ -332,16 +398,16 @@ const MapMentorMenteePage: React.FC = () => {
   const renderSortIcon = (column: keyof MentoringGroup) => {
     if (sortColumn !== column) return <FaSort className="inline ml-1 text-gray-400 text-xs" />;
     return sortDirection === "asc" ? (
-      <FaSortUp className="inline ml-1 text-gray-800 text-sm" />
+      <FaSortUp className="inline ml-1 text-gray-800 dark:text-gray-200 text-sm" />
     ) : (
-      <FaSortDown className="inline ml-1 text-gray-800 text-sm" />
+      <FaSortDown className="inline ml-1 text-gray-800 dark:text-gray-200 text-sm" />
     );
   };
 
   return (
     <MentoringPageLayout>
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
-        
+
         {/* Banner header title */}
         <div className="bg-slate-800 dark:bg-slate-950 px-6 py-4 flex items-center justify-between">
           <h2 className="text-xl font-bold text-white tracking-wide">
@@ -352,14 +418,14 @@ const MapMentorMenteePage: React.FC = () => {
         {view === "list" ? (
           // --- List View Screen ---
           <div className="p-6">
-            {/* Top Row: Curriculum Selector and Add button */}
+            {/* Top Row: Curriculum Selector and Action buttons (Export & Add) */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
               <div className="flex items-center gap-3">
                 <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
                   Curriculum:<span className="text-red-500">*</span>
                 </label>
                 <select
-                  className="w-72 px-3 py-2 border border-gray-300 rounded bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
+                  className="w-72 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
                   value={selectedCurriculum}
                   onChange={(e) => {
                     setSelectedCurriculum(e.target.value);
@@ -371,19 +437,28 @@ const MapMentorMenteePage: React.FC = () => {
                   <option value="B.Tech CSE 2024">B.Tech CSE 2024</option>
                 </select>
               </div>
-              
-              <button
-                onClick={handleOpenAddView}
-                className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded shadow transition duration-150 cursor-pointer"
-              >
-                <FiPlusCircle size={16} />
-                Add Mentor Mentee
-              </button>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleExportPDF}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold text-sm rounded shadow transition duration-150 cursor-pointer"
+                >
+                  <FaFilePdf size={14} />
+                  Export
+                </button>
+                <button
+                  onClick={handleOpenAddView}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold text-sm rounded shadow transition duration-150 cursor-pointer"
+                >
+                  <FaPlus size={14} />
+                  Add Mentor Mentee
+                </button>
+              </div>
             </div>
 
             {/* Table Controls (Search and Entries count) */}
             <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-4">
-              
+
               {/* Show Entries Dropdown */}
               <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
                 <span>Show</span>
@@ -393,7 +468,7 @@ const MapMentorMenteePage: React.FC = () => {
                     setEntriesPerPage(Number(e.target.value));
                     setCurrentPage(1);
                   }}
-                  className="px-2 py-1 border border-gray-300 rounded bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 >
                   <option value={10}>10</option>
                   <option value={25}>25</option>
@@ -413,7 +488,8 @@ const MapMentorMenteePage: React.FC = () => {
                     setSearchTerm(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="w-full md:w-64 px-3 py-1 border border-gray-300 rounded bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  placeholder="Search mentoring groups..."
+                  className="w-full md:w-64 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
                 />
               </div>
             </div>
@@ -421,57 +497,57 @@ const MapMentorMenteePage: React.FC = () => {
             {/* Mentoring Groups Table */}
             <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg">
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-left text-sm">
-                <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-200 font-semibold text-[13px]">
+                <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-200 uppercase font-semibold text-xs tracking-wider">
                   <tr>
-                    <th className="px-4 py-3 w-20 cursor-pointer select-none">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={isAllSelectedOnPage}
-                          onChange={handleSelectAll}
-                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                        />
-                        <span>Sl. No.</span>
-                        {renderSortIcon("id")}
+                    <th className="px-4 py-3 text-center w-12">
+                      <input
+                        type="checkbox"
+                        checked={isAllSelectedOnPage}
+                        onChange={handleSelectAll}
+                        className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </th>
+
+                    <th
+                      className="px-4 py-3 text-center w-20 cursor-pointer select-none"
+                      onClick={() => handleSort("id")}
+                    >
+                      <div className="flex items-center justify-center">
+                        Sl No.{renderSortIcon("id")}
                       </div>
                     </th>
 
-                    <th className="px-4 py-3 cursor-pointer select-none" onClick={() => handleSort("group_title")}>
+                    <th className="px-6 py-3 cursor-pointer select-none" onClick={() => handleSort("group_title")}>
                       <div className="flex items-center">
-                        Group Title
-                        {renderSortIcon("group_title")}
+                        Group Title{renderSortIcon("group_title")}
                       </div>
                     </th>
 
-                    <th className="px-4 py-3 cursor-pointer select-none" onClick={() => handleSort("mentors")}>
+                    <th className="px-6 py-3 cursor-pointer select-none" onClick={() => handleSort("mentors")}>
                       <div className="flex items-center">
-                        Mentor
-                        {renderSortIcon("mentors")}
+                        Mentor{renderSortIcon("mentors")}
                       </div>
                     </th>
 
-                    <th className="px-4 py-3 cursor-pointer select-none" onClick={() => handleSort("mentees")}>
+                    <th className="px-6 py-3 cursor-pointer select-none" onClick={() => handleSort("mentees")}>
                       <div className="flex items-center">
-                        Mentee
-                        {renderSortIcon("mentees")}
+                        Mentee{renderSortIcon("mentees")}
                       </div>
                     </th>
 
-                    <th className="px-4 py-3 cursor-pointer select-none" onClick={() => handleSort("session_date")}>
+                    <th className="px-6 py-3 cursor-pointer select-none" onClick={() => handleSort("session_date")}>
                       <div className="flex items-center">
-                        Session Date
-                        {renderSortIcon("session_date")}
+                        Session Date{renderSortIcon("session_date")}
                       </div>
                     </th>
 
-                    <th className="px-4 py-3 cursor-pointer select-none" onClick={() => handleSort("session_status")}>
+                    <th className="px-6 py-3 cursor-pointer select-none" onClick={() => handleSort("session_status")}>
                       <div className="flex items-center">
-                        Session Status
-                        {renderSortIcon("session_status")}
+                        Session Status{renderSortIcon("session_status")}
                       </div>
                     </th>
 
-                    <th className="px-4 py-3 text-center w-24">
+                    <th className="px-4 py-3 text-center w-24 select-none">
                       Action
                     </th>
                   </tr>
@@ -486,70 +562,85 @@ const MapMentorMenteePage: React.FC = () => {
                       return (
                         <tr
                           key={group.id}
-                          className={`hover:bg-gray-50 dark:hover:bg-gray-700/40 transition duration-150 ${
-                            isSelected ? "bg-blue-50/40 dark:bg-blue-900/10" : ""
-                          }`}
+                          className={`hover:bg-gray-50 dark:hover:bg-gray-700/40 transition duration-150 ${isSelected ? "bg-blue-50/40 dark:bg-blue-900/10" : ""
+                            }`}
                         >
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-3">
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={() => handleSelectRow(group.id)}
-                                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                              />
-                              <span>{slNo}</span>
-                            </div>
+                          <td className="px-4 py-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleSelectRow(group.id)}
+                              className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                            />
                           </td>
 
-                          <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                          <td className="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-300">
+                            {slNo}
+                          </td>
+
+                          <td className="px-6 py-3 font-semibold text-gray-900 dark:text-white">
                             {group.group_title}
                           </td>
 
-                          <td className="px-4 py-3">
+                          <td className="px-6 py-3">
                             <div className="flex flex-col gap-1.5">
                               {group.mentors.length > 0 ? (
-                                <span className="text-gray-805 dark:text-gray-200">
-                                  {group.mentors.join(" , ")}
+                                <span className="text-gray-800 dark:text-gray-200 font-medium">
+                                  {group.mentors.join(", ")}
                                 </span>
-                              ) : null}
+                              ) : (
+                                <span className="text-gray-400 dark:text-gray-500 italic text-xs">No mentor assigned</span>
+                              )}
                               <button
                                 onClick={() => handleOpenAddMentor(group)}
-                                className="flex items-center gap-1 text-[13px] text-[#337ab7] dark:text-blue-400 hover:underline text-left font-medium w-max"
+                                className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium w-max cursor-pointer"
                               >
-                                <FaPlusCircle className="text-[#337ab7] dark:text-blue-400" size={13} />
+                                <FaPlusCircle size={12} />
                                 Add mentor
                               </button>
                             </div>
                           </td>
 
-                          <td className="px-4 py-3">
+                          <td className="px-6 py-3">
                             <div className="flex flex-col gap-1.5">
                               {group.mentees.length > 0 ? (
-                                <span className="text-gray-805 dark:text-gray-200">
-                                  {group.mentees.join(" , ")}
+                                <span className="text-gray-800 dark:text-gray-200 font-medium">
+                                  {group.mentees.join(", ")}
                                 </span>
-                              ) : null}
+                              ) : (
+                                <span className="text-gray-400 dark:text-gray-500 italic text-xs">No mentee assigned</span>
+                              )}
                               <button
                                 onClick={() => handleOpenAddMentee(group)}
-                                className="flex items-center gap-1 text-[13px] text-[#337ab7] dark:text-blue-400 hover:underline text-left font-medium w-max"
+                                className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium w-max cursor-pointer"
                               >
-                                <FaPlusCircle className="text-[#337ab7] dark:text-blue-400" size={13} />
+                                <FaPlusCircle size={12} />
                                 Add mentee
                               </button>
                             </div>
                           </td>
 
-                          <td className="px-4 py-3">
-                            {group.session_date || ""}
+                          <td className="px-6 py-3 text-gray-600 dark:text-gray-300">
+                            {group.session_date || "-"}
                           </td>
 
-                          <td className="px-4 py-3">
-                            {group.session_status || ""}
+                          <td className="px-6 py-3">
+                            {group.session_status ? (
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${group.session_status.toLowerCase() === "completed"
+                                  ? "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300"
+                                  : group.session_status.toLowerCase() === "in progress"
+                                    ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300"
+                                    : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300"
+                                }`}>
+                                {group.session_status}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400 dark:text-gray-500 italic text-xs">-</span>
+                            )}
                           </td>
 
                           <td className="px-4 py-3 text-center">
-                            <div className="flex items-center justify-center gap-3">
+                            <div className="flex items-center justify-center gap-2">
                               <button
                                 onClick={() => handleOpenEditModal(group)}
                                 className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 transition cursor-pointer"
@@ -559,7 +650,7 @@ const MapMentorMenteePage: React.FC = () => {
                               </button>
                               <button
                                 onClick={() => handleDeleteClick(group)}
-                                className="text-red-650 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/30 transition cursor-pointer"
+                                className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/30 transition cursor-pointer"
                                 title="Delete Mentoring Group"
                               >
                                 <FiTrash2 size={16} />
@@ -571,7 +662,7 @@ const MapMentorMenteePage: React.FC = () => {
                     })
                   ) : (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                      <td colSpan={8} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                         No mentoring groups found. Click "Add Mentor Mentee" to create one.
                       </td>
                     </tr>
@@ -582,7 +673,7 @@ const MapMentorMenteePage: React.FC = () => {
 
             {/* Table Footer / Pagination */}
             <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mt-6">
-              <div className="text-sm text-gray-500">
+              <div className="text-sm text-gray-500 dark:text-gray-400">
                 {totalEntries > 0 ? (
                   <span>
                     Showing {Math.min((currentPage - 1) * entriesPerPage + 1, totalEntries)} to{" "}
@@ -598,7 +689,7 @@ const MapMentorMenteePage: React.FC = () => {
                   <button
                     disabled={currentPage === 1}
                     onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
-                    className="px-3 py-2 rounded-l-md border border-gray-300 bg-white text-gray-505 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    className="px-3 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
                   >
                     Previous
                   </button>
@@ -606,11 +697,10 @@ const MapMentorMenteePage: React.FC = () => {
                     <button
                       key={page}
                       onClick={() => setCurrentPage(page)}
-                      className={`px-3 py-2 border cursor-pointer ${
-                        currentPage === page
+                      className={`px-3 py-2 border cursor-pointer transition-colors ${currentPage === page
                           ? "z-10 bg-blue-600 text-white border-blue-600 hover:bg-blue-700"
-                          : "border-gray-300 bg-white text-gray-705 hover:bg-gray-50"
-                      }`}
+                          : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                        }`}
                     >
                       {page}
                     </button>
@@ -618,7 +708,7 @@ const MapMentorMenteePage: React.FC = () => {
                   <button
                     disabled={currentPage === totalPages}
                     onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
-                    className="px-3 py-2 rounded-r-md border border-gray-300 bg-white text-gray-505 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    className="px-3 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
                   >
                     Next
                   </button>
@@ -630,7 +720,7 @@ const MapMentorMenteePage: React.FC = () => {
         ) : (
           // --- Add Mentor Mentee Full Page View Screen ---
           <form onSubmit={handleAddSubmit} className="p-6 space-y-5 max-w-2xl animate-in fade-in duration-200">
-            
+
             {/* Group Title input */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
@@ -644,9 +734,8 @@ const MapMentorMenteePage: React.FC = () => {
                   if (e.target.value.trim()) setAddErrors(p => ({ ...p, group_title: "" }));
                 }}
                 placeholder="Enter Group Title"
-                className={`w-full px-3 py-2 border rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                  addErrors.group_title ? "border-red-500 focus:ring-red-500" : "border-gray-300 dark:border-gray-600"
-                }`}
+                className={`w-full px-3 py-2 border rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${addErrors.group_title ? "border-red-500 focus:ring-red-500" : "border-gray-300 dark:border-gray-600"
+                  }`}
               />
               {addErrors.group_title && (
                 <p className="mt-1 text-xs text-red-500 font-semibold">{addErrors.group_title}</p>
@@ -664,9 +753,8 @@ const MapMentorMenteePage: React.FC = () => {
                   setApplicableTermInput(e.target.value);
                   if (e.target.value) setAddErrors(p => ({ ...p, applicable_terms: "" }));
                 }}
-                className={`w-full px-3 py-2 border rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                  addErrors.applicable_terms ? "border-red-500 focus:ring-red-500" : "border-gray-300 dark:border-gray-600"
-                }`}
+                className={`w-full px-3 py-2 border rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${addErrors.applicable_terms ? "border-red-500 focus:ring-red-500" : "border-gray-300 dark:border-gray-600"
+                  }`}
               >
                 <option value="">Select Applicable Term</option>
                 <option value="Term 1">Term 1</option>
@@ -691,9 +779,8 @@ const MapMentorMenteePage: React.FC = () => {
                   setConfigTypeInput(e.target.value);
                   if (e.target.value) setAddErrors(p => ({ ...p, config_type: "" }));
                 }}
-                className={`w-full px-3 py-2 border rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                  addErrors.config_type ? "border-red-500 focus:ring-red-500" : "border-gray-300 dark:border-gray-600"
-                }`}
+                className={`w-full px-3 py-2 border rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${addErrors.config_type ? "border-red-500 focus:ring-red-500" : "border-gray-300 dark:border-gray-600"
+                  }`}
               >
                 <option value="">Select configuration type</option>
                 {configTypes.map((type, index) => (
@@ -716,9 +803,8 @@ const MapMentorMenteePage: React.FC = () => {
                   setQuestionnaireInput(e.target.value);
                   if (e.target.value) setAddErrors(p => ({ ...p, questionnaire_title: "" }));
                 }}
-                className={`w-full px-3 py-2 border rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                  addErrors.questionnaire_title ? "border-red-500 focus:ring-red-500" : "border-gray-300 dark:border-gray-600"
-                }`}
+                className={`w-full px-3 py-2 border rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${addErrors.questionnaire_title ? "border-red-500 focus:ring-red-500" : "border-gray-300 dark:border-gray-600"
+                  }`}
               >
                 <option value="">Select questionnaire title</option>
                 <option value="Student MMP Questionnaire">Student MMP Questionnaire</option>
@@ -730,18 +816,18 @@ const MapMentorMenteePage: React.FC = () => {
               )}
             </div>
 
-            {/* Mentor Selection Checklist (Show mentor name with select check button) */}
+            {/* Mentor Selection Checklist */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                 Select Mentors:
               </label>
-              <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50/30 dark:bg-gray-900/10 p-4 max-h-[180px] overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50/50 dark:bg-gray-900/30 p-4 max-h-[180px] overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {AVAILABLE_MENTORS.map((mentor) => {
                   const isChecked = selectedMentors.includes(mentor);
                   return (
-                    <label 
-                      key={mentor} 
-                      className="flex items-center gap-2.5 px-3 py-1.5 border border-gray-250 dark:border-gray-750 rounded bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 cursor-pointer shadow-sm transition-all text-[13px] font-medium text-gray-750 dark:text-gray-200"
+                    <label
+                      key={mentor}
+                      className="flex items-center gap-2.5 px-3 py-1.5 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/60 cursor-pointer shadow-sm transition-all text-xs font-medium text-gray-700 dark:text-gray-200"
                     >
                       <input
                         type="checkbox"
@@ -753,7 +839,7 @@ const MapMentorMenteePage: React.FC = () => {
                               : [...prev, mentor]
                           );
                         }}
-                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 cursor-pointer"
                       />
                       <span>{mentor}</span>
                     </label>
@@ -763,7 +849,7 @@ const MapMentorMenteePage: React.FC = () => {
             </div>
 
             {/* Footer Buttons */}
-            <div className="flex items-center gap-2 pt-4 border-t border-solid border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-3 pt-4 border-t border-solid border-gray-200 dark:border-gray-700">
               <button
                 type="button"
                 onClick={() => setView("list")}
@@ -773,7 +859,7 @@ const MapMentorMenteePage: React.FC = () => {
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-semibold shadow transition cursor-pointer flex items-center gap-2"
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded text-sm font-semibold shadow transition cursor-pointer flex items-center gap-2"
               >
                 Save &amp; Proceed to Add Mentee
               </button>
@@ -785,17 +871,17 @@ const MapMentorMenteePage: React.FC = () => {
       {/* --- EDIT GROUP TITLE MODAL --- */}
       {isEditModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-x-hidden overflow-y-auto outline-none focus:outline-none">
-          <div className="fixed inset-0 bg-black opacity-50 transition-opacity" onClick={() => setIsEditModalOpen(false)}></div>
-          
+          <div className="fixed inset-0 bg-black opacity-55 transition-opacity" onClick={() => setIsEditModalOpen(false)}></div>
+
           <div className="relative w-full max-w-md mx-auto my-6 z-50">
             <div className="relative flex flex-col w-full bg-white dark:bg-gray-800 border-0 rounded-lg shadow-lg outline-none focus:outline-none overflow-hidden">
-              
+
               <div className="flex items-center justify-between p-5 border-b border-solid border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                   Edit Mentoring Group Title
                 </h3>
                 <button
-                  className="p-1 ml-auto bg-transparent border-0 text-gray-400 hover:text-gray-650 float-right text-3xl leading-none font-semibold outline-none focus:outline-none cursor-pointer"
+                  className="p-1 ml-auto bg-transparent border-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 float-right text-3xl leading-none font-semibold outline-none focus:outline-none cursor-pointer"
                   onClick={() => setIsEditModalOpen(false)}
                 >
                   <span className="text-gray-400 block h-6 w-6 text-2xl outline-none focus:outline-none">×</span>
@@ -816,9 +902,8 @@ const MapMentorMenteePage: React.FC = () => {
                         if (e.target.value.trim()) setEditErrors({});
                       }}
                       placeholder="Enter Group Title"
-                      className={`w-full px-3 py-2 border rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                        editErrors.group_title ? "border-red-500 focus:ring-red-500" : "border-gray-300 dark:border-gray-600"
-                      }`}
+                      className={`w-full px-3 py-2 border rounded bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${editErrors.group_title ? "border-red-500 focus:ring-red-500" : "border-gray-300 dark:border-gray-600"
+                        }`}
                     />
                     {editErrors.group_title && (
                       <p className="mt-1 text-xs text-red-500 font-semibold">{editErrors.group_title}</p>
@@ -836,7 +921,7 @@ const MapMentorMenteePage: React.FC = () => {
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-semibold shadow transition cursor-pointer"
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded text-sm font-semibold shadow transition cursor-pointer"
                   >
                     Save
                   </button>
@@ -852,10 +937,10 @@ const MapMentorMenteePage: React.FC = () => {
       {groupToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-x-hidden overflow-y-auto outline-none focus:outline-none">
           <div className="fixed inset-0 bg-black opacity-55 transition-opacity" onClick={() => setGroupToDelete(null)}></div>
-          
+
           <div className="relative w-full max-w-sm mx-auto my-6 z-50">
             <div className="relative flex flex-col w-full bg-white dark:bg-gray-800 border-0 rounded-lg shadow-lg outline-none focus:outline-none overflow-hidden">
-              
+
               <div className="flex items-center justify-between p-4 border-b border-solid border-gray-200 dark:border-gray-700 bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-400">
                 <h3 className="text-md font-bold">Confirm Delete</h3>
               </div>
@@ -874,14 +959,14 @@ const MapMentorMenteePage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setGroupToDelete(null)}
-                  className="px-3.5 py-1.5 border border-gray-300 dark:border-gray-655 text-gray-705 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm font-semibold transition cursor-pointer"
+                  className="px-3.5 py-1.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm font-semibold transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={confirmDeleteGroup}
-                  className="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-sm font-semibold shadow transition cursor-pointer"
+                  className="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white rounded text-sm font-semibold shadow transition cursor-pointer"
                 >
                   Delete
                 </button>
@@ -895,11 +980,11 @@ const MapMentorMenteePage: React.FC = () => {
       {/* --- ADD MENTOR DIALOG --- */}
       {isMentorModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-x-hidden overflow-y-auto outline-none focus:outline-none">
-          <div className="fixed inset-0 bg-black opacity-50 transition-opacity" onClick={() => setIsMentorModalOpen(false)}></div>
-          
+          <div className="fixed inset-0 bg-black opacity-55 transition-opacity" onClick={() => setIsMentorModalOpen(false)}></div>
+
           <div className="relative w-full max-w-sm mx-auto my-6 z-50">
             <div className="relative flex flex-col w-full bg-white dark:bg-gray-800 border-0 rounded-lg shadow-lg outline-none focus:outline-none overflow-hidden">
-              
+
               <div className="flex items-center justify-between p-5 border-b border-solid border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
                 <h3 className="text-md font-bold text-gray-900 dark:text-white">
                   Add Mentor to {targetGroupForMentor?.group_title}
@@ -927,13 +1012,13 @@ const MapMentorMenteePage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setIsMentorModalOpen(false)}
-                    className="px-3.5 py-1.5 border border-gray-300 dark:border-gray-650 text-gray-700 dark:text-gray-350 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm font-semibold transition cursor-pointer"
+                    className="px-3.5 py-1.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm font-semibold transition cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-semibold shadow transition cursor-pointer"
+                    className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded text-sm font-semibold shadow transition cursor-pointer"
                   >
                     Add
                   </button>
@@ -948,11 +1033,11 @@ const MapMentorMenteePage: React.FC = () => {
       {/* --- ADD MENTEE DIALOG --- */}
       {isMenteeModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-x-hidden overflow-y-auto outline-none focus:outline-none">
-          <div className="fixed inset-0 bg-black opacity-50 transition-opacity" onClick={() => setIsMenteeModalOpen(false)}></div>
-          
+          <div className="fixed inset-0 bg-black opacity-55 transition-opacity" onClick={() => setIsMenteeModalOpen(false)}></div>
+
           <div className="relative w-full max-w-sm mx-auto my-6 z-50">
             <div className="relative flex flex-col w-full bg-white dark:bg-gray-800 border-0 rounded-lg shadow-lg outline-none focus:outline-none overflow-hidden">
-              
+
               <div className="flex items-center justify-between p-5 border-b border-solid border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
                 <h3 className="text-md font-bold text-gray-900 dark:text-white">
                   Add Mentee to {targetGroupForMentee?.group_title}
@@ -980,13 +1065,13 @@ const MapMentorMenteePage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setIsMenteeModalOpen(false)}
-                    className="px-3.5 py-1.5 border border-gray-300 dark:border-gray-655 text-gray-700 dark:text-gray-350 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm font-semibold transition cursor-pointer"
+                    className="px-3.5 py-1.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm font-semibold transition cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-semibold shadow transition cursor-pointer"
+                    className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded text-sm font-semibold shadow transition cursor-pointer"
                   >
                     Add
                   </button>

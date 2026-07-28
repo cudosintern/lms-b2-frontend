@@ -265,10 +265,10 @@ const MentorListPage: React.FC = () => {
               <button
                 onClick={handleExportPdf}
                 disabled={!departmentId || !programId || !curriculumId || !semesterId}
-                className="flex items-center justify-center gap-1.5 px-5 py-2 bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold rounded shadow transition duration-150 cursor-pointer w-full lg:w-auto h-[38px] select-none"
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded shadow transition duration-150 cursor-pointer w-full lg:w-auto h-[38px] select-none"
                 title="Export Mentor List as PDF"
               >
-                <FaFilePdf size={13} />
+                <FaFilePdf size={14} />
                 Export
               </button>
             </div>

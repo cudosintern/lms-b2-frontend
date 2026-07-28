@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { FaCaretDown, FaFilePdf, FaPencilAlt, FaRegFileAlt, FaRegTrashAlt } from "react-icons/fa";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { toast } from "react-toastify";
 import axiosInstance from "../../../../utils/api";
 import { ApiEndpoint } from "../../../../utils/ApiEndpoint/emsapiEndpoint";
+import MentoringPageLayout from "../../../mentoring/MentoringPageLayout";
 import { FieldSettingOption, getQuestionnaireList } from "./responseInterface";
 import { FIELD_SETTING_PLACEHOLDER } from "./questionnaireConstants";
 
@@ -51,6 +52,14 @@ const formatOptions = (options: QuestionnaireOption[]) => (
 
 const QuestionnairePage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isMentoringPath = location.pathname.startsWith("/mentoring");
+  const createPath = isMentoringPath
+    ? "/mentoring/questionnaires/create"
+    : "/lms_mmp/questionnaire/create";
+  const editPathPrefix = isMentoringPath
+    ? "/mentoring/questionnaires/edit/"
+    : "/lms_mmp/questionnaire/edit/";
   const [selectedId, setSelectedId] = useState("");
   const [questionnaires, setQuestionnaires] = useState<getQuestionnaireList[]>([]);
   const [detail, setDetail] = useState<QuestionnaireDetail | null>(null);
@@ -140,7 +149,7 @@ const QuestionnairePage: React.FC = () => {
 
   const handleSelect = async (value: string) => {
     if (value === "create") {
-      navigate("/lms_mmp/questionnaire/create");
+      navigate(createPath);
       return;
     }
     setSelectedId(value);
@@ -315,17 +324,17 @@ const QuestionnairePage: React.FC = () => {
 
   const openSelectedQuestionnaire = () => {
     if (!selectedQuestionnaire) return;
-    navigate(`/lms_mmp/questionnaire/edit/${selectedQuestionnaire.questionnaire_id}`);
+    navigate(`${editPathPrefix}${selectedQuestionnaire.questionnaire_id}`);
   };
 
   const openQuestionEditor = (questionnaireQueId: number) => {
     if (!selectedQuestionnaire) return;
     navigate(
-      `/lms_mmp/questionnaire/edit/${selectedQuestionnaire.questionnaire_id}?questionId=${questionnaireQueId}`,
+      `${editPathPrefix}${selectedQuestionnaire.questionnaire_id}?questionId=${questionnaireQueId}`,
     );
   };
 
-  return (
+  const content = (
     <section className="min-h-[540px] w-full min-w-0 overflow-x-hidden rounded-md border border-gray-200 bg-white p-3 shadow-md md:p-4">
       <div className="mb-3 flex items-center justify-between rounded-tl-[20px] rounded-tr-none rounded-br-[20px] rounded-bl-none bg-slate-800 px-5 py-[5px] text-white">
         <h2 className="text-[18px] font-semibold leading-6">Questionnaires</h2>
@@ -445,6 +454,12 @@ const QuestionnairePage: React.FC = () => {
       </div>
     </section>
   );
+
+  if (isMentoringPath) {
+    return <MentoringPageLayout>{content}</MentoringPageLayout>;
+  }
+
+  return content;
 };
 
 export default QuestionnairePage;

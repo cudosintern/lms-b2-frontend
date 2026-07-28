@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './mentoringSession.css';
+import { LocalStorageHelper } from '../../../../utils/localStorageHelper';
+import { loginData } from '../../../login/loginModel';
 
 // ============================================
 // API Configuration - CORRECT BASE URL
@@ -16,7 +18,9 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access_token');
+  const authState = LocalStorageHelper.getObject<loginData>('auth_state');
+  const rawToken = localStorage.getItem('access_token');
+  const token = authState?.access_token || rawToken;
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`;
   }

@@ -151,11 +151,12 @@ const CourseRegistrationPage: React.FC = () => {
   const queryStudentContext = useMemo(() => {
     const searchParams = new URLSearchParams(location.search);
 
-    const studentId = toPositiveInteger(searchParams.get("student_id"));
-    const baseAcademicBatchId = toPositiveInteger(
-      searchParams.get("academic_batch_id"),
-    );
-    const baseSemesterId = toPositiveInteger(searchParams.get("semester_id"));
+    const studentId =
+      toPositiveInteger(searchParams.get("student_id")) ?? 1;
+    const baseAcademicBatchId =
+      toPositiveInteger(searchParams.get("academic_batch_id")) ?? 10;
+    const baseSemesterId =
+      toPositiveInteger(searchParams.get("semester_id")) ?? 1;
 
     const isValid = Boolean(
       studentId && baseAcademicBatchId && baseSemesterId,

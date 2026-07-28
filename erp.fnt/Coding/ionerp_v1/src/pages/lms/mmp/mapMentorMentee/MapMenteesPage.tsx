@@ -7,6 +7,7 @@ import axiosInstance from "../../../../utils/api";
 import { ApiEndpoint } from "../../../../utils/ApiEndpoint/emsapiEndpoint";
 import UIButton from "../../../../components/FormBuilder/fields/Button";
 import MmpModuleShell from "../components/MmpModuleShell";
+import MentoringPageLayout from "../../../mentoring/MentoringPageLayout";
 
 type NavigationState = {
   mentors_group_id?: number;
@@ -595,13 +596,16 @@ const MapMenteesPage: React.FC = () => {
   );
 
   const closeToList = useCallback(() => {
-    navigate("..", {
+    const targetPath = location.pathname.startsWith("/mentoring")
+      ? "/mentoring/map_mentor_mentee"
+      : "..";
+    navigate(targetPath, {
       state: {
         refreshKey: Date.now(),
         academic_batch_id: formState.academic_batch_id || routeAcademicBatchId,
       },
     });
-  }, [formState.academic_batch_id, navigate, routeAcademicBatchId]);
+  }, [formState.academic_batch_id, location.pathname, navigate, routeAcademicBatchId]);
 
   const closeQuestionnaireModal = useCallback(
     (immediate = false) =>
@@ -1286,7 +1290,7 @@ const MapMenteesPage: React.FC = () => {
       ? questionnaireTypeText
       : "";
 
-  return (
+  const content = (
     <MmpModuleShell title="Add mentees">
       <div className="map-mentees-page">
         <style>
@@ -1662,6 +1666,12 @@ const MapMenteesPage: React.FC = () => {
       {questionnaireModal}
     </MmpModuleShell>
   );
+
+  if (location.pathname.startsWith("/mentoring")) {
+    return <MentoringPageLayout>{content}</MentoringPageLayout>;
+  }
+
+  return content;
 };
 
 export default MapMenteesPage;

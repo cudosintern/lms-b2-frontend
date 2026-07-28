@@ -171,8 +171,8 @@ const QuestionnairePage: React.FC = () => {
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col min-h-[500px]">
         
         {/* Banner Title */}
-        <div className="bg-slate-800 dark:bg-slate-950 px-6 py-2.5 flex items-center justify-between">
-          <h2 className="text-lg font-medium text-white tracking-wide">
+        <div className="bg-slate-800 dark:bg-slate-950 px-6 py-4 flex items-center justify-between">
+          <h2 className="text-xl font-bold text-white tracking-wide">
             {isAddingMore ? "Add More Questions" : isCreating ? "Add Questionnaires" : "Questionnaires"}
           </h2>
         </div>

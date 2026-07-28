@@ -4,9 +4,12 @@ import ChangePasswordPage from "../pages/changepassword";
 import ConfigurationTypePage from "../pages/mentoring/ConfigurationTypePage";
 import DeptConfigurationPage from "../pages/mentoring/DeptConfigurationPage";
 import MentorListPage from "../pages/mentoring/MentorListPage";
-import QuestionnairePage from "../pages/mentoring/QuestionnairePage";
+import QuestionnairePage from "../pages/lms/mmp/questionnaire/QuestionnairePage";
+import QuestionnaireCreatePage from "../pages/lms/mmp/questionnaire/QuestionnaireCreatePage";
 import MentoringSessionPage from "../pages/mentoring/MentoringSessionPage";
-import MapMentorMenteePage from "../pages/mentoring/MapMentorMenteePage";
+import MapMentorMenteeListPage from "../pages/lms/mmp/mapMentorMentee/MapMentorMenteeListPage";
+import MapMentorsPage from "../pages/lms/mmp/mapMentorMentee/MapMentorsPage";
+import MapMenteesPage from "../pages/lms/mmp/mapMentorMentee/MapMenteesPage";
 import MmpReportPage from "../pages/mentoring/MmpReportPage";
 import CourseRegistrationPage from "../pages/curriculum/CourseRegistrationPage";
 import IssueObservationReportPage from "../pages/lms/mmp/reports/IssueObservationReportPage";
@@ -60,6 +63,22 @@ export const MAINROUTE = [
   },
   {
     name: "",
+    href: "/mentoring/questionnaires/create",
+    element: QuestionnaireCreatePage,
+    roles: [],
+    subItems: [],
+    hidden: true,
+  },
+  {
+    name: "",
+    href: "/mentoring/questionnaires/edit/:id",
+    element: QuestionnaireCreatePage,
+    roles: [],
+    subItems: [],
+    hidden: true,
+  },
+  {
+    name: "",
     href: "/mentoring/mentoring_session",
     element: MentoringSessionPage,
     roles: [],
@@ -69,7 +88,55 @@ export const MAINROUTE = [
   {
     name: "",
     href: "/mentoring/map_mentor_mentee",
-    element: MapMentorMenteePage,
+    element: MapMentorMenteeListPage,
+    roles: [],
+    subItems: [],
+    hidden: true,
+  },
+  {
+    name: "",
+    href: "/mentoring/map-mentors",
+    element: MapMentorsPage,
+    roles: [],
+    subItems: [],
+    hidden: true,
+  },
+  {
+    name: "",
+    href: "/mentoring/map_mentor_mentee/map-mentors",
+    element: MapMentorsPage,
+    roles: [],
+    subItems: [],
+    hidden: true,
+  },
+  {
+    name: "",
+    href: "/mentoring/map-mentees",
+    element: MapMenteesPage,
+    roles: [],
+    subItems: [],
+    hidden: true,
+  },
+  {
+    name: "",
+    href: "/mentoring/map_mentor_mentee/map-mentees",
+    element: MapMenteesPage,
+    roles: [],
+    subItems: [],
+    hidden: true,
+  },
+  {
+    name: "",
+    href: "/mentoring/map-mentees/:mentors_group_id/:academic_batch_id",
+    element: MapMenteesPage,
+    roles: [],
+    subItems: [],
+    hidden: true,
+  },
+  {
+    name: "",
+    href: "/mentoring/map_mentor_mentee/map-mentees/:mentors_group_id/:academic_batch_id",
+    element: MapMenteesPage,
     roles: [],
     subItems: [],
     hidden: true,

@@ -876,11 +876,13 @@ const MentoringSessionPage: React.FC = () => {
         }
       `}</style>
 
-      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden flex flex-col min-h-[600px] transition-all duration-300">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col min-h-[600px] transition-all duration-300">
         
-        {/* Banner Title - Styled exactly like the image */}
-        <div className="bg-[#1b2b3c] text-white px-6 py-2.5 font-bold text-lg flex items-center justify-between shadow-sm relative overflow-hidden" style={{ borderTopLeftRadius: '4px', borderTopRightRadius: '30px' }}>
-          <span>{isCreating ? (editingScheduleId ? "Edit Mentoring Session" : "Add Mentoring Session") : "Mentoring Session"}</span>
+        {/* Banner Title */}
+        <div className="bg-slate-800 dark:bg-slate-950 px-6 py-4 flex items-center justify-between">
+          <h2 className="text-xl font-bold text-white tracking-wide">
+            {isCreating ? (editingScheduleId ? "Edit Mentoring Session" : "Add Mentoring Session") : "Mentoring Session"}
+          </h2>
         </div>
 
         {!isCreating ? (

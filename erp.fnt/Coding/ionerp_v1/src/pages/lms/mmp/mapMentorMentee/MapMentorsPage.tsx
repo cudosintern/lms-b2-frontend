@@ -14,6 +14,7 @@ import axiosInstance from "../../../../utils/api";
 import { ApiEndpoint } from "../../../../utils/ApiEndpoint/emsapiEndpoint";
 import UIButton from "../../../../components/FormBuilder/fields/Button";
 import MmpModuleShell from "../components/MmpModuleShell";
+import MentoringPageLayout from "../../../mentoring/MentoringPageLayout";
 
 type MentorMapping = {
   map_mentor_id?: number;
@@ -699,7 +700,7 @@ const MapMentorsPage: React.FC = () => {
     const loadPageData = async () => {
       if (!navigationState.academic_batch_id && !navigationState.mentors_group_id) {
         toast.error("Please select curriculum");
-        navigate("..");
+        navigate(location.pathname.startsWith("/mentoring") ? "/mentoring/map_mentor_mentee" : "..");
         return;
       }
 
@@ -1110,8 +1111,12 @@ const MapMentorsPage: React.FC = () => {
         setSelected(refreshedMappedMentors.mappedMentorIds);
         setMappedMentorIdLookup(refreshedMappedMentors.mappingIdLookup);
 
+        const listPath = location.pathname.startsWith("/mentoring")
+          ? "/mentoring/map_mentor_mentee"
+          : "..";
+
         toast.success(successMessage);
-        navigate("..", {
+        navigate(listPath, {
           state: {
             refreshKey: Date.now(),
             academic_batch_id: formState.academic_batch_id,
@@ -1194,8 +1199,12 @@ const MapMentorsPage: React.FC = () => {
         ),
       );
 
+      const listPath = location.pathname.startsWith("/mentoring")
+        ? "/mentoring/map_mentor_mentee"
+        : "..";
+
       if (isEditMode) {
-        navigate("..", {
+        navigate(listPath, {
           state: {
             refreshKey: Date.now(),
             academic_batch_id: formState.academic_batch_id,
@@ -1204,7 +1213,11 @@ const MapMentorsPage: React.FC = () => {
         return;
       }
 
-      navigate(`../map-mentees/${mentors_group_id}/${formState.academic_batch_id}`, {
+      const mapMenteesPath = location.pathname.startsWith("/mentoring")
+        ? `/mentoring/map-mentees/${mentors_group_id}/${formState.academic_batch_id}`
+        : `../map-mentees/${mentors_group_id}/${formState.academic_batch_id}`;
+
+      navigate(mapMenteesPath, {
         state: {
           mentors_group_id,
           academic_batch_id: formState.academic_batch_id,
@@ -1354,7 +1367,7 @@ const MapMentorsPage: React.FC = () => {
       )
     : null;
 
-  return (
+  const content = (
     <MmpModuleShell title={isEditMode ? "Add mentors" : "Add Mentors"}>
       <div className="-mt-1 mb-2">
         <style>
@@ -1795,7 +1808,7 @@ const MapMentorsPage: React.FC = () => {
         </UIButton>
         <UIButton
           type="button"
-          onClick={() => navigate("..")}
+          onClick={() => navigate(location.pathname.startsWith("/mentoring") ? "/mentoring/map_mentor_mentee" : "..")}
           className="bg-[#d9534f] px-3 py-[7px] text-[12px] font-medium text-white hover:bg-[#c74642]"
         >
           <span className="mr-1 inline-flex items-center">
@@ -1807,6 +1820,12 @@ const MapMentorsPage: React.FC = () => {
       {questionnaireModal}
     </MmpModuleShell>
   );
+
+  if (location.pathname.startsWith("/mentoring")) {
+    return <MentoringPageLayout>{content}</MentoringPageLayout>;
+  }
+
+  return content;
 };
 
 export default MapMentorsPage;

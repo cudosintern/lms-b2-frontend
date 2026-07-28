@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { type DeepPartial, FieldErrors, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import UIButton from "../../../../components/FormBuilder/fields/Button";
 import QuestionnaireMetaForm from "./components/QuestionnaireMetaForm";
@@ -23,6 +23,7 @@ import {
 } from "./responseInterface";
 import axiosInstance from "../../../../utils/api";
 import { ApiEndpoint } from "../../../../utils/ApiEndpoint/emsapiEndpoint";
+import MentoringPageLayout from "../../../mentoring/MentoringPageLayout";
 import { FIELD_SETTING_PLACEHOLDER } from "./questionnaireConstants";
 
 const normalizeFieldSettingDescription = (value: unknown) => {
@@ -36,6 +37,8 @@ const QuestionnaireCreatePage: React.FC = () => {
   const questionnairePrimaryColorClass = "bg-[#337ab7]";
   const questionnaireDangerColorClass = "bg-[#d9534f]";
   const navigate = useNavigate();
+  const location = useLocation();
+  const isMentoringPath = location.pathname.startsWith("/mentoring");
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const questionnaireId = id ? Number(id) : null;
@@ -630,7 +633,7 @@ const QuestionnaireCreatePage: React.FC = () => {
         onClose={() => {
           setIsPreviewOpen(false);
           setShowPreviewAfterSave(false);
-          navigate("/lms_mmp/questionnaire");
+          navigate(isMentoringPath ? "/mentoring/questionnaires" : "/lms_mmp/questionnaire");
         }}
         questionnaireName={
           watchedValues?.questionnaire_name || questionnaireName || ""
@@ -642,8 +645,10 @@ const QuestionnaireCreatePage: React.FC = () => {
     </form>
   );
 
+  let pageContent: React.ReactNode;
+
   if (isQuestionEditMode) {
-    return (
+    pageContent = (
       <section className="min-h-[590px] w-full min-w-0 overflow-x-hidden rounded-md border border-gray-200 bg-white px-[28px] pb-[20px] pt-[18px] shadow-md">
         <h2 className="mb-[12px] text-[16px] font-semibold leading-[22px] text-slate-800">
           Edit Questionnaires
@@ -651,10 +656,8 @@ const QuestionnaireCreatePage: React.FC = () => {
         {formContent}
       </section>
     );
-  }
-
-  if (isAddMoreMode) {
-    return (
+  } else if (isAddMoreMode) {
+    pageContent = (
       <section className="min-h-[588px] w-full min-w-0 overflow-x-hidden rounded-md border border-gray-200 bg-white px-[14px] pb-[100px] pt-[14px] shadow-md">
         <div className="h-[34px] w-full bg-[#1f2d3d] rounded-tl-[18px] rounded-tr-none rounded-bl-none rounded-br-[22px] flex items-center pl-[24px] text-white text-[18px] font-normal">
           <h2>Add More Questions</h2>
@@ -662,16 +665,22 @@ const QuestionnaireCreatePage: React.FC = () => {
         {formContent}
       </section>
     );
+  } else {
+    pageContent = (
+      <section className="min-h-[590px] w-full min-w-0 overflow-x-hidden rounded-md border border-gray-200 bg-white px-[28px] pb-[18px] pt-[22px] shadow-md">
+        <div className="mb-[14px] flex h-[34px] items-center rounded-tl-[20px] rounded-tr-none rounded-br-[20px] rounded-bl-none bg-[#253244] px-[24px] text-white">
+          <h2 className="text-[17px] font-normal leading-none">Add Questionnaires</h2>
+        </div>
+        {formContent}
+      </section>
+    );
   }
 
-  return (
-    <section className="min-h-[590px] w-full min-w-0 overflow-x-hidden rounded-md border border-gray-200 bg-white px-[28px] pb-[18px] pt-[22px] shadow-md">
-      <div className="mb-[14px] flex h-[34px] items-center rounded-tl-[20px] rounded-tr-none rounded-br-[20px] rounded-bl-none bg-[#253244] px-[24px] text-white">
-        <h2 className="text-[17px] font-normal leading-none">Add Questionnaires</h2>
-      </div>
-      {formContent}
-    </section>
-  );
+  if (isMentoringPath) {
+    return <MentoringPageLayout>{pageContent}</MentoringPageLayout>;
+  }
+
+  return pageContent;
 };
 
 export default QuestionnaireCreatePage;

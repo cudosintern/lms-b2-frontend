@@ -6,6 +6,7 @@ import { FaCheck, FaPencilAlt, FaPlus, FaPlusCircle, FaTimes, FaTrash } from "re
 import { HiDocumentText } from "react-icons/hi";
 import axiosInstance from "../../../../utils/api";
 import { ApiEndpoint } from "../../../../utils/ApiEndpoint/emsapiEndpoint";
+import MentoringPageLayout from "../../../mentoring/MentoringPageLayout";
 
 interface SelectOption {
   label: string;
@@ -1055,12 +1056,15 @@ const MapMentorMenteeListPage: React.FC = () => {
     }
   };
 
+  const isMentoringPath = location.pathname.startsWith("/mentoring");
+
   const handleAddMentorMentee = () => {
     if (!hasSelection) {
       toast.error("Please select curriculum");
       return;
     }
-    navigate("map-mentors", {
+    const targetPath = isMentoringPath ? "/mentoring/map-mentors" : "map-mentors";
+    navigate(targetPath, {
       state: {
         academic_batch_id: selectedCurriculumId,
         academic_batch_desc: selectedCurriculum?.label,
@@ -1069,7 +1073,8 @@ const MapMentorMenteeListPage: React.FC = () => {
   };
 
   const handleAddMentor = (group: TableRow) => {
-    navigate("map-mentors", {
+    const targetPath = isMentoringPath ? "/mentoring/map-mentors" : "map-mentors";
+    navigate(targetPath, {
       state: {
         mentors_group_id: group.mentors_group_id,
         academic_batch_id: group.academic_batch_id,
@@ -1082,7 +1087,10 @@ const MapMentorMenteeListPage: React.FC = () => {
   };
 
   const handleAddMentee = (group: TableRow) => {
-    navigate(`map-mentees/${group.mentors_group_id}/${group.academic_batch_id}`, {
+    const targetPath = isMentoringPath
+      ? `/mentoring/map-mentees/${group.mentors_group_id}/${group.academic_batch_id}`
+      : `map-mentees/${group.mentors_group_id}/${group.academic_batch_id}`;
+    navigate(targetPath, {
       state: {
         mentors_group_id: group.mentors_group_id,
         academic_batch_id: group.academic_batch_id,
@@ -1323,7 +1331,7 @@ const MapMentorMenteeListPage: React.FC = () => {
     </div>
   ) : null;
 
-  return (
+  const content = (
     <section className="min-h-[590px] w-full min-w-0 overflow-x-hidden rounded-md border border-gray-200 bg-white p-4 shadow-md md:p-6">
       <style>
         {`
@@ -1485,7 +1493,7 @@ const MapMentorMenteeListPage: React.FC = () => {
                   onClick={() => handleSort("sessionDate")}
                   disabled={!hasSelection}
                 >
-                  <span>Session Date</span>
+                  <span>Mentoring Session Date</span>
                   {renderSortIndicator("sessionDate")}
                 </button>
               </th>
@@ -1496,7 +1504,7 @@ const MapMentorMenteeListPage: React.FC = () => {
                   onClick={() => handleSort("sessionStatus")}
                   disabled={!hasSelection}
                 >
-                  <span>Session Status</span>
+                  <span>Mentoring Session Status</span>
                   {renderSortIndicator("sessionStatus")}
                 </button>
               </th>
@@ -1680,6 +1688,12 @@ const MapMentorMenteeListPage: React.FC = () => {
       {editModalContent && createPortal(editModalContent, document.body)}
     </section>
   );
+
+  if (isMentoringPath) {
+    return <MentoringPageLayout>{content}</MentoringPageLayout>;
+  }
+
+  return content;
 };
 
 export default MapMentorMenteeListPage;
