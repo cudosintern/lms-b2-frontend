@@ -24,6 +24,11 @@ export const ApiEndpoint = {
     outcome_list: "comman_function/program_outcome_list",
   },
 
+  // Additional CUDOS endpoints can be added here
+  // Example:
+  // programOutcome: {
+  //   save_program_outcome: "program_outcome/save_program_outcome",
+  // },
   studentCourseRegistration: {
     checkRegistrationStatus:
       "student-course-registration/check_registration_status",

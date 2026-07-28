@@ -44,7 +44,6 @@ type GroupListRecord = {
   config_type_id?: number | null;
   questionnaire_id?: number | null;
   mentors_pgm_title?: string;
-  mentees?: GroupMenteeMapping[];
   mentors?: GroupListMentor[];
 };
 
@@ -88,21 +87,9 @@ type SemesterRecord = {
   term_name?: string;
 };
 
-type ConfigurationType = {
-  config_type_id: number;
-  config_type_name: string;
-  min_mentees?: number;
-  max_mentees?: number;
-  allow_mentee_rating?: boolean;
-  rating_type_id?: number | null;
-};
-
 type GroupMenteeMapping = {
   group_mentee_id?: number;
   student_id?: number;
-  usn?: string;
-  usno?: string;
-  student_usn?: string;
 };
 
 type EligibleMenteeApi = {
@@ -204,35 +191,6 @@ const normalizeEligibleMentee = (item: EligibleMenteeApi): MenteeRow | null => {
   };
 };
 
-const dedupeMenteesByStudentId = (mentees: MenteeRow[]) => {
-  const menteeMap = new Map<number, MenteeRow>();
-
-  mentees.forEach((mentee) => {
-    if (!menteeMap.has(mentee.student_id)) {
-      menteeMap.set(mentee.student_id, mentee);
-      return;
-    }
-
-    const existing = menteeMap.get(mentee.student_id);
-    if (!existing) {
-      menteeMap.set(mentee.student_id, mentee);
-      return;
-    }
-
-    menteeMap.set(mentee.student_id, {
-      ...existing,
-      name: existing.name.startsWith("Student ID:") && !mentee.name.startsWith("Student ID:")
-        ? mentee.name
-        : existing.name,
-      usn: existing.usn || mentee.usn,
-      email: existing.email || mentee.email,
-      section: existing.section || mentee.section,
-    });
-  });
-
-  return Array.from(menteeMap.values());
-};
-
 const buildCurrentGroupMenteeMap = (mappings: GroupMenteeMapping[]) => {
   const nextCurrentGroupMenteeMap = new Map<number, number[]>();
 
@@ -256,158 +214,6 @@ const buildCurrentGroupMenteeMap = (mappings: GroupMenteeMapping[]) => {
   return nextCurrentGroupMenteeMap;
 };
 
-const normalizeUsn = (value?: string | null) => value?.trim().toUpperCase() || "";
-
-const getGroupMenteeUsn = (mentee: GroupMenteeMapping) =>
-  normalizeUsn(mentee.usn ?? mentee.usno ?? mentee.student_usn);
-
-const normalizeStudentId = (value: unknown) => {
-  const stringValue = String(value ?? "").trim();
-  if (!stringValue) {
-    return "";
-  }
-
-  const numericValue = Number(stringValue);
-  return Number.isFinite(numericValue) && numericValue > 0 ? `${numericValue}` : stringValue;
-};
-
-const getEligibleMenteeUsn = (mentee: Pick<MenteeRow, "usn">) => normalizeUsn(mentee.usn);
-
-const collectNestedGroupMentees = (value: unknown): GroupMenteeMapping[] => {
-  const queue: unknown[] = Array.isArray(value) ? [...value] : value ? [value] : [];
-  const mentees: GroupMenteeMapping[] = [];
-  const visited = new Set<object>();
-
-  while (queue.length > 0) {
-    const current = queue.shift();
-
-    if (Array.isArray(current)) {
-      queue.push(...current);
-      continue;
-    }
-
-    if (!current || typeof current !== "object") {
-      continue;
-    }
-
-    const record = current as Record<string, unknown>;
-    if (visited.has(record)) {
-      continue;
-    }
-    visited.add(record);
-    const hasMenteeIdentity =
-      "student_id" in record ||
-      "usn" in record ||
-      "usno" in record ||
-      "student_usn" in record ||
-      "student_name" in record;
-
-    if (hasMenteeIdentity) {
-      mentees.push(record as GroupMenteeMapping);
-    }
-
-    Object.values(record).forEach((nestedValue) => {
-      if (nestedValue && (Array.isArray(nestedValue) || typeof nestedValue === "object")) {
-        queue.push(nestedValue);
-      }
-    });
-  }
-
-  return mentees;
-};
-
-const buildOtherGroupMappedLookup = (
-  groups: GroupListRecord[],
-  currentMentorsGroupId: number,
-) => {
-  const otherGroupMappedStudentIdSet = new Set<string>();
-  const otherGroupMappedUsnSet = new Set<string>();
-
-  groups.forEach((group) => {
-    if (Number(group.mentors_group_id) === Number(currentMentorsGroupId)) {
-      return;
-    }
-
-    collectNestedGroupMentees(group).forEach((mentee) => {
-      const studentId = normalizeStudentId(mentee.student_id);
-      if (studentId) {
-        otherGroupMappedStudentIdSet.add(studentId);
-      }
-
-      const menteeUsn = getGroupMenteeUsn(mentee);
-      if (menteeUsn) {
-        otherGroupMappedUsnSet.add(menteeUsn);
-      }
-    });
-  });
-
-  return {
-    otherGroupMappedStudentIdSet,
-    otherGroupMappedUsnSet,
-  };
-};
-
-const buildMentorIds = (group: GroupListRecord | null) =>
-  Array.from(
-    new Set(
-      (group?.mentors || [])
-        .map((mentor) => Number(mentor.mentor_id ?? 0))
-        .filter((mentorId) => Number.isFinite(mentorId) && mentorId > 0),
-    ),
-  );
-
-const collectDuplicateGroupMenteeIds = (
-  groups: GroupListRecord[],
-  currentMentorsGroupId: number,
-  selectedMentees: Array<Pick<MenteeRow, "student_id" | "usn">>,
-) => {
-  const selectedStudentIds = new Set(
-    selectedMentees
-      .map((mentee) => normalizeStudentId(mentee.student_id))
-      .filter((studentId) => Boolean(studentId)),
-  );
-  const selectedUsns = new Set(
-    selectedMentees
-      .map((mentee) => getEligibleMenteeUsn(mentee))
-      .filter((usn) => Boolean(usn)),
-  );
-  const duplicateGroupMenteeIds = new Set<number>();
-
-  groups.forEach((group) => {
-    if (Number(group.mentors_group_id) === Number(currentMentorsGroupId)) {
-      return;
-    }
-
-    collectNestedGroupMentees(group).forEach((mentee) => {
-      const groupMenteeId = Number(mentee.group_mentee_id ?? 0);
-      if (groupMenteeId <= 0) {
-        return;
-      }
-
-      const studentId = normalizeStudentId(mentee.student_id);
-      if (studentId && selectedStudentIds.has(studentId)) {
-        duplicateGroupMenteeIds.add(groupMenteeId);
-        return;
-      }
-
-      const menteeUsn = getGroupMenteeUsn(mentee);
-      if (menteeUsn && selectedUsns.has(menteeUsn)) {
-        duplicateGroupMenteeIds.add(groupMenteeId);
-      }
-    });
-  });
-
-  return Array.from(duplicateGroupMenteeIds);
-};
-
-const isMappedInAnotherGroup = (
-  mentee: Pick<MenteeRow, "student_id" | "usn">,
-  otherGroupMappedStudentIdSet: Set<string>,
-  otherGroupMappedUsnSet: Set<string>,
-) =>
-  otherGroupMappedStudentIdSet.has(normalizeStudentId(mentee.student_id)) ||
-  Boolean(getEligibleMenteeUsn(mentee) && otherGroupMappedUsnSet.has(getEligibleMenteeUsn(mentee)));
-
 const MapMenteesPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -423,11 +229,9 @@ const MapMenteesPage: React.FC = () => {
   const [loadError, setLoadError] = useState("");
   const [questionnaires, setQuestionnaires] = useState<QuestionnaireRecord[]>([]);
   const [academicBatches, setAcademicBatches] = useState<AcademicBatchRecord[]>([]);
-  const [configurationTypes, setConfigurationTypes] = useState<ConfigurationType[]>([]);
   const [semesterRecords, setSemesterRecords] = useState<SemesterRecord[]>([]);
   const [mentorIds, setMentorIds] = useState<number[]>([]);
-  const [otherGroupMappedStudentIds, setOtherGroupMappedStudentIds] = useState<string[]>([]);
-  const [otherGroupMappedUsns, setOtherGroupMappedUsns] = useState<string[]>([]);
+  const [otherGroupMappedStudentIds, setOtherGroupMappedStudentIds] = useState<number[]>([]);
   const [currentGroupMenteeMap, setCurrentGroupMenteeMap] = useState<Map<number, number[]>>(
     () => new Map(),
   );
@@ -469,15 +273,6 @@ const MapMenteesPage: React.FC = () => {
     [academicBatches, formState.academic_batch_id],
   );
 
-  const selectedConfigurationTypeName = useMemo(
-    () =>
-      configurationTypes.find(
-        (configurationType) =>
-          Number(configurationType.config_type_id) === Number(formState.config_type_id),
-      )?.config_type_name || "",
-    [configurationTypes, formState.config_type_id],
-  );
-
   const applicableTermsText = useMemo(
     () =>
       formState.semester_ids
@@ -516,42 +311,17 @@ const MapMenteesPage: React.FC = () => {
   );
 
   const addedStudentIds = useMemo(
-    () => {
-      const otherGroupMappedStudentIdSet = new Set(otherGroupMappedStudentIds);
-      const otherGroupMappedUsnSet = new Set(otherGroupMappedUsns);
-      const currentGroupStudentIdSet = new Set(initialCurrentGroupStudentIds);
-      const menteeByStudentId = new Map(
-        allMentees.map((mentee) => [mentee.student_id, mentee] as const),
-      );
-
-      return Array.from(
+    () =>
+      Array.from(
         new Set(
-          selectedStudentIds.filter((studentId) => {
-            if (currentGroupStudentIdSet.has(studentId)) {
-              return false;
-            }
-
-            const mentee = menteeByStudentId.get(studentId);
-            if (!mentee) {
-              return false;
-            }
-
-            return !isMappedInAnotherGroup(
-              mentee,
-              otherGroupMappedStudentIdSet,
-              otherGroupMappedUsnSet,
-            );
-          }),
+          selectedStudentIds.filter(
+            (studentId) =>
+              !initialCurrentGroupStudentIds.includes(studentId) &&
+              !otherGroupMappedStudentIds.includes(studentId),
+          ),
         ),
-      );
-    },
-    [
-      allMentees,
-      initialCurrentGroupStudentIds,
-      otherGroupMappedStudentIds,
-      otherGroupMappedUsns,
-      selectedStudentIds,
-    ],
+      ),
+    [initialCurrentGroupStudentIds, otherGroupMappedStudentIds, selectedStudentIds],
   );
 
   const removedStudentIds = useMemo(
@@ -564,26 +334,16 @@ const MapMenteesPage: React.FC = () => {
 
   const hasPendingChanges = addedStudentIds.length > 0 || removedStudentIds.length > 0;
 
-  const visibleMentees = useMemo(
-    () => allMentees.filter((mentee) => mentee.mappingState !== "other"),
-    [allMentees],
-  );
-
-  const hasSelectableMentees = useMemo(
-    () => visibleMentees.some((mentee) => mentee.mappingState === "unmapped"),
-    [visibleMentees],
-  );
-
   const menteeChunks = useMemo(() => {
     const chunkSize = 15;
     const chunks: MenteeRow[][] = [];
 
-    for (let index = 0; index < visibleMentees.length; index += chunkSize) {
-      chunks.push(visibleMentees.slice(index, index + chunkSize));
+    for (let index = 0; index < allMentees.length; index += chunkSize) {
+      chunks.push(allMentees.slice(index, index + chunkSize));
     }
 
     return chunks;
-  }, [visibleMentees]);
+  }, [allMentees]);
 
   const deleteGroupMenteeIds = useMemo(
     () =>
@@ -692,76 +452,6 @@ const MapMenteesPage: React.FC = () => {
     };
   }, [mentorsGroupId]);
 
-  const applyGroupListState = useCallback(
-    (groups: GroupListRecord[], currentMappedStudentIds: number[]) => {
-      const matchingGroup =
-        groups.find(
-          (group) => Number(group.mentors_group_id) === Number(formState.mentors_group_id),
-        ) || null;
-      const { otherGroupMappedStudentIdSet, otherGroupMappedUsnSet } =
-        buildOtherGroupMappedLookup(groups, formState.mentors_group_id);
-
-      setOtherGroupMappedStudentIds(Array.from(otherGroupMappedStudentIdSet));
-      setOtherGroupMappedUsns(Array.from(otherGroupMappedUsnSet));
-      setMentorIds(buildMentorIds(matchingGroup));
-
-      if (matchingGroup) {
-        setFormState((current) => ({
-          ...current,
-          academic_batch_id:
-            Number(matchingGroup.academic_batch_id) || current.academic_batch_id,
-          config_type_id: Number(matchingGroup.config_type_id ?? current.config_type_id ?? 0),
-          questionnaire_id:
-            Number(matchingGroup.questionnaire_id ?? current.questionnaire_id ?? 0),
-          mentors_pgm_title: matchingGroup.mentors_pgm_title?.trim() || current.mentors_pgm_title,
-        }));
-      }
-
-      setAllMentees((current) =>
-        [...current]
-          .map((row): MenteeRow => {
-            const mappingState: MenteeRow["mappingState"] = currentMappedStudentIds.includes(
-              row.student_id,
-            )
-              ? "current"
-              : isMappedInAnotherGroup(
-                    row,
-                    otherGroupMappedStudentIdSet,
-                    otherGroupMappedUsnSet,
-                  )
-                ? "other"
-                : "unmapped";
-
-            return {
-              ...row,
-              mappingState,
-            };
-          })
-          .sort((left, right) =>
-            left.name.localeCompare(right.name, undefined, { sensitivity: "base" }),
-          ),
-      );
-
-      return {
-        matchingGroup,
-        otherGroupMappedStudentIdSet,
-        otherGroupMappedUsnSet,
-      };
-    },
-    [formState.mentors_group_id],
-  );
-
-  const refreshGroupMappings = useCallback(
-    async (currentMappedStudentIds: number[]) => {
-      const response = await axiosInstance.get<ApiEnvelope<GroupListRecord[]>>(
-        `${ApiEndpoint.mentorMentee.groups_by_academic_batch}/${formState.academic_batch_id}`,
-      );
-
-      return applyGroupListState(response.data?.data || [], currentMappedStudentIds);
-    },
-    [applyGroupListState, formState.academic_batch_id],
-  );
-
   useEffect(() => {
     if (!isQuestionnaireModalOpen) {
       return;
@@ -801,18 +491,15 @@ const MapMenteesPage: React.FC = () => {
         return;
       }
 
-        try {
-          setIsLoading(true);
-          setLoadError("");
-          setMentorIds([]);
-          setOtherGroupMappedStudentIds([]);
-          setOtherGroupMappedUsns([]);
-          setCurrentGroupMenteeMap(new Map());
+      try {
+        setIsLoading(true);
+        setLoadError("");
+        setOtherGroupMappedStudentIds([]);
+        setCurrentGroupMenteeMap(new Map());
 
         const [
           questionnaireResponse,
           academicBatchResponse,
-          configurationTypesResponse,
           groupResponse,
           mappedMenteesResponse,
         ] = await Promise.all([
@@ -821,9 +508,6 @@ const MapMenteesPage: React.FC = () => {
           ),
           axiosInstance.get<ApiEnvelope<AcademicBatchRecord[]>>(
             ApiEndpoint.mentorMentee.academic_batch_list,
-          ),
-          axiosInstance.get<ApiEnvelope<ConfigurationType[]>>(
-            "lms_mentors_group/get_config_types",
           ),
           axiosInstance.get<ApiEnvelope<GroupCompleteResponse>>(
             `${ApiEndpoint.mentorMentee.group_complete}/${mentorsGroupId}`,
@@ -839,7 +523,6 @@ const MapMenteesPage: React.FC = () => {
 
         setQuestionnaires(questionnaireResponse.data?.data || []);
         setAcademicBatches(academicBatchResponse.data?.data || []);
-        setConfigurationTypes(configurationTypesResponse.data?.data || []);
 
         const fullGroup = groupResponse.data?.data?.group;
         const semesterIds = (groupResponse.data?.data?.semester_ids || []).map((value) =>
@@ -915,16 +598,32 @@ const MapMenteesPage: React.FC = () => {
             (group) => Number(group.mentors_group_id) === nextFormState.mentors_group_id,
           ) || null;
 
-        const { otherGroupMappedStudentIdSet, otherGroupMappedUsnSet } =
-          buildOtherGroupMappedLookup(
-            groupListResponse.value.data?.data || [],
-            nextFormState.mentors_group_id,
-          );
+        const otherGroupMappedIds = Array.from(
+          new Set(
+            (groupListResponse.value.data?.data || []).flatMap((group) => {
+              const groupId = Number(group.mentors_group_id ?? 0);
+              if (!groupId || groupId === nextFormState.mentors_group_id) {
+                return [];
+              }
 
-        setOtherGroupMappedStudentIds(Array.from(otherGroupMappedStudentIdSet));
-        setOtherGroupMappedUsns(Array.from(otherGroupMappedUsnSet));
+              return (group.mentors || []).flatMap((mentor) =>
+                (mentor.mentees || [])
+                  .map((mentee) => Number(mentee.student_id ?? 0))
+                  .filter((studentId) => Number.isFinite(studentId) && studentId > 0),
+              );
+            }),
+          ),
+        );
+        setOtherGroupMappedStudentIds(otherGroupMappedIds);
 
-          setMentorIds(buildMentorIds(matchingGroup));
+        const nextMentorIds = Array.from(
+          new Set(
+            (matchingGroup?.mentors || [])
+              .map((mentor) => Number(mentor.mentor_id ?? 0))
+              .filter((mentorId) => Number.isFinite(mentorId) && mentorId > 0),
+          ),
+        );
+        setMentorIds(nextMentorIds);
 
         if (matchingGroup) {
           setFormState((current) => ({
@@ -943,11 +642,9 @@ const MapMenteesPage: React.FC = () => {
           throw menteeResponse.reason;
         }
 
-        const eligibleRows = dedupeMenteesByStudentId(
-          (menteeResponse.value.data?.data || [])
+        const eligibleRows = (menteeResponse.value.data?.data || [])
           .map(normalizeEligibleMentee)
-          .filter((item): item is MenteeRow => item !== null),
-        );
+          .filter((item): item is MenteeRow => item !== null);
 
         setAllMentees(
           eligibleRows
@@ -956,11 +653,7 @@ const MapMenteesPage: React.FC = () => {
                 row.student_id,
               )
                 ? "current"
-                : isMappedInAnotherGroup(
-                      row,
-                      otherGroupMappedStudentIdSet,
-                      otherGroupMappedUsnSet,
-                    )
+                : otherGroupMappedIds.includes(row.student_id)
                   ? "other"
                   : "unmapped";
 
@@ -978,12 +671,10 @@ const MapMenteesPage: React.FC = () => {
           return;
         }
 
-          const message = getErrorMessage(error, "Unable to load mentee details");
-          setLoadError(message);
-          setMentorIds([]);
-          setOtherGroupMappedStudentIds([]);
-          setOtherGroupMappedUsns([]);
-          setCurrentGroupMenteeMap(new Map());
+        const message = getErrorMessage(error, "Unable to load mentee details");
+        setLoadError(message);
+        setOtherGroupMappedStudentIds([]);
+        setCurrentGroupMenteeMap(new Map());
         setSelectedStudentIds([]);
         setAllMentees([]);
         toast.error(message);
@@ -1004,18 +695,6 @@ const MapMenteesPage: React.FC = () => {
   const toggleStudent = (studentId: number, checked: boolean) => {
     setSelectedStudentIds((current) => {
       if (checked) {
-        const mentee = allMentees.find((item) => item.student_id === studentId);
-        if (
-          mentee &&
-          isMappedInAnotherGroup(
-            mentee,
-            new Set(otherGroupMappedStudentIds),
-            new Set(otherGroupMappedUsns),
-          )
-        ) {
-          return current;
-        }
-
         return Array.from(new Set([...current, studentId]));
       }
 
@@ -1042,35 +721,6 @@ const MapMenteesPage: React.FC = () => {
     try {
       setIsSaving(true);
       let successMessage = "Mentees mapped successfully";
-      const latestGroupList = await refreshGroupMappings(initialCurrentGroupStudentIds);
-      const invalidSelectedStudentIds = Array.from(
-        new Set(
-          selectedStudentIds.filter((studentId) => {
-            if (initialCurrentGroupStudentIds.includes(studentId)) {
-              return false;
-            }
-
-            const mentee = allMentees.find((item) => item.student_id === studentId);
-            if (!mentee) {
-              return false;
-            }
-
-            return isMappedInAnotherGroup(
-              mentee,
-              latestGroupList.otherGroupMappedStudentIdSet,
-              latestGroupList.otherGroupMappedUsnSet,
-            );
-          }),
-        ),
-      );
-
-      if (invalidSelectedStudentIds.length > 0) {
-        setSelectedStudentIds((current) =>
-          current.filter((studentId) => !invalidSelectedStudentIds.includes(studentId)),
-        );
-        toast.error("Selected mentee is already mapped in another group");
-        return;
-      }
 
       if (addedStudentIds.length > 0) {
         const response = await axiosInstance.post<ApiEnvelope<{ records_created: number }>>(
@@ -1078,68 +728,29 @@ const MapMenteesPage: React.FC = () => {
           {
             mentors_group_id: formState.mentors_group_id,
             mentor_ids: mentorIds,
-            mentee_ids: Array.from(new Set(addedStudentIds)),
+            mentee_ids: addedStudentIds,
           },
         );
 
         successMessage = getResponseMessage(response.data?.message, successMessage);
       }
 
-        if (deleteGroupMenteeIds.length > 0) {
-          // Duplicate group_mentee_id records can exist for the same student_id,
-          // so every mapping ID for a removed student must be deleted.
-          await Promise.all(
+      if (deleteGroupMenteeIds.length > 0) {
+        // Duplicate group_mentee_id records can exist for the same student_id,
+        // so every mapping ID for a removed student must be deleted.
+        await Promise.all(
           deleteGroupMenteeIds.map((groupMenteeId) =>
             axiosInstance.delete(
               `${ApiEndpoint.mentorMentee.delete_mentee}/${groupMenteeId}`,
             ),
           ),
-          );
-        }
+        );
+      }
 
-        let { mappedStudentIds } = await refreshCurrentGroupMentees();
+      await refreshCurrentGroupMentees();
 
-        if (addedStudentIds.length > 0) {
-          const savedMentees = Array.from(new Set(addedStudentIds))
-            .map((studentId) => allMentees.find((mentee) => mentee.student_id === studentId))
-            .filter((mentee): mentee is MenteeRow => Boolean(mentee));
-
-          try {
-            const latestGroupListResponse = await axiosInstance.get<ApiEnvelope<GroupListRecord[]>>(
-              `${ApiEndpoint.mentorMentee.groups_by_academic_batch}/${formState.academic_batch_id}`,
-            );
-            const duplicateGroupMenteeIds = collectDuplicateGroupMenteeIds(
-              latestGroupListResponse.data?.data || [],
-              formState.mentors_group_id,
-              savedMentees,
-            );
-
-            if (duplicateGroupMenteeIds.length > 0) {
-              await Promise.all(
-                duplicateGroupMenteeIds.map((groupMenteeId) =>
-                  axiosInstance.delete(
-                    `${ApiEndpoint.mentorMentee.delete_mentee}/${groupMenteeId}`,
-                  ),
-                ),
-              );
-
-                ({ mappedStudentIds } = await refreshCurrentGroupMentees());
-              }
-            } catch (error: any) {
-              try {
-                await refreshGroupMappings(mappedStudentIds);
-              } catch {
-                // Preserve the save result even if the warning-state refresh also fails.
-              }
-              toast.warn("Mentee saved, but duplicate cleanup failed. Please refresh and verify.");
-              return;
-            }
-          }
-
-        await refreshGroupMappings(mappedStudentIds);
-
-        toast.success(successMessage);
-        closeToList();
+      toast.success(successMessage);
+      closeToList();
     } catch (error: any) {
       toast.error(getErrorMessage(error, "Unable to map mentees"));
     } finally {
@@ -1509,9 +1120,7 @@ const MapMenteesPage: React.FC = () => {
                     Type
                   </th>
                   <td>
-                    {formState.config_type_id && selectedConfigurationTypeName
-                      ? selectedConfigurationTypeName
-                      : "Configuration types not available"}
+                    Configuration types not available
                   </td>
                 </tr>
                 <tr>
@@ -1550,17 +1159,11 @@ const MapMenteesPage: React.FC = () => {
           <div className="p-6 text-center text-sm text-gray-500">Loading mentees...</div>
         ) : loadError ? (
           <div className="p-6 text-center text-sm text-red-600">{loadError}</div>
-        ) : visibleMentees.length === 0 ? (
+        ) : allMentees.length === 0 ? (
           <div className="p-10 text-center text-[16px] font-medium text-gray-700">
-            No eligible mentees available
+            No Students for the curriculum
           </div>
         ) : (
-            <>
-            {!hasSelectableMentees ? (
-              <div className="px-6 pt-5 text-center text-sm text-gray-500">
-                No eligible mentees available
-              </div>
-            ) : null}
             <div className="map-mentees-grid">
             {menteeChunks.map((chunk, chunkIndex) => (
               <div
@@ -1633,7 +1236,6 @@ const MapMenteesPage: React.FC = () => {
               </div>
             ))}
           </div>
-          </>
         )}
         </div>
 

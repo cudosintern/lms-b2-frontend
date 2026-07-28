@@ -13,7 +13,6 @@ import DeptConfigurationPage from "../pages/lms/mmp/deptConfiguration/DeptConfig
 import MmpReportPage from "../pages/lms/mmp/reports/MmpReportPage";
 import MentorListPage from "../pages/lms/mmp/reports/MentorListPage";
 import IssueObservationReportPage from "../pages/lms/mmp/reports/IssueObservationReportPage";
-import CourseRegistrationPage from "../pages/curriculum/CourseRegistrationPage";
 // import Masters from "../pages/ems/configuration/masters/mastersPage";
 // import UserRolePage from "../pages/ems/configuration/userRole/userRolePage";
 // import UserMasterPage from "../pages/ems/configuration/userMaster/userMasterPage";
@@ -302,13 +301,6 @@ export const EMSROUTE: RouteItem[] = [
   element: IssueObservationReportPage,
   roles: [],
   hidden: true,
-  subItems: [],
-},
-{
-  name: "Course Registration",
-  href: "/curriculum",
-  element: CourseRegistrationPage,
-  roles: [],
   subItems: [],
 },
   // {
