@@ -3,7 +3,7 @@ import { useLocation } from "react-router-dom";
 import CurriculumPageLayout from "./CurriculumPageLayout";
 import { toast } from "react-toastify";
 import axiosInstance from "../../utils/api";
-import { LmsApiEndpoint } from "../../utils/ApiEndpoint/lmsApiEndpoint";
+import { LmsApiEndpoint  } from "../../utils/ApiEndpoint/lmsApiEndpoint";
 import { Info, HelpCircle, List, ArrowUpDown } from "lucide-react";
 
 import {
@@ -11,22 +11,22 @@ import {
   AVAILABLE_MENTORS,
   DEFAULT_COURSES,
 } from "./types/courseRegistration";
-interface CourseItem {
-  id: string;
-  courseId: number | null;
-  sectionId: string;  
-  section: string;
-  code: string;
-  title: string;
-  type: string;
-  credits: number;
-  totalMarks: number | null;
-  owner: string;
-  reviewer: string;
-  mode: string;
-  instructor: string;
-  status: string;
-}
+// interface CourseItem {
+//   id: string;
+//   courseId: number | null;
+//   sectionId: string;  
+//   section: string;
+//   code: string;
+//   title: string;
+//   type: string;
+//   credits: number;
+//   totalMarks: number | null;
+//   owner: string;
+//   reviewer: string;
+//   mode: string;
+//   instructor: string;
+//   status: string;
+// }
 
 interface CurriculumOption {
   id: string;
@@ -509,7 +509,7 @@ const CourseRegistrationPage: React.FC = () => {
                 : ""),
           }));
 
-          setCourses(mapped);
+          // setCourses(mapped);
         } else {
           setCourses([]);
           toast.error(res.data?.message || "Unable to load registered courses.");
@@ -541,7 +541,7 @@ const CourseRegistrationPage: React.FC = () => {
     }
 
     setSelectedCourseForAssign(course);
-    setAssignSection(course.sectionId || "");
+    // setAssignSection(course.sectionId || "");
     setAssignInstructor(course.instructor || "");
     setIsAssignModalOpen(true);
   };
