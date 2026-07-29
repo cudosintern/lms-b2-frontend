@@ -49,7 +49,7 @@ const ConfigurationTypePage: React.FC = () => {
   const [formLoading, setFormLoading] = useState(false);
 
   const [errors, setErrors] = useState<{
-    config_type?: string;
+    config_type_name?: string;
     min_mentees?: string;
     max_mentees?: string;
   }>({});
@@ -81,7 +81,7 @@ const ConfigurationTypePage: React.FC = () => {
       const term = searchTerm.toLowerCase();
       result = result.filter(
         (item) =>
-          item.config_type.toLowerCase().includes(term) ||
+          item.config_type_name.toLowerCase().includes(term) ||
           `${item.min_mentees} - ${item.max_mentees}`.includes(term)
       );
     }
@@ -132,10 +132,10 @@ const ConfigurationTypePage: React.FC = () => {
   // ---------------------------------------------------------------------------
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
-      const pageIds = paginatedData.map((item) => item.id);
+      const pageIds = paginatedData.map((item) => item.config_type_id);
       setSelectedIds((prev) => Array.from(new Set([...prev, ...pageIds])));
     } else {
-      const pageIds = paginatedData.map((item) => item.id);
+      const pageIds = paginatedData.map((item) => item.config_type_id);
       setSelectedIds((prev) => prev.filter((id) => !pageIds.includes(id)));
     }
   };
@@ -148,7 +148,7 @@ const ConfigurationTypePage: React.FC = () => {
 
   const isAllSelectedOnPage = useMemo(() => {
     if (paginatedData.length === 0) return false;
-    return paginatedData.every((item) => selectedIds.includes(item.id));
+    return paginatedData.every((item) => selectedIds.includes(item.config_type_id));
   }, [paginatedData, selectedIds]);
 
   // ---------------------------------------------------------------------------
@@ -165,7 +165,7 @@ const ConfigurationTypePage: React.FC = () => {
 
   const handleOpenEditModal = (config: ConfigurationType) => {
     setEditingConfig(config);
-    setConfigTypeInput(config.config_type);
+    setConfigTypeInput(config.config_type_name);
     setMinMenteesInput(config.min_mentees);
     setMaxMenteesInput(config.max_mentees);
     setErrors({});
@@ -178,7 +178,7 @@ const ConfigurationTypePage: React.FC = () => {
   const validateForm = (): boolean => {
     const newErrors: typeof errors = {};
     if (!configTypeInput.trim()) {
-      newErrors.config_type = "Configuration Type is required";
+      newErrors.config_type_name = "Configuration Type is required";
     }
     if (minMenteesInput === "" || isNaN(Number(minMenteesInput))) {
       newErrors.min_mentees = "Minimum Mentees is required";
@@ -206,13 +206,16 @@ const ConfigurationTypePage: React.FC = () => {
 
       setFormLoading(true);
       const payload: SavePayload = {
-        config_type: configTypeInput.trim(),
+        config_type_name: configTypeInput.trim(),
         min_mentees: Number(minMenteesInput),
         max_mentees: Number(maxMenteesInput),
       };
       if (editingConfig) {
-        payload.config_type_id = editingConfig.id;
+        payload.config_type_id = editingConfig.config_type_id;
       }
+
+      console.log("Editing Config:", editingConfig);
+console.log("Payload:", payload);
 
       const result = await customApiCall<SavePayload, ConfigurationType>(
         LmsApiEndpoint.configType.save,
@@ -244,14 +247,14 @@ const ConfigurationTypePage: React.FC = () => {
     if (!configToDelete) return;
     setDeleteLoading(true);
     const result = await customApiCall<null, { id: number }>(
-      `${LmsApiEndpoint.configType.delete}/${configToDelete.id}`,
+      `${LmsApiEndpoint.configType.delete}/${configToDelete.config_type_id}`,
       "delete",
       undefined,
       true
     );
     setDeleteLoading(false);
     if (result) {
-      setSelectedIds((prev) => prev.filter((id) => id !== configToDelete.id));
+      setSelectedIds((prev) => prev.filter((id) => id !== configToDelete.config_type_id));
       setConfigToDelete(null);
       refetchList();
     }
@@ -262,7 +265,7 @@ const ConfigurationTypePage: React.FC = () => {
   // ---------------------------------------------------------------------------
   const handleExportPDF = () => {
     const recordsToExport =
-      selectedIds.length > 0 ? data.filter((item) => selectedIds.includes(item.id)) : data;
+      selectedIds.length > 0 ? data.filter((item) => selectedIds.includes(item.config_type_id)) : data;
 
     if (recordsToExport.length === 0) {
       toast.warning("No records to export.");
@@ -290,7 +293,7 @@ const ConfigurationTypePage: React.FC = () => {
     const tableHeaders = [["Sl No.", "Configuration Type", "Min & Max Mentees per Mentor"]];
     const tableRows = recordsToExport.map((item, index) => [
       index + 1,
-      item.config_type,
+      item.config_type_name,
       `${item.min_mentees} - ${item.max_mentees}`,
     ]);
 
@@ -400,18 +403,18 @@ const ConfigurationTypePage: React.FC = () => {
                   </th>
                   <th
                     className="px-4 py-3 text-center w-20 cursor-pointer select-none"
-                    onClick={() => handleSort("id")}
+                    onClick={() => handleSort("config_type_id")}
                   >
                     <div className="flex items-center justify-center">
-                      Sl No.{renderSortIcon("id")}
+                      Sl No.{renderSortIcon("config_type_id")}
                     </div>
                   </th>
                   <th
                     className="px-6 py-3 cursor-pointer select-none"
-                    onClick={() => handleSort("config_type")}
+                    onClick={() => handleSort("config_type_name")}
                   >
                     <div className="flex items-center">
-                      Configuration Type{renderSortIcon("config_type")}
+                      Configuration Type{renderSortIcon("config_type_name")}
                     </div>
                   </th>
                   <th
@@ -441,22 +444,22 @@ const ConfigurationTypePage: React.FC = () => {
                 ) : paginatedData.length > 0 ? (
                   paginatedData.map((item, index) => {
                     const slNo = (currentPage - 1) * entriesPerPage + index + 1;
-                    const isSelected = selectedIds.includes(item.id);
+                    const isSelected = selectedIds.includes(item.config_type_id);
                     return (
                       <tr
-                        key={item.id}
+                        key={item.config_type_id}
                         className={`hover:bg-gray-50 dark:hover:bg-gray-700/40 transition duration-150 ${isSelected ? "bg-blue-50/40 dark:bg-blue-900/10" : ""}`}
                       >
                         <td className="px-4 py-3 text-center">
                           <input
                             type="checkbox"
                             checked={isSelected}
-                            onChange={() => handleSelectRow(item.id)}
+                            onChange={() => handleSelectRow(item.config_type_id)}
                             className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 cursor-pointer"
                           />
                         </td>
                         <td className="px-4 py-3 text-center font-medium">{slNo}</td>
-                        <td className="px-6 py-3 font-medium text-gray-900 dark:text-white">{item.config_type}</td>
+                        <td className="px-6 py-3 font-medium text-gray-900 dark:text-white">{item.config_type_name}</td>
                         <td className="px-6 py-3">{item.min_mentees} - {item.max_mentees}</td>
                         <td className="px-4 py-3 text-center">
                           <div className="flex items-center justify-center gap-3">
@@ -577,11 +580,11 @@ const ConfigurationTypePage: React.FC = () => {
                       onChange={(e) => setConfigTypeInput(e.target.value)}
                       placeholder="e.g. CSE Config type 3"
                       className={`w-full px-3 py-2 border rounded bg-white dark:bg-gray-700 text-gray-750 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                        errors.config_type ? "border-red-500 focus:ring-red-500" : "border-gray-300 dark:border-gray-600"
+                        errors.config_type_name ? "border-red-500 focus:ring-red-500" : "border-gray-300 dark:border-gray-600"
                       }`}
                     />
-                    {errors.config_type && (
-                      <p className="mt-1 text-xs text-red-500 font-semibold">{errors.config_type}</p>
+                    {errors.config_type_name && (
+                      <p className="mt-1 text-xs text-red-500 font-semibold">{errors.config_type_name}</p>
                     )}
                   </div>
 
@@ -683,7 +686,7 @@ const ConfigurationTypePage: React.FC = () => {
                 <p className="text-sm text-gray-700 dark:text-gray-300">
                   Are you sure you want to delete the configuration type{" "}
                   <strong className="text-gray-900 dark:text-white">
-                    "{configToDelete.config_type}"
+                    "{configToDelete.config_type_name}"
                   </strong>
                   ? This action cannot be undone.
                 </p>

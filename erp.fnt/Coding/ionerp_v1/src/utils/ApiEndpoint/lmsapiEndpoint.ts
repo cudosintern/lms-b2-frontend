@@ -87,6 +87,15 @@ export const ApiEndpoint = {
     registeredCourses:
       "student-course-registration/registered-courses",
   },
+  material: {
+    createMaterial: "/api/v1/material/create_material",
+    materialList: "/api/v1/material/material_list",
+    studentList: "/api/v1/material/student_list",
+    shareMaterial: "/api/v1/material/share_material",
+    downloadMaterial: "/api/v1/material/download_material",
+    updateMaterial: "/api/v1/material/update_material",
+    materialMappingList: "/api/v1/material/material_mapping_list",
+  },
 } as const;
 
 // Alias for backward compatibility

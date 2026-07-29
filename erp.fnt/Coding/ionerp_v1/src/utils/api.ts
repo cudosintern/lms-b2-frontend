@@ -6,6 +6,7 @@ import { toast } from "react-toastify";
 const AUTH_COOKIE_KEY = "auth_state";
 const AUTH_COOKIE_ORG_KEY = "auth_org_state";
 
+console.log("API URL:", process.env.REACT_APP_API_URL);
 const axiosInstance = axios.create({
   baseURL: process.env.REACT_APP_API_URL,
   timeout: 10000,
