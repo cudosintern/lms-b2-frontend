@@ -672,78 +672,84 @@ const DepartmentDropdown = () => {
   // ============================================
 
   const handleUpdate = async () => {
-    if (!selectedTerm) {
-      alert('Please select a term first.');
-      return;
-    }
+  if (!selectedTerm) {
+    alert('Please select a term first.');
+    return;
+  }
 
-    const validationError = validateAllFields();
-    if (validationError) {
-      alert(`❌ Validation Error:\n${validationError}`);
-      return;
-    }
+  const validationError = validateAllFields();
+  if (validationError) {
+    alert(`❌ Validation Error:\n${validationError}`);
+    return;
+  }
 
-    const total = parseFloat(editableTotalCredits) || 0;
-    const minCredits = parseFloat(editableMinCredits) || 0;
-    const ownElectives = parseInt(editableOwnElectives) || 0;
-    const otherElectives = parseInt(editableOtherElectives) || 0;
+  const total = parseFloat(editableTotalCredits) || 0;
+  const minCredits = parseFloat(editableMinCredits) || 0;
+  const ownElectives = parseInt(editableOwnElectives) || 0;
+  const otherElectives = parseInt(editableOtherElectives) || 0;
 
-    const updateData = {
-      semester_id: parseInt(selectedTerm),
-      min_credits: minCredits,
-      total_credits: total,
-      own_curriculum_electives: ownElectives,
-      other_curriculum_electives: otherElectives,
-      start_date: startDate ? startDate.format('DD-MM-YYYY') : null,
-      start_time: startTime ? startTime.format('hh:mm A') : null,
-      end_date: endDate ? endDate.format('DD-MM-YYYY') : null,
-      end_time: endTime ? endTime.format('hh:mm A') : null,
-      course_limits: courseStructure.map((item) => ({
-        course_type: item.course_type,
-        min_credits: parseFloat(editableCourseMinCredits[item.course_type]) || 0,
-        max_credits: parseFloat(editableCourseMaxCredits[item.course_type]) || 0,
-        max_students: parseInt(editableMaxStudents[item.course_type])  || 0
-      }))
-    };
-
-    console.log('📤 Sending update data:', JSON.stringify(updateData, null, 2));
-    console.log('📤 URL:', `${API_BASE_URL}/update-registration-settings`);
-    
-    setLoading(true);
-
-    try {
-      const response = await axios.post(
-        `${API_BASE_URL}/update-registration-settings`,
-        updateData
-      );
-
-      console.log('📥 Response:', response.data);
-
-      if (response.data.status) {
-        alert('✅ Registration settings updated successfully!');
-        
-        console.log('🔄 Reloading data...');
-        setRefreshTrigger(prev => prev + 1);
-        await loadRegistrationData(selectedTerm);
-        console.log('✅ Data reloaded!');
-        
-      } else {
-        alert(`❌ Update failed: ${response.data.message || 'Unknown error'}`);
-      }
-    } catch (error: any) {
-      console.error('❌ Update error:', error);
-      if (error.response) {
-        alert(`❌ Update failed: ${error.response.data?.message || error.message}`);
-      } else if (error.request) {
-        alert('❌ No response from server. Please check if backend is running.');
-      } else {
-        alert(`❌ Update failed: ${error.message}`);
-      }
-    } finally {
-      setLoading(false);
-    }
+  const updateData = {
+    semester_id: parseInt(selectedTerm),
+    min_credits: minCredits,
+    total_credits: total,
+    own_curriculum_electives: ownElectives,
+    other_curriculum_electives: otherElectives,
+    start_date: startDate ? startDate.format('DD-MM-YYYY') : null,
+    start_time: startTime ? startTime.format('hh:mm A') : null,
+    end_date: endDate ? endDate.format('DD-MM-YYYY') : null,
+    end_time: endTime ? endTime.format('hh:mm A') : null,
+    course_limits: courseStructure.map((item) => ({
+      course_type: item.course_type,
+      min_credits: parseFloat(editableCourseMinCredits[item.course_type]) || 0,
+      max_credits: parseFloat(editableCourseMaxCredits[item.course_type]) || 0,
+      max_students: parseInt(editableMaxStudents[item.course_type]) || 0
+    }))
   };
 
+  console.log('📤 Sending update data:', JSON.stringify(updateData, null, 2));
+  console.log('📤 URL:', `${API_BASE_URL}/update-registration-settings`);
+  
+  setLoading(true);
+
+  try {
+    // ✅ FIXED: Add proper typing to axios.post
+    const response = await axios.post<ApiResponse<any>>(
+      `${API_BASE_URL}/update-registration-settings`,
+      updateData,
+      { 
+        timeout: 10000,
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      }
+    );
+
+    console.log('📥 Response:', response.data);
+
+    if (response.data.status) {
+      alert('✅ Registration settings updated successfully!');
+      
+      console.log('🔄 Reloading data...');
+      setRefreshTrigger(prev => prev + 1);
+      await loadRegistrationData(selectedTerm);
+      console.log('✅ Data reloaded!');
+      
+    } else {
+      alert(`❌ Update failed: ${response.data.message || 'Unknown error'}`);
+    }
+  } catch (error: any) {
+    console.error('❌ Update error:', error);
+    if (error.response) {
+      alert(`❌ Update failed: ${error.response.data?.message || error.message}`);
+    } else if (error.request) {
+      alert('❌ No response from server. Please check if backend is running.');
+    } else {
+      alert(`❌ Update failed: ${error.message}`);
+    }
+  } finally {
+    setLoading(false);
+  }
+};
   // ============================================
   // PDF EXPORT
   // ============================================
