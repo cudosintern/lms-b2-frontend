@@ -3,7 +3,7 @@ import { Control, Controller, FieldErrors } from "react-hook-form";
 import TextInput from "../../../../../components/FormBuilder/fields/TextInput";
 import ToggleSwitch from "../../../../../components/FormBuilder/fields/Switch";
 import UIButton from "../../../../../components/FormBuilder/fields/Button";
-import { QuestionnaireBuilderFormValues } from "../responseInterface";
+import { QuestionnaireBuilderFormValues } from "../types/responseInterface";
 
 interface OptionRowProps {
   control: Control<QuestionnaireBuilderFormValues>;

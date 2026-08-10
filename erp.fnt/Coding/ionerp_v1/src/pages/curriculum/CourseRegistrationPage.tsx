@@ -3,30 +3,25 @@ import { useLocation } from "react-router-dom";
 import CurriculumPageLayout from "./CurriculumPageLayout";
 import { toast } from "react-toastify";
 import axiosInstance from "../../utils/api";
-import { LmsApiEndpoint  } from "../../utils/ApiEndpoint/lmsApiEndpoint";
+import { ApiEndpoint } from "../../utils/ApiEndpoint/lmsApiEndpoint";
 import { Info, HelpCircle, List, ArrowUpDown } from "lucide-react";
 
-import {
-  CourseItem,
-  AVAILABLE_MENTORS,
-  DEFAULT_COURSES,
-} from "./types/courseRegistration";
-// interface CourseItem {
-//   id: string;
-//   courseId: number | null;
-//   sectionId: string;  
-//   section: string;
-//   code: string;
-//   title: string;
-//   type: string;
-//   credits: number;
-//   totalMarks: number | null;
-//   owner: string;
-//   reviewer: string;
-//   mode: string;
-//   instructor: string;
-//   status: string;
-// }
+interface CourseItem {
+  id: string;
+  courseId: number | null;
+  sectionId: string;  
+  section: string;
+  code: string;
+  title: string;
+  type: string;
+  credits: number;
+  totalMarks: number | null;
+  owner: string;
+  reviewer: string;
+  mode: string;
+  instructor: string;
+  status: string;
+}
 
 interface CurriculumOption {
   id: string;
@@ -215,7 +210,7 @@ const CourseRegistrationPage: React.FC = () => {
             academic_batch_code: string;
             academic_batch_desc: string;
           }>
-        >(LmsApiEndpoint.studentCourseRegistration.registrationAcademicBatchList, {
+        >(ApiEndpoint.studentCourseRegistration.registrationAcademicBatchList, {
           params: {
             base_academic_batch_id: baseAcademicBatchId,
           },
@@ -280,7 +275,7 @@ const CourseRegistrationPage: React.FC = () => {
             semester_desc: string;
             term_name: string;
           }>
-        >(LmsApiEndpoint.studentCourseRegistration.registrationSemesterList, {
+        >(ApiEndpoint.studentCourseRegistration.registrationSemesterList, {
           params: {
             registration_academic_batch_id: Number(selectedCurriculum),
             base_semester_id: baseSemesterId,
@@ -349,7 +344,7 @@ const CourseRegistrationPage: React.FC = () => {
       setRegistrationStatusLoading(true);
       try {
         const res = await axiosInstance.get<ApiStatusResponse<RegistrationStatusData>>(
-          LmsApiEndpoint.studentCourseRegistration.checkRegistrationStatus,
+          ApiEndpoint.studentCourseRegistration.checkRegistrationStatus,
           {
             params: {
               academic_batch_id: Number(selectedCurriculum),
@@ -390,7 +385,7 @@ const CourseRegistrationPage: React.FC = () => {
       try {
         const res = await axiosInstance.get<
           ApiStatusResponse<RegistrationDueDateData>
-        >(LmsApiEndpoint.studentCourseRegistration.validateRegistrationDueDate, {
+        >(ApiEndpoint.studentCourseRegistration.validateRegistrationDueDate, {
           params: {
             academic_batch_id: Number(selectedCurriculum),
             semester_id: Number(selectedTerm),
@@ -424,7 +419,7 @@ const CourseRegistrationPage: React.FC = () => {
             section_id: number;
             section_name: string;
           }>
-        >(LmsApiEndpoint.studentCourseRegistration.registrationSectionList, {
+        >(ApiEndpoint.studentCourseRegistration.registrationSectionList, {
           academic_batch_id: Number(selectedCurriculum),
           semester_id: Number(selectedTerm),
         });
@@ -475,7 +470,7 @@ const CourseRegistrationPage: React.FC = () => {
       try {
         const res = await axiosInstance.post<
           ApiListResponse<RegisteredCourseApiItem>
-        >(LmsApiEndpoint.studentCourseRegistration.registeredCourses, {
+        >(ApiEndpoint.studentCourseRegistration.registeredCourses, {
           parent_academic_batch_id: baseAcademicBatchId,
           parent_semester_id: baseSemesterId,
           student_id: studentId,
@@ -509,7 +504,7 @@ const CourseRegistrationPage: React.FC = () => {
                 : ""),
           }));
 
-          // setCourses(mapped);
+          setCourses(mapped);
         } else {
           setCourses([]);
           toast.error(res.data?.message || "Unable to load registered courses.");
@@ -541,7 +536,7 @@ const CourseRegistrationPage: React.FC = () => {
     }
 
     setSelectedCourseForAssign(course);
-    // setAssignSection(course.sectionId || "");
+    setAssignSection(course.sectionId || "");
     setAssignInstructor(course.instructor || "");
     setIsAssignModalOpen(true);
   };

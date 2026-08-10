@@ -8,8 +8,8 @@ import {
 } from "react-hook-form";
 import UIButton from "../../../../../components/FormBuilder/fields/Button";
 import QuestionBlock from "./QuestionBlock";
-import { createDefaultQuestion } from "../questionnaireDefaults";
-import { QuestionnaireBuilderFormValues, LookupOption } from "../responseInterface";
+import { createDefaultQuestion } from "../defaults/questionnaireDefaults";
+import { QuestionnaireBuilderFormValues, LookupOption } from "../types/responseInterface";
 
 interface QuestionBlockListProps {
   control: Control<QuestionnaireBuilderFormValues>;
@@ -52,7 +52,8 @@ const QuestionBlockList: React.FC<QuestionBlockListProps> = ({
         0,
       ) + 1,
   });
-
+console.log("Fields:", fields);
+console.log("Fields Length:", fields.length);
   return (
     <section
       className={

@@ -2,7 +2,7 @@ import {
   QuestionFormValues,
   QuestionOptionFormValues,
   QuestionnaireBuilderFormValues,
-} from "./responseInterface";
+} from "../types/responseInterface";
 
 export const MAX_OPTIONS = 5;
 

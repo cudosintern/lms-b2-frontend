@@ -1,6 +1,6 @@
 import React from "react";
 import { Control, Controller, FieldErrors } from "react-hook-form";
-import { QuestionnaireBuilderFormValues } from "../responseInterface";
+import { QuestionnaireBuilderFormValues } from "../types/responseInterface";
 
 interface QuestionnaireMetaFormProps {
   control: Control<QuestionnaireBuilderFormValues>;

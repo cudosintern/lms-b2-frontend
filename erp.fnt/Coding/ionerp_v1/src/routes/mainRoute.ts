@@ -11,6 +11,15 @@ import MmpReportPage from "../pages/mentoring/MmpReportPage";
 import CourseRegistrationPage from "../pages/curriculum/CourseRegistrationPage";
 import IssueObservationReportPage from "../pages/lms/mmp/reports/IssueObservationReportPage";
 import { FaHome, FaUsers, FaBook } from "react-icons/fa";
+import ManageTopicInstructor from "../pages/lms/manageTopicInstructor/ManageTopicInstructor";
+import ManageQuizPage from "../pages/lms/manageQuiz/ManageQuizPage";
+import ManageShareMaterialsPage from "../pages/lms/manageshare/ManageShareMaterialsPage";
+import TimetableListPage from "../pages/lms/timetable/timetableListPage";
+import TimetableCalendarPage from "../pages/lms/timetableCalendar/TimetableCalendarPage";
+import ReceiveAnnouncementPage from "../pages/lms/ReciveAnnouncement/ReceiveAnnouncementPage";
+import SendAnnouncementPage from "../pages/lms/sendAnnouncement/SendAnnouncementPage";
+import AnnouncementPage from "../pages/lms/announcement/AnnouncementPage";
+import ManageAssignmentPage from "../pages/lms/manageAssignment/ManageAssignmentPage";
 
 export const MAINROUTE = [
   {
@@ -21,6 +30,96 @@ export const MAINROUTE = [
     roles: [],
     subItems: [],
   },
+  {
+    name: "LMS",
+    href: "/lms",
+    element: ManageTopicInstructor,
+    icon: React.createElement("div", { className: "w-6 h-6 rounded bg-emerald-600 flex items-center justify-center text-white mr-1.5" }, React.createElement(FaUsers, { size: 11 })),
+    roles: [],
+    subItems: [
+      {
+      name: "Manage Topic Instructor",
+      href: "manage-topic-instructor",
+      element: ManageTopicInstructor,
+      roles: [],
+      subItems: [],
+      // hidden: true,
+    },
+    {
+      name: "Manage Quiz",
+      href: "manage-quiz",
+      element: ManageQuizPage,
+      roles: [],
+      subItems: [],
+      // hidden: true,
+    },
+    {
+      name: "Manage Share Materials",
+      href: "manage-share-materials",
+      element: ManageShareMaterialsPage,
+      roles: [],
+      subItems: [],
+      // hidden: true,
+    },
+    {
+      name: "Timetable",
+      href: "timetable",
+      element: TimetableListPage,
+      roles: [],
+      subItems: [],
+      // hidden: true,
+    },
+    {
+      name: "Timetable Calendar",
+      href: "timetable-calendar",
+      element: TimetableCalendarPage,
+      roles: [],
+      subItems: [],
+      // hidden: true,
+    },
+    {
+      name: "Manage Quiz",
+      href: "manage-quiz",
+      element: ManageQuizPage,
+      roles: [],
+      subItems: [],
+      // hidden: true,
+    },
+    {
+      name: "Receive Announcement",
+      href: "receive-announcement",
+      element: ReceiveAnnouncementPage,
+      roles: [],
+      subItems: [],
+      // hidden: true,
+    },
+    {
+      name: "Send Announcement",
+      href: "send-announcement",
+      element: SendAnnouncementPage,
+      roles: [],
+      subItems: [],
+      // hidden: true,
+    },
+      {
+      name: "Announcement",
+      href: "announcement",
+      element: AnnouncementPage,
+      roles: [],
+      subItems: [],
+      // hidden: true,
+    },
+    {
+      name: "Manage Assignment",
+      href: "manage-assignment",
+      roles: ["faculty"],
+      element: ManageAssignmentPage,
+      subItems: [],
+      // hidden: true,
+    },
+    ],
+  },
+  
   {
     name: "Mentoring",
     href: "/mentoring",
@@ -35,7 +134,7 @@ export const MAINROUTE = [
     element: DeptConfigurationPage,
     roles: [],
     subItems: [],
-    hidden: true,
+    // hidden: true,
   },
   {
     name: "",
@@ -43,7 +142,7 @@ export const MAINROUTE = [
     element: MentorListPage,
     roles: [],
     subItems: [],
-    hidden: true,
+    // hidden: true,
   },
   {
     name: "",
@@ -51,7 +150,7 @@ export const MAINROUTE = [
     element: QuestionnairePage,
     roles: [],
     subItems: [],
-    hidden: true,
+    // hidden: true,
   },
   {
     name: "",
@@ -59,7 +158,7 @@ export const MAINROUTE = [
     element: MentoringSessionPage,
     roles: [],
     subItems: [],
-    hidden: true,
+    // hidden: true,
   },
   {
     name: "",
@@ -67,7 +166,7 @@ export const MAINROUTE = [
     element: MapMentorMenteePage,
     roles: [],
     subItems: [],
-    hidden: true,
+    // hidden: true,
   },
   {
     name: "",
@@ -75,7 +174,7 @@ export const MAINROUTE = [
     element: MmpReportPage,
     roles: [],
     subItems: [],
-    hidden: true,
+    // hidden: true,
   },
   {
     name: "",
@@ -83,7 +182,7 @@ export const MAINROUTE = [
     element: IssueObservationReportPage,
     roles: [],
     subItems: [],
-    hidden: true,
+    // hidden: true,
   },
   {
     name: "Curriculum",

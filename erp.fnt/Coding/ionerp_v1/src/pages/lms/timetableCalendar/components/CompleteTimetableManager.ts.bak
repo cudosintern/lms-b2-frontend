@@ -1,0 +1,12 @@
+import React from 'react';
+
+const CompleteTimetableManager: React.FC = () => {
+  return (
+    <div>
+      <h2>Complete Timetable Management</h2>
+      <p>Working component - TypeScript should now find this module</p>
+    </div>
+  );
+};
+
+export default CompleteTimetableManager;

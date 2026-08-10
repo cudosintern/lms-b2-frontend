@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import axiosInstance from "../../../../utils/api";
-import { ApiEndpoint } from "../../../../utils/ApiEndpoint/emsapiEndpoint";
+import { ApiEndpoint } from "../../../../utils/ApiEndpoint/lmsApiEndpoint";
 import MmpModuleShell from "../components/MmpModuleShell";
 
 type TabKey = "from" | "to";

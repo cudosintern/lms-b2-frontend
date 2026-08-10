@@ -2,7 +2,7 @@ import React from "react";
 import {
   QuestionFormValues,
   QuestionOptionFormValues,
-} from "../responseInterface";
+} from "../types/responseInterface";
 
 interface QuestionnairePreviewModalProps {
   open: boolean;

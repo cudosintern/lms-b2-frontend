@@ -5,9 +5,9 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { toast } from "react-toastify";
 import axiosInstance from "../../../../utils/api";
-import { ApiEndpoint } from "../../../../utils/ApiEndpoint/emsapiEndpoint";
-import { FieldSettingOption, getQuestionnaireList } from "./responseInterface";
-import { FIELD_SETTING_PLACEHOLDER } from "./questionnaireConstants";
+import { ApiEndpoint } from "../../../../utils/ApiEndpoint/lmsApiEndpoint";
+import { FieldSettingOption, getQuestionnaireList } from "./types/responseInterface";
+import { FIELD_SETTING_PLACEHOLDER } from "./constants/questionnaireConstants";
 
 interface QuestionnaireOption {
   questionnaire_options_id: number;

@@ -5,11 +5,11 @@ import {
   FieldErrors,
   UseFormClearErrors,
 } from "react-hook-form";
-import { FIELD_SETTING_PLACEHOLDER } from "../questionnaireConstants";
+import { FIELD_SETTING_PLACEHOLDER } from "../constants/questionnaireConstants";
 import {
   FieldSettingOption,
   QuestionnaireBuilderFormValues,
-} from "../responseInterface";
+} from "../types/responseInterface";
 
 export const FIELD_SETTING_FORM_NAME = "field_settings.field_setting_id" as const;
 

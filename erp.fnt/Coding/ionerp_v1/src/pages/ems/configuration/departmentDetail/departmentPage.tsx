@@ -5,7 +5,7 @@ import ModalWithForm from "../../../../components/Modal/ModalWithForm";
 import ConfirmDialog from "../../../../components/Dialog/ConfirmDialog";
 import DataTable from "../../../../components/Table/DataTable";
 import { Schema, SchemaColumnDefs, SchemaFields } from "./departmentSchema";
-import { ApiEndpoint } from "../../../../utils/ApiEndpoint/emsapiEndpoint";
+import { ApiEndpoint } from "../../../../utils/ApiEndpoint/lmsApiEndpoint";
 import { useAxios } from "../../../../hooks/useAxios";
 import { FaCheckCircle } from "react-icons/fa";
 import { getDepartmentList } from "./responceinterface";

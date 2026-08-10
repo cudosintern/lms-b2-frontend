@@ -10,20 +10,20 @@ import QuestionnairePreviewModal from "./components/QuestionnairePreviewModal";
 import FieldSettingsPanel, {
   FIELD_SETTING_FORM_NAME,
 } from "./components/FieldSettingsPanel";
-import { questionnaireBuilderSchema } from "./questionnaireSchema";
+import { questionnaireBuilderSchema } from "./validation/questionnaireSchema";
 import {
   createDefaultBuilderForm,
   createDefaultQuestion,
-} from "./questionnaireDefaults";
+} from "./defaults/questionnaireDefaults";
 import {
   FieldSettingOption,
   LookupOption,
   QuestionFormValues,
   QuestionnaireBuilderFormValues,
-} from "./responseInterface";
+} from "./types/responseInterface";
 import axiosInstance from "../../../../utils/api";
-import { ApiEndpoint } from "../../../../utils/ApiEndpoint/emsapiEndpoint";
-import { FIELD_SETTING_PLACEHOLDER } from "./questionnaireConstants";
+import { ApiEndpoint } from "../../../../utils/ApiEndpoint/lmsApiEndpoint";
+import { FIELD_SETTING_PLACEHOLDER } from "./constants/questionnaireConstants";
 
 const normalizeFieldSettingDescription = (value: unknown) => {
   const normalizedValue = typeof value === "string" ? value.trim() : "";
@@ -240,13 +240,25 @@ const QuestionnaireCreatePage: React.FC = () => {
         axiosInstance.get<any>(ApiEndpoint.question_type.get_questionnaire_type_list),
         axiosInstance.get<any>(ApiEndpoint.questionnaire.field_setting_list),
       ]);
+alert("Question Type API Response");
+      console.log("Question Type API Response:", questionTypeResponse.data);
+      const questionTypeList = (questionTypeResponse.data.data || []).map(
+  (item: any) => ({
+    label: item.que_type_name,
+    value: item.que_type_id,
+  }),
+);
 
-      setQuestionTypes(
-        (questionTypeResponse.data.data || []).map((item: any) => ({
-          label: item.que_type_name,
-          value: item.que_type_id,
-        })),
-      );
+console.log("Question Types:", questionTypeList);
+
+setQuestionTypes(questionTypeList);
+      // setQuestionTypes(
+      //   (questionTypeResponse.data.data || []).map((item: any) => ({
+      //     label: item.que_type_name,
+      //     value: item.que_type_id,
+      //   })),
+      // );
+      // console.log("Question Types:", questionTypeList);
       setQuestionnaireTypes(
         (questionnaireTypeResponse.data.data || []).map((item: any) => ({
           label: item.questionnaire_type_name,
@@ -545,6 +557,8 @@ const QuestionnaireCreatePage: React.FC = () => {
           />
         </div>
       )}
+      console.log("Rendering QuestionBlockList");
+console.log("Questions:", getValues("questions"));
       <QuestionBlockList
         control={control}
         errors={errors}

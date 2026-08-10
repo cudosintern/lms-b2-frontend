@@ -8,8 +8,8 @@ import {
   useFieldArray,
   useWatch,
 } from "react-hook-form";
-import { createDefaultOption, MAX_OPTIONS } from "../questionnaireDefaults";
-import { LookupOption, QuestionnaireBuilderFormValues } from "../responseInterface";
+import { createDefaultOption, MAX_OPTIONS } from "../defaults/questionnaireDefaults";
+import { LookupOption, QuestionnaireBuilderFormValues } from "../types/responseInterface";
 
 interface QuestionBlockProps {
   control: Control<QuestionnaireBuilderFormValues>;
@@ -31,6 +31,7 @@ interface QuestionBlockProps {
     questionnaireOptionsId: number,
   ) => void;
 }
+
 
 const QuestionBlock: React.FC<QuestionBlockProps> = ({
   control,
@@ -64,6 +65,7 @@ const QuestionBlock: React.FC<QuestionBlockProps> = ({
     control,
     name: `questions.${questionIndex}.que_type_id`,
   });
+  console.log("selectedTypeId =", selectedTypeId);
   const questionText = useWatch({
     control,
     name: `questions.${questionIndex}.question`,
@@ -82,6 +84,21 @@ const QuestionBlock: React.FC<QuestionBlockProps> = ({
     normalizedTypeLabel === "single select" || normalizedTypeLabel === "multiple select";
   const questionErrors = errors.questions?.[questionIndex];
   const questionTypeError = questionErrors?.que_type_id;
+
+  React.useEffect(() => {
+  console.log({
+    selectedTypeId,
+    selectedTypeLabel,
+    normalizedTypeLabel,
+    showsOptions,
+  });
+}, [selectedTypeId, selectedTypeLabel, normalizedTypeLabel, showsOptions]);
+console.log("log errors");
+  console.log({
+    selectedTypeId,
+    selectedTypeLabel,
+    normalizedTypeLabel
+});
 
   const {
     fields: optionFields,
@@ -136,13 +153,32 @@ const QuestionBlock: React.FC<QuestionBlockProps> = ({
                         questionTypeError ? "border-red-500 text-red-600" : "border-gray-300"
                       } ${fieldTextClass}`}
                       value={field.value || 0}
+                      // onChange={(e) => {
+                      //   const value = Number(e.target.value);
+                      //   field.onChange(value);
+                      //   if (value > 0) {
+                      //     clearErrors(`questions.${questionIndex}.que_type_id`);
+                      //   }
+                      // }}
                       onChange={(e) => {
-                        const value = Number(e.target.value);
-                        field.onChange(value);
-                        if (value > 0) {
-                          clearErrors(`questions.${questionIndex}.que_type_id`);
-                        }
-                      }}
+  const value = Number(e.target.value);
+
+  // Find the selected question type
+  const selectedType = questionTypes.find(
+    (item) => Number(item.value) === value
+  );
+
+  console.log("Question Type Changed");
+  console.log("Selected ID:", value);
+  console.log("Selected Object:", selectedType);
+  alert(`Selected: ${selectedType?.label ?? "Unknown"}`);
+
+  field.onChange(value);
+
+  if (value > 0) {
+    clearErrors(`questions.${questionIndex}.que_type_id`);
+  }
+}}
                     >
                       <option value={0}>Select question type</option>
                       {questionTypes.map((item) => (
