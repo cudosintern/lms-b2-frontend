@@ -206,7 +206,7 @@ export const ApiEndpoint = {
     curriculumList: "api/v1/topic_management/curriculum_list",
     semesterList: "api/v1/topic_management/semester_list",
     courseList: "api/v1/topic_management/course_list",
-    sectionList: "api/v1/topic_management/section_list_post",
+    sectionList: "api/v1/topic_management/section_list",
     topicList: "api/v1/topic_management/topic_list",
     topicsToImport: "api/v1/topic_management/topics-to-import",
     importTopics: "api/v1/topic_management/import-topics",

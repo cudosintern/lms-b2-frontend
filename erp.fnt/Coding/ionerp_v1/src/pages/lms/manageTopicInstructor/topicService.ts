@@ -81,23 +81,48 @@ export const useTopicService = () => {
   // ✅ Get Section List
   // 🔥 FIX: payload optional so dropdown can load all
   // =====================================================
-  const getSectionList = useCallback(async (
-    payload: { course_id?: number; semester_id?: number; academic_batch_id?: number } = {}
-  ) => {
-    try {
-      const response = await customApiCall<any, any[]>(
-        ApiEndpoint.topic.sectionList,
-        "post",
-        payload
-      );
-      console.log("✅ Section List fetched:", response);
-      return response || [];
-    } catch (error) {
-      console.error("❌ Error fetching section list:", error);
-      return [];
-    }
-  }, [customApiCall]);
+  // const getSectionList = useCallback(async (
+  //   payload: { course_id?: number; semester_id?: number; academic_batch_id?: number } = {}
+  // ) => {
+  //   try {
+  //     const response = await customApiCall<any, any[]>(
+  //       ApiEndpoint.topic.sectionList,
+  //       "post",
+  //       payload
+  //     );
+  //     console.log("✅ Section List fetched:", response);
+  //     return response || [];
+  //   } catch (error) {
+  //     console.error("❌ Error fetching section list:", error);
+  //     return [];
+  //   }
+  // }, [customApiCall]);
 
+
+  const getSectionList = useCallback(async (
+  payload: {
+    course_id?: number;
+    semester_id?: number;
+    academic_batch_id?: number;
+  } = {}
+) => {
+  try {
+    const response = await customApiCall<any, any[]>(
+      ApiEndpoint.topic.sectionList,
+      "post",
+      payload
+    );
+
+    console.log("✅ Section List fetched:", response);
+    console.log("Section List type:", typeof response);
+    console.log("Section List isArray:", Array.isArray(response));
+
+    return response ?? [];
+  } catch (error) {
+    console.error("❌ Error fetching section list:", error);
+    return [];
+  }
+}, [customApiCall]);
   // =====================================================
   // ✅ Import Topic - FIXED: Uses correct /import_topic endpoint + customApiCall
   // =====================================================

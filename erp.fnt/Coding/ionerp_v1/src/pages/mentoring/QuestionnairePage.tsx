@@ -81,7 +81,7 @@ const QuestionnairePage: React.FC = () => {
               className={`w-full border rounded px-3 py-2 text-[13px] text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 focus:outline-none focus:border-blue-400 ${textError ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
             ></textarea>
             <div className="flex justify-between items-start mt-1">
-              <div className="text-red-500 text-[11px]">{textError}</div>
+              <div className="text-red-500 text-[11px]">{textError} Test</div>
               <div className="text-right text-[11px] text-[#337ab7] dark:text-blue-400 font-medium">{textValue.length} / 2000 characters</div>
             </div>
          </div>
