@@ -62,7 +62,7 @@ const ManageTopicInstructor: React.FC = () => {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // ── Load curriculum + semester on mount ────────────────────────────
+ // ── Load curriculum on mount ────────────────────────────
   useEffect(() => {
     topicService.getCurriculumList().then((res: any) => {
       const arr = Array.isArray(res) ? res : (res?.data || []);
@@ -74,27 +74,37 @@ const ManageTopicInstructor: React.FC = () => {
         }))
       }));
     }).catch(console.error);
-
-    topicService.getSemesterList().then((res: any) => {
-      const arr = Array.isArray(res) ? res : (res?.data || []);
-      setDropdownOptions(prev => ({
-        ...prev,
-        semesterOptions: arr.map((item: any) => ({
-          value: item.value || item.semester_id || item.id,
-          label: item.label || item.semester_name || item.name || `Semester ${item.id}`,
-        }))
-      }));
-    }).catch(console.error);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Load courses when curriculum + semester change ──────────────────
+  // ── Filter semesters when curriculum changes ──────────────────────────
+  useEffect(() => {
+    if (filters.curriculum) {
+      topicService.getSemesterList({ 
+        academic_batch_id: Number(filters.curriculum) 
+      }).then((res: any) => {
+        const arr = Array.isArray(res) ? res : (res?.data || []);
+        setDropdownOptions(prev => ({
+          ...prev,
+          semesterOptions: arr.map((item: any) => ({
+            value: item.value || item.semester_id || item.id,
+            label: item.label || item.semester_name || item.name || `Semester ${item.id}`,
+          }))
+        }));
+      }).catch(console.error);
+    } else {
+      setDropdownOptions(prev => ({ ...prev, semesterOptions: [] }));
+      setFilters(prev => ({ ...prev, semester: "", course: "", section: "" }));
+    }
+  }, [filters.curriculum]);
+
+   // ── Load courses when curriculum + semester change ──────────────────
   useEffect(() => {
     if (filters.curriculum && filters.semester) {
       topicService.getCourseList({
-        curriculum_id: Number(filters.curriculum),
+        academic_batch_id: Number(filters.curriculum),
         semester_id: Number(filters.semester)
       }).then((res: any) => {
+        console.log("Course data from service:", res);
         const arr = Array.isArray(res) ? res : (res?.data || res?.courses || []);
         setDropdownOptions(prev => ({
           ...prev,
@@ -103,34 +113,54 @@ const ManageTopicInstructor: React.FC = () => {
             label: item.label || item.crs_title || item.course_name || `Course ${item.id}`,
           }))
         }));
+        
+        // Reset course if current selection not in filtered list
+        if (filters.course) {
+          const stillExists = arr.some((item: any) => 
+            String(item.value || item.crs_id || item.course_id || item.id) === filters.course
+          );
+          if (!stillExists) {
+            setFilters(prev => ({ ...prev, course: "", section: "" }));
+          }
+        }
+      }).catch(error => {
+        console.error("Error fetching courses:", error);
+        setDropdownOptions(prev => ({ ...prev, courseOptions: [] }));
       });
     } else {
       setDropdownOptions(prev => ({ ...prev, courseOptions: [] }));
+      if (!filters.curriculum || !filters.semester) {
+        setFilters(prev => ({ ...prev, course: "", section: "" }));
+      }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.curriculum, filters.semester]);
 
   // ── Load sections when semester/course change ───────────────────────
   useEffect(() => {
-    if (filters.semester) {
-      const payload: any = { semester_id: Number(filters.semester) };
-      if (filters.curriculum) payload.academic_batch_id = Number(filters.curriculum);
-      if (filters.course)     payload.course_id         = Number(filters.course);
+    if (filters.semester && filters.curriculum && filters.course) {
+      const payload = {
+        semester_id: Number(filters.semester),
+        academic_batch_id: Number(filters.curriculum),
+        course_id: Number(filters.course)
+      };
 
       topicService.getSectionList(payload).then((res: any) => {
-        const arr = Array.isArray(res) ? res : (res?.data || res?.sections || []);
+        console.log("Section data from service:", res);
+        const arr = Array.isArray(res) ? res : [];
         setDropdownOptions(prev => ({
           ...prev,
           sectionOptions: arr.map((item: any) => ({
-            value: item.value || item.id || item.section_id,
-            label: item.label || item.section || item.section_name || `Section ${item.id}`,
+            value: item.value,
+            label: item.label,
           }))
         }));
+      }).catch(error => {
+        console.error("Error fetching sections:", error);
+        setDropdownOptions(prev => ({ ...prev, sectionOptions: [] }));
       });
     } else {
       setDropdownOptions(prev => ({ ...prev, sectionOptions: [] }));
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.semester, filters.curriculum, filters.course]);
 
   // ── Load topics whenever all 4 filters are set ──────────────────────
@@ -184,6 +214,7 @@ const ManageTopicInstructor: React.FC = () => {
       setLoading(false);
     }
   }, [filters.curriculum, filters.course, filters.semester, filters.section, topicService]);
+
 
   useEffect(() => {
     const c = Number(filters.course);
