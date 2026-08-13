@@ -46,14 +46,6 @@ export const MAINROUTE = [
       // hidden: true,
     },
     {
-      name: "Manage Quiz",
-      href: "manage-quiz",
-      element: ManageQuizPage,
-      roles: [],
-      subItems: [],
-      // hidden: true,
-    },
-    {
       name: "Manage Share Materials",
       href: "manage-share-materials",
       element: ManageShareMaterialsPage,

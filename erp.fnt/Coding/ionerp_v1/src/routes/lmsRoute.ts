@@ -55,12 +55,6 @@ export const LMSROUTE = [
         element: ManageTopicInstructor,
       },
       {
-        name: "Manage Quiz",
-        href: "manage-quiz",
-        roles: [],
-        element: ManageQuizPage,
-      },
-      {
         name: "Manage Share Materials",
         href: "manage-share-materials",
         roles: [],

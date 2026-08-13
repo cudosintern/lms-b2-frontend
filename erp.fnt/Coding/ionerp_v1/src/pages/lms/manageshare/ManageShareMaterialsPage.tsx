@@ -2,26 +2,39 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axiosInstance from '../../../utils/api';
 import { toast } from 'react-toastify';
 import { LocalStorageHelper } from '../../../utils/localStorageHelper';
-const MATERIAL_API = '/api/v1/material';
+const MATERIAL_API = '/api/v1/lms_module/material';
 
 interface Curriculum { academic_batch_id: number; academic_batch_desc: string; academic_batch_code: string; academic_year?: string; }
 interface Term { semester_id: number; semester: number; semester_desc: string; }
 interface Course { crs_id: number; crs_code: string; crs_title: string; }
 interface Section { section_id: number; section: string; }
 interface Material {
-  mat_id: number; document_name: string; file_name: string;
+  mat_id: number; 
+  document_name: string; 
+  file_name: string;
   description: string;
-  // topic can come in multiple field names from backend
-  topic?: string; topic_title?: string; topic_name?: string; topic_ids?: string;
+  topic?: string; 
+  topic_title?: string; 
+  topic_name?: string; 
+  topic_ids?: string;
   section_ids?: string;
-  // license field
   license?: string;
-  // date can come as created_date or share_date
-  created_date?: string; share_date?: string;
-  // URL type support
-  url?: string; doc_type?: string; material_type?: string; docment_url?: string;
+  license_flag?: number;  // Add this
+  before_after_class_flag?: number;  // Add this
+  notify_type?: string;  // Add this
+  created_date?: string; 
+  share_date?: string;
+  url?: string; 
+  doc_type?: string; 
+  material_type?: string; 
+  docment_url?: string;
 }
-interface MappedStudent { student_usn: string; student_name: string; }
+// Define a more flexible interface
+interface MappedStudent {
+    student_usn: string;
+    student_name: string;
+    [key: string]: any;  // This allows additional properties like section_name
+}
 interface ShareStudent { student_id: number; usno: string; name?: string; first_name: string; last_name: string; }
 
 // Helper: pick topic text from whatever field the backend uses
@@ -136,14 +149,64 @@ const ManageShareMaterialsPage: React.FC = () => {
       .then((r: any) => { setCourses(Array.isArray(r.data?.data) ? r.data.data : []); setSelectedCourse(''); setSections([]); setSelectedSection(''); doneC(); }, doneC);
   }, [selectedBatch, selectedTerm]);
 
+  // // Cascade: course → sections
+  // useEffect(() => {
+  //   if (!selectedBatch || !selectedTerm) { setSections([]); setSelectedSection(''); return; }
+  //   setLoadingSection(true);
+  //   const doneD = () => setLoadingSection(false);
+  //   axiosInstance.get(`${QUIZ_META}/meta/sections`, { params: { academic_batch_id: selectedBatch, semester_id: selectedTerm } })
+  //     .then((r: any) => { setSections(Array.isArray(r.data?.data) ? r.data.data : []); setSelectedSection(''); doneD(); }, doneD);
+  // }, [selectedBatch, selectedTerm]);
+
+
   // Cascade: course → sections
-  useEffect(() => {
-    if (!selectedBatch || !selectedTerm) { setSections([]); setSelectedSection(''); return; }
-    setLoadingSection(true);
-    const doneD = () => setLoadingSection(false);
-    axiosInstance.get(`${QUIZ_META}/meta/sections`, { params: { academic_batch_id: selectedBatch, semester_id: selectedTerm } })
-      .then((r: any) => { setSections(Array.isArray(r.data?.data) ? r.data.data : []); setSelectedSection(''); doneD(); }, doneD);
-  }, [selectedBatch, selectedTerm]);
+useEffect(() => {
+  if (!selectedBatch || !selectedTerm || !selectedCourse) { 
+    setSections([]); 
+    setSelectedSection(''); 
+    return; 
+  }
+  setLoadingSection(true);
+  
+  axiosInstance.get(`${QUIZ_META}/meta/sections`, { 
+    params: { 
+      academic_batch_id: selectedBatch, 
+      semester_id: selectedTerm,
+      course_id: selectedCourse
+    } 
+  })
+    .then((r: any) => { 
+      setLoadingSection(false);
+      
+      // Handle different response formats
+      let sectionsData = [];
+      
+      if (r.data?.data) {
+        sectionsData = r.data.data;
+      } else if (r.data) {
+        sectionsData = r.data;
+      }
+      
+      if (!Array.isArray(sectionsData)) {
+        setSections([]);
+        return;
+      }
+      
+      // Format sections for dropdown
+      const formattedSections = sectionsData.map((item: any) => ({
+        section_id: item.section_id || item.value || item.id,
+        section: item.section || item.label || item.mt_details_name || item.name || ''
+      })).filter(item => item.section_id && item.section);
+      
+      setSections(formattedSections); 
+      setSelectedSection(''); 
+    })
+    .catch(() => {
+      setLoadingSection(false);
+      setSections([]);
+      setSelectedSection('');
+    });
+}, [selectedBatch, selectedTerm, selectedCourse]);
 
   // Fetch materials when section changes
   useEffect(() => {
@@ -178,35 +241,51 @@ const ManageShareMaterialsPage: React.FC = () => {
 
   const openAdd = () => {
     if (!selectedCourse) { toast.warn('Please select a Course first.'); return; }
-    setFormTitle(''); setFormDesc(''); setFormFiles([]); setFormUrl('');
-    setDocType('document'); setFormSection(''); setFormTopic('');
-    setFormTopics([]); setNotifyType('pre');
+    setFormTitle(''); 
+    setFormDesc(''); 
+    setFormFiles([]); 
+    setFormUrl('');
+    setDocType('document'); 
+    setFormSection(''); 
+    setFormTopic('');
+    setFormTopics([]); 
+    setNotifyType('pre');  // Default to 'pre'
     setLicense({ proprietary: false, paid: false, public: false });
-    // Load topics for the selected course
     loadTopics(selectedBatch, selectedTerm, selectedCourse);
-    setSelectedMaterial(null); setModalMode('add');
-  };
+    setSelectedMaterial(null); 
+    setModalMode('add');
+};
 
-  const openEdit = (row: Material) => {
+const openEdit = (row: Material) => {
     setFormTitle(row.document_name);
     setFormDesc(row.description || '');
     setFormFiles([]);
-    // Restore URL if material is URL-type
     const isUrl = isUrlMaterial(row);
     setDocType(isUrl ? 'url' : 'document');
     setFormUrl(isUrl ? (row.url || row.docment_url || '') : '');
     setFormSection(row.section_ids?.toString() || '');
-    // Pre-select the saved topic if available
     setFormTopic(row.topic_ids?.toString() || '');
     setFormTopics([]);
-    setNotifyType('pre');
-    const lic = (row.license || '').toLowerCase();
-    setLicense({ proprietary: lic === 'proprietary', paid: lic === 'paid', public: lic === 'public' });
+    
+    // Set notify_type from the row data
+    const notifyType = row.notify_type || 
+                      (row.before_after_class_flag === 1 ? 'pre' : 
+                       row.before_after_class_flag === 2 ? 'post' : 'pre');
+    setNotifyType(notifyType as 'pre' | 'post');
+    
+    // Set license from the row data
+    const lic = row.license || '';
+    const licLower = lic.toLowerCase();
+    setLicense({ 
+        proprietary: licLower === 'proprietary', 
+        paid: licLower === 'paid', 
+        public: licLower === 'public' 
+    });
+    
     setSelectedMaterial(row);
     setModalMode('edit');
-    // Load topics for the course so user can see/change them
     loadTopics(selectedBatch, selectedTerm, selectedCourse);
-  };
+};
 
   const handleDelete = async (row: Material) => {
     if (row.mat_id < 0) { toast.info('Demo data cannot be deleted.'); return; }
@@ -222,123 +301,405 @@ const ManageShareMaterialsPage: React.FC = () => {
 
   const openViewStudents = async (row: Material) => {
     // Don't allow viewing for demo rows
-    if (row.mat_id < 0) { toast.info('This is demo data — no real student mappings.'); return; }
-    setSelectedMaterial(row); setMappedStudents([]); setModalMode('viewStudents');
+    if (row.mat_id < 0) { 
+        toast.info('This is demo data — no real student mappings.'); 
+        return; 
+    }
+    
+    setSelectedMaterial(row); 
+    setMappedStudents([]); 
+    setModalMode('viewStudents');
+    
     try {
-      const r: any = await axiosInstance.post('/api/v1/material/material_mapping_list', { material_id: row.mat_id });
-      const d = r.data?.data ?? r.data;
-      setMappedStudents(Array.isArray(d) ? d : []);
-    } catch { toast.error('Failed to load student mapping.'); }
-  };
+        const response: any = await axiosInstance.post('/api/v1/material/material_mapping_list', { 
+            material_id: row.mat_id 
+        });
+        
+        console.log('View students response:', response.data);
+        
+        // Handle different response formats
+        let students = [];
+        if (response.data?.data) {
+            students = response.data.data;
+        } else if (response.data) {
+            students = response.data;
+        }
+        
+        // Ensure it's an array
+        if (!Array.isArray(students)) {
+            students = [];
+        }
+        
+        // Map the data to the expected format
+        const mappedData = students.map((item: any) => ({
+            student_usn: item.student_usn || item.usno || '',
+            student_name: item.student_name || item.name || `${item.first_name || ''} ${item.last_name || ''}`.trim() || 'Unknown',
+            student_id: item.student_id || item.ssd_id,
+            section_id: item.section_id,
+            section_name: item.section_name
+        }));
+        
+        setMappedStudents(mappedData);
+        
+        if (mappedData.length === 0) {
+            toast.info('No students have been shared with this material yet');
+        }
+        
+    } catch (error) {
+        console.error('Failed to load student mapping:', error);
+        toast.error('Failed to load student mapping');
+        setMappedStudents([]);
+    }
+};
+
+  // const openViewStudents = async (row: Material) => {
+  //   // Don't allow viewing for demo rows
+  //   if (row.mat_id < 0) { toast.info('This is demo data — no real student mappings.'); return; }
+  //   setSelectedMaterial(row); setMappedStudents([]); setModalMode('viewStudents');
+  //   try {
+  //     const r: any = await axiosInstance.post('/api/v1/material/material_mapping_list', { material_id: row.mat_id });
+  //     const d = r.data?.data ?? r.data;
+  //     setMappedStudents(Array.isArray(d) ? d : []);
+  //   } catch { toast.error('Failed to load student mapping.'); }
+  // };
+
+  // const openShare = async (row: Material) => {
+  //   if (row.mat_id < 0) { toast.info('This is demo data — sharing is disabled.'); return; }
+  //   setSelectedMaterial(row); setShareStudents([]); setSelectedStudentIds(new Set()); setSharedStudentUsns(new Set()); setModalMode('share');
+  //   setStudentSearchTerm('');
+  //   setLoadingStudents(true);
+  //   try {
+  //     const r: any = await axiosInstance.post('/api/v1/material/student_list', {
+  //       section_id: Number(selectedSection),
+  //       academic_batch_id: Number(selectedBatch) || 0,
+  //       semester_id: Number(selectedTerm) || 0,
+  //     });
+  //     const items = r.data?.data ?? r.data;
+  //     setShareStudents(Array.isArray(items) ? items : []);
+
+  //     // Also fetch already mapped to pre-check them
+  //     const r2: any = await axiosInstance.post('/api/v1/material/material_mapping_list', { material_id: row.mat_id });
+  //     const mapped = r2.data?.data ?? r2.data;
+  //     if (Array.isArray(mapped)) {
+  //       setSharedStudentUsns(new Set(mapped.map((m: any) => m.student_usn)));
+  //     }
+  //   } catch { toast.error('Failed to load students'); }
+  //   finally { setLoadingStudents(false); }
+  // };
 
   const openShare = async (row: Material) => {
-    if (row.mat_id < 0) { toast.info('This is demo data — sharing is disabled.'); return; }
-    setSelectedMaterial(row); setShareStudents([]); setSelectedStudentIds(new Set()); setSharedStudentUsns(new Set()); setModalMode('share');
+    if (row.mat_id < 0) { 
+        toast.info('This is demo data — sharing is disabled.'); 
+        return; 
+    }
+    
+    setSelectedMaterial(row); 
+    setShareStudents([]); 
+    setSelectedStudentIds(new Set()); 
+    setSharedStudentUsns(new Set()); 
+    setModalMode('share');
     setStudentSearchTerm('');
     setLoadingStudents(true);
+    
     try {
-      const r: any = await axiosInstance.post('/api/v1/material/student_list', {
-        section_id: Number(selectedSection),
-        academic_batch_id: Number(selectedBatch) || 0,
-        semester_id: Number(selectedTerm) || 0,
-      });
-      const items = r.data?.data ?? r.data;
-      setShareStudents(Array.isArray(items) ? items : []);
+        // Passing all required parameters including course_id
+        const r: any = await axiosInstance.post('/api/v1/material/student_list', {
+            section_id: Number(selectedSection),
+            academic_batch_id: Number(selectedBatch) || 0,
+            semester_id: Number(selectedTerm) || 0,
+            course_id: Number(selectedCourse) || 0,
+        });
+        
+        const items = r.data?.data ?? r.data;
+        // Ensure each student has student_id
+        const students = Array.isArray(items) ? items.map((s: any) => ({
+            ...s,
+            student_id: s.student_id || s.id,  // Ensure student_id exists
+            usno: s.usno || s.usn || '',
+            name: s.name || `${s.first_name || ''} ${s.last_name || ''}`.trim()
+        })) : [];
+        
+        setShareStudents(students);
 
-      // Also fetch already mapped to pre-check them
-      const r2: any = await axiosInstance.post('/api/v1/material/material_mapping_list', { material_id: row.mat_id });
-      const mapped = r2.data?.data ?? r2.data;
-      if (Array.isArray(mapped)) {
-        setSharedStudentUsns(new Set(mapped.map((m: any) => m.student_usn)));
-      }
-    } catch { toast.error('Failed to load students'); }
-    finally { setLoadingStudents(false); }
-  };
+        // Fetch already mapped to pre-check them
+        const r2: any = await axiosInstance.post('/api/v1/material/material_mapping_list', { 
+            material_id: row.mat_id 
+        });
+        
+        const mapped = r2.data?.data ?? r2.data;
+        if (Array.isArray(mapped)) {
+            // Store the USNs that are already shared
+            const sharedUsns = new Set(mapped.map((m: any) => m.student_usn));
+            setSharedStudentUsns(sharedUsns);
+            
+            // Optionally pre-select students that are already shared
+            const preSelectedIds = new Set(
+                students
+                    .filter(s => sharedUsns.has(s.usno))
+                    .map(s => s.student_id)
+            );
+            setSelectedStudentIds(preSelectedIds);
+        }
+    } catch (error) {
+        console.error('Failed to load students:', error);
+        toast.error('Failed to load students');
+    } finally { 
+        setLoadingStudents(false); 
+    }
+};
 
-  const handleShare = async () => {
+  // const handleShare = async () => {
+  //   if (!selectedMaterial) return;
+  //   if (selectedStudentIds.size === 0) { toast.warning('Select at least one student'); return; }
+  //   setSaving(true);
+  //   try {
+  //     // Resolve USNs from selected student IDs
+  //     const usns = shareStudents
+  //       .filter(s => selectedStudentIds.has(s.student_id))
+  //       .map(s => s.usno)
+  //       .filter(Boolean);
+  //     await axiosInstance.post('/api/v1/material/share_material', {
+  //       material_id: selectedMaterial.mat_id,
+  //       academic_batch_id: Number(selectedBatch),
+  //       section_id: Number(selectedSection),
+  //       student_usns: usns
+  //     });
+  //     toast.success('Successfully shared material');
+  //     closeModal();
+  //   } catch { toast.error('Failed to share material'); }
+  //   finally { setSaving(false); }
+  // };
+
+ interface ShareResponse {
+    success: boolean;
+    message: string;
+    data?: {
+        total_students: number;
+        existing_count: number;
+        new_count: number;
+    };
+}
+
+// Updated handleShare function
+const handleShare = async () => {
     if (!selectedMaterial) return;
-    if (selectedStudentIds.size === 0) { toast.warning('Select at least one student'); return; }
-    setSaving(true);
-    try {
-      // Resolve USNs from selected student IDs
-      const usns = shareStudents
-        .filter(s => selectedStudentIds.has(s.student_id))
-        .map(s => s.usno)
-        .filter(Boolean);
-      await axiosInstance.post('/api/v1/material/share_material', {
-        material_id: selectedMaterial.mat_id,
-        academic_batch_id: Number(selectedBatch),
-        section_id: Number(selectedSection),
-        student_usns: usns
-      });
-      toast.success('Successfully shared material');
-      closeModal();
-    } catch { toast.error('Failed to share material'); }
-    finally { setSaving(false); }
-  };
-
-  const handleSave = async () => {
-    if (!formTitle.trim()) { toast.error('File/Link name is required.'); return; }
-    if (docType === 'document' && modalMode === 'add' && formFiles.length === 0) { toast.error('Please choose at least one file.'); return; }
-    if (docType === 'url' && !formUrl.trim()) { toast.error('Please enter a URL.'); return; }
-    // For demo rows, just show a toast
-    if (selectedMaterial && selectedMaterial.mat_id < 0) {
-      toast.info('This is demo data — save is disabled. Add real data via the backend.');
-      closeModal(); return;
+    if (selectedStudentIds.size === 0) { 
+        toast.warning('Select at least one student'); 
+        return; 
     }
     setSaving(true);
     try {
-      const fd = new FormData();
-      fd.append('title', formTitle.trim());
-      fd.append('description', formDesc);
-      fd.append('additional_info', formDesc);
-      fd.append('doc_type', docType);
-      
-      if (docType === 'document') {
-        if (modalMode === 'add') {
-          formFiles.forEach(file => fd.append('files', file));
-        } else if (modalMode === 'edit' && formFiles.length > 0) {
-          fd.append('file', formFiles[0]);
+        // Get student IDs from selected students
+        const studentIds = shareStudents
+            .filter(s => selectedStudentIds.has(s.student_id))
+            .map(s => s.student_id)
+            .filter(Boolean);
+        
+        // Make sure we have valid IDs
+        const batchId = Number(selectedBatch);
+        const sectionId = Number(selectedSection);
+        
+        if (!batchId || !sectionId) {
+            toast.error('Please ensure all filters (Batch, Section) are selected');
+            setSaving(false);
+            return;
         }
-      }
-      
-      if (docType === 'url') fd.append('url', formUrl.trim());
-      fd.append('section_id', formSection || selectedSection);
-      fd.append('topic_id', formTopic || '');
-      const licVal = license.proprietary ? 'Proprietary' : license.paid ? 'Paid' : license.public ? 'Public' : '';
-      fd.append('license', licVal);
-      fd.append('notify_type', notifyType);
-      if (modalMode === 'add') {
-        fd.append('academic_batch_id', String(selectedBatch || 0));
-        fd.append('semester_id', String(selectedTerm || 0));
-        fd.append('course_id', String(selectedCourse || 0));
-        fd.append('created_by', String(userId));
-        await axiosInstance.post('/api/v1/material/create_material', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-        toast.success('Material uploaded successfully!');
-      } else if (modalMode === 'edit' && selectedMaterial) {
-        await axiosInstance.put(`/api/v1/material/update_material/${selectedMaterial.mat_id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-        toast.success('Material updated successfully!');
-      }
-      // Capture the section before closeModal() resets it
-      const effectiveSectionId = formSection || selectedSection;
-      closeModal();
-      // Sync the page filter and refresh the table
-      if (effectiveSectionId) {
-        setSelectedSection(effectiveSectionId);
-        const r: any = await axiosInstance.post('/api/v1/material/material_list', {
-          academic_batch_id: Number(selectedBatch) || 0,
-          semester_id: Number(selectedTerm) || 0,
-          course_id: Number(selectedCourse) || 0,
-          section_id: Number(effectiveSectionId),
+        
+        if (studentIds.length === 0) {
+            toast.error('No valid students selected');
+            setSaving(false);
+            return;
+        }
+        
+        // Log what we're sending
+        console.log('Sharing material with students:', {
+            material_id: selectedMaterial.mat_id,
+            academic_batch_id: batchId,
+            section_id: sectionId,
+            student_ids: studentIds
         });
-        const items = r.data?.data ?? r.data;
-        const fetched = Array.isArray(items) ? items : [];
-        setMaterials(fetched);
-      }
+        
+        const response = await axiosInstance.post<ShareResponse>('/api/v1/material/share_material', {
+            material_id: selectedMaterial.mat_id,
+            academic_batch_id: batchId,
+            section_id: sectionId,
+            student_ids: studentIds
+        });
+        
+        // Check response
+        if (response.data?.success) {
+            const { total_students, existing_count, new_count } = response.data.data || {};
+            let message = response.data.message || 'Successfully shared material';
+            
+            // Show detailed message
+            if (existing_count !== undefined && new_count !== undefined) {
+                if (new_count === 0) {
+                    toast.info(`All ${total_students} selected students are already mapped`);
+                } else {
+                    toast.success(`${message} (${new_count} new, ${existing_count} already mapped)`);
+                }
+            } else {
+                toast.success(message);
+            }
+            
+            closeModal();
+        } else {
+            toast.error(response.data?.message || 'Failed to share material');
+        }
+    } catch (error: any) {
+        console.error('Share error:', error);
+        const errorMessage = error?.response?.data?.message || error?.message || 'Failed to share material';
+        toast.error(errorMessage);
+    } finally { 
+        setSaving(false); 
+    }
+};
+
+  // const handleSave = async () => {
+  //   if (!formTitle.trim()) { toast.error('File/Link name is required.'); return; }
+  //   if (docType === 'document' && modalMode === 'add' && formFiles.length === 0) { toast.error('Please choose at least one file.'); return; }
+  //   if (docType === 'url' && !formUrl.trim()) { toast.error('Please enter a URL.'); return; }
+  //   // For demo rows, just show a toast
+  //   if (selectedMaterial && selectedMaterial.mat_id < 0) {
+  //     toast.info('This is demo data — save is disabled. Add real data via the backend.');
+  //     closeModal(); return;
+  //   }
+  //   setSaving(true);
+  //   try {
+  //     const fd = new FormData();
+  //     fd.append('title', formTitle.trim());
+  //     fd.append('description', formDesc);
+  //     fd.append('additional_info', formDesc);
+  //     fd.append('doc_type', docType);
+      
+  //     if (docType === 'document') {
+  //       if (modalMode === 'add') {
+  //         formFiles.forEach(file => fd.append('files', file));
+  //       } else if (modalMode === 'edit' && formFiles.length > 0) {
+  //         fd.append('file', formFiles[0]);
+  //       }
+  //     }
+      
+  //     if (docType === 'url') fd.append('url', formUrl.trim());
+  //     fd.append('section_id', formSection || selectedSection);
+  //     fd.append('topic_id', formTopic || '');
+  //     const licVal = license.proprietary ? 'Proprietary' : license.paid ? 'Paid' : license.public ? 'Public' : '';
+  //     fd.append('license', licVal);
+  //     fd.append('notify_type', notifyType);
+  //     if (modalMode === 'add') {
+  //       fd.append('academic_batch_id', String(selectedBatch || 0));
+  //       fd.append('semester_id', String(selectedTerm || 0));
+  //       fd.append('course_id', String(selectedCourse || 0));
+  //       fd.append('created_by', String(userId));
+  //       await axiosInstance.post('/api/v1/material/create_material', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  //       toast.success('Material uploaded successfully!');
+  //     } else if (modalMode === 'edit' && selectedMaterial) {
+  //       await axiosInstance.put(`/api/v1/material/update_material/${selectedMaterial.mat_id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  //       toast.success('Material updated successfully!');
+  //     }
+  //     // Capture the section before closeModal() resets it
+  //     const effectiveSectionId = formSection || selectedSection;
+  //     closeModal();
+  //     // Sync the page filter and refresh the table
+  //     if (effectiveSectionId) {
+  //       setSelectedSection(effectiveSectionId);
+  //       const r: any = await axiosInstance.post('/api/v1/material/material_list', {
+  //         academic_batch_id: Number(selectedBatch) || 0,
+  //         semester_id: Number(selectedTerm) || 0,
+  //         course_id: Number(selectedCourse) || 0,
+  //         section_id: Number(effectiveSectionId),
+  //       });
+  //       const items = r.data?.data ?? r.data;
+  //       const fetched = Array.isArray(items) ? items : [];
+  //       setMaterials(fetched);
+  //     }
+  //   } catch (err: any) {
+  //     toast.error(err?.response?.data?.detail || 'Failed to save material.');
+  //   } finally { setSaving(false); }
+  // };
+
+  const handleSave = async () => {
+    if (!formTitle.trim()) { toast.error('File/Link name is required.'); return; }
+    if (docType === 'document' && modalMode === 'add' && formFiles.length === 0) { 
+        toast.error('Please choose at least one file.'); 
+        return; 
+    }
+    if (docType === 'url' && !formUrl.trim()) { 
+        toast.error('Please enter a URL.'); 
+        return; 
+    }
+    
+    if (selectedMaterial && selectedMaterial.mat_id < 0) {
+        toast.info('This is demo data — save is disabled. Add real data via the backend.');
+        closeModal(); 
+        return; 
+    }
+    
+    setSaving(true);
+    try {
+        const fd = new FormData();
+        fd.append('title', formTitle.trim());
+        fd.append('description', formDesc);
+        fd.append('additional_info', formDesc);
+        fd.append('doc_type', docType);
+        
+        if (docType === 'document') {
+            if (modalMode === 'add') {
+                formFiles.forEach(file => fd.append('files', file));
+            } else if (modalMode === 'edit' && formFiles.length > 0) {
+                fd.append('file', formFiles[0]);
+            }
+        }
+        
+        if (docType === 'url') fd.append('url', formUrl.trim());
+        fd.append('section_id', formSection || selectedSection);
+        fd.append('topic_id', formTopic || '');
+        
+        // License handling
+        let licVal = '';
+        if (license.proprietary) licVal = 'Proprietary';
+        else if (license.paid) licVal = 'Paid';
+        else if (license.public) licVal = 'Public';
+        fd.append('license', licVal);
+        
+        // Notify type
+        fd.append('notify_type', notifyType);
+        
+        if (modalMode === 'add') {
+            fd.append('academic_batch_id', String(selectedBatch || 0));
+            fd.append('semester_id', String(selectedTerm || 0));
+            fd.append('course_id', String(selectedCourse || 0));
+            fd.append('created_by', String(userId));
+            await axiosInstance.post('/api/v1/material/create_material', fd, { 
+                headers: { 'Content-Type': 'multipart/form-data' } 
+            });
+            toast.success('Material uploaded successfully!');
+        } else if (modalMode === 'edit' && selectedMaterial) {
+            await axiosInstance.put(`/api/v1/material/update_material/${selectedMaterial.mat_id}`, fd, { 
+                headers: { 'Content-Type': 'multipart/form-data' } 
+            });
+            toast.success('Material updated successfully!');
+        }
+        
+        // Refresh the table
+        const effectiveSectionId = formSection || selectedSection;
+        closeModal();
+        if (effectiveSectionId) {
+            setSelectedSection(effectiveSectionId);
+            const r: any = await axiosInstance.post('/api/v1/material/material_list', {
+                academic_batch_id: Number(selectedBatch) || 0,
+                semester_id: Number(selectedTerm) || 0,
+                course_id: Number(selectedCourse) || 0,
+                section_id: Number(effectiveSectionId),
+            });
+            const items = r.data?.data ?? r.data;
+            const fetched = Array.isArray(items) ? items : [];
+            setMaterials(fetched);
+        }
     } catch (err: any) {
-      toast.error(err?.response?.data?.detail || 'Failed to save material.');
+        toast.error(err?.response?.data?.detail || 'Failed to save material.');
     } finally { setSaving(false); }
-  };
+};
 
   const filtered = materials.filter(m =>
     m.document_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -379,7 +740,7 @@ const ManageShareMaterialsPage: React.FC = () => {
                 disabled={!selectedBatch || loadingTerm}
               >
                 <option value="">{loadingTerm ? 'Loading...' : 'Select Term'}</option>
-                {terms.map(t => <option key={t.semester_id} value={t.semester_id}>{t.semester} - {t.semester_desc}</option>)}
+                {terms.map(t => <option key={t.semester_id} value={t.semester_id}>{t.semester} - Semester</option>)}
               </select>
             </div>
             <div>
@@ -521,7 +882,7 @@ const ManageShareMaterialsPage: React.FC = () => {
                 <span className="text-blue-700 font-medium">{selBatchLabel ? `${selBatchLabel.academic_batch_desc}` : '—'}</span>
               </span>
               <span><span className="font-semibold text-gray-500">Term: </span>
-                <span className="text-blue-700 font-medium">{selTermLabel ? `${selTermLabel.semester} - ${selTermLabel.semester_desc}` : '—'}</span>
+                <span className="text-blue-700 font-medium">{selTermLabel ? `${selTermLabel.semester} - Semester` : '—'}</span>
               </span>
               <span><span className="font-semibold text-gray-500">Course: </span>
                 <span className="text-blue-700 font-medium">{selCourseLabel ? `${selCourseLabel.crs_code} - ${selCourseLabel.crs_title}` : '—'}</span>
@@ -814,7 +1175,7 @@ const ManageShareMaterialsPage: React.FC = () => {
       )}
 
       {/* View Students Modal */}
-      {modalMode === 'viewStudents' && selectedMaterial && (
+      {/* {modalMode === 'viewStudents' && selectedMaterial && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-xl mx-4">
             <div className="bg-[#1f3a4f] text-white px-4 py-3 rounded-t-lg flex justify-between items-center">
@@ -838,7 +1199,141 @@ const ManageShareMaterialsPage: React.FC = () => {
             </div>
           </div>
         </div>
-      )}
+      )} */}
+
+
+      {/* View Students Modal */}
+{modalMode === 'viewStudents' && selectedMaterial && (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4">
+            <div className="bg-[#1f3a4f] text-white px-4 py-3 rounded-t-lg flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                    <span className="font-semibold text-sm">Students — {selectedMaterial.document_name}</span>
+                </div>
+                <button onClick={closeModal} className="text-white text-xl hover:opacity-75">
+                    &times;
+                </button>
+            </div>
+            
+            {/* Info bar showing material details */}
+            <div className="bg-gray-50 border-b border-gray-200 px-4 py-2 text-xs text-gray-600 flex flex-wrap gap-x-6 gap-y-1">
+                <span><strong>Material:</strong> {selectedMaterial.document_name}</span>
+                <span><strong>Total Students:</strong> {mappedStudents.length}</span>
+                {selectedMaterial.license && (
+                    <span><strong>License:</strong> {selectedMaterial.license}</span>
+                )}
+                {selectedMaterial.topic && (
+                    <span><strong>Topic:</strong> {selectedMaterial.topic}</span>
+                )}
+            </div>
+            
+            <div className="p-4 max-h-[60vh] overflow-y-auto">
+                {mappedStudents.length === 0 ? (
+                    <div className="text-center py-12">
+                        <svg className="mx-auto h-16 w-16 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                        <p className="mt-3 text-sm text-gray-500 font-medium">No students shared yet</p>
+                        <p className="text-xs text-gray-400 mt-1">Click the "Share" button to share this material with students.</p>
+                    </div>
+                ) : (
+                    <div className="border border-gray-200 rounded-lg overflow-hidden">
+                        <table className="w-full text-sm">
+                            <thead className="bg-gray-50">
+                                <tr>
+                                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-b border-gray-200">
+                                        #
+                                    </th>
+                                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-b border-gray-200">
+                                        USN
+                                    </th>
+                                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-b border-gray-200">
+                                        Student Name
+                                    </th>
+                                    {/* Check if any student has section_name before rendering the column */}
+                                    {mappedStudents.some(s => (s as any).section_name) && (
+                                        <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-b border-gray-200">
+                                            Section
+                                        </th>
+                                    )}
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {mappedStudents.map((s, i) => (
+                                    <tr key={i} className="hover:bg-blue-50 transition-colors duration-150">
+                                        <td className="px-4 py-2.5 text-gray-400 text-xs">{i + 1}</td>
+                                        <td className="px-4 py-2.5 font-mono text-xs font-medium text-gray-700">
+                                            {s.student_usn}
+                                        </td>
+                                        <td className="px-4 py-2.5 text-gray-800">
+                                            {s.student_name}
+                                        </td>
+                                        {/* Use type assertion to access section_name */}
+                                        {(s as any).section_name && (
+                                            <td className="px-4 py-2.5 text-gray-500 text-xs">
+                                                <span className="px-2 py-1 bg-gray-100 rounded-full">
+                                                    {(s as any).section_name}
+                                                </span>
+                                            </td>
+                                        )}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+            
+            {/* Footer with stats and actions */}
+            <div className="px-4 py-3 bg-gray-50 rounded-b-lg flex justify-between items-center border-t border-gray-200">
+                <div className="flex items-center gap-3">
+                    <span className="text-xs text-gray-500">
+                        {mappedStudents.length > 0 ? (
+                            <>
+                                <span className="font-medium text-gray-700">{mappedStudents.length}</span>
+                                {' '}student{mappedStudents.length > 1 ? 's' : ''} mapped
+                            </>
+                        ) : (
+                            'No students mapped'
+                        )}
+                    </span>
+                    {mappedStudents.length > 0 && (
+                        <span className="text-xs text-gray-400">
+                            Last updated: {new Date().toLocaleDateString()}
+                        </span>
+                    )}
+                </div>
+                <div className="flex gap-2">
+                    {mappedStudents.length > 0 && (
+                        <button 
+                            onClick={() => {
+                                // Export to CSV functionality
+                                const csv = mappedStudents.map(s => `${s.student_usn},${s.student_name}`).join('\n');
+                                const blob = new Blob(['USN,Student Name\n' + csv], { type: 'text/csv' });
+                                const url = window.URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = `students_${selectedMaterial.document_name}.csv`;
+                                a.click();
+                            }}
+                            className="px-3 py-1.5 text-xs border border-gray-300 rounded text-gray-600 hover:bg-gray-100 transition-colors duration-150"
+                        >
+                        </button>
+                    )}
+                    <button 
+                        onClick={closeModal} 
+                        className="px-4 py-1.5 text-sm bg-[#1f3a4f] text-white rounded hover:bg-[#2a4a5f] transition-colors duration-150"
+                    >
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+)}
     </div>
   );
 };
