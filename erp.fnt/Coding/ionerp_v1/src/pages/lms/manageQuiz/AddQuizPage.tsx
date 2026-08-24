@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import FixedAddQuizPage from './FixedAddQuizPage';
 
+
 interface AddQuizModalProps {
   isOpen: boolean;
   onClose: () => void;

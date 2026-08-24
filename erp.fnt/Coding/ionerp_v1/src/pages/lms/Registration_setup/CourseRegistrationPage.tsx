@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useLocation } from "react-router-dom";
-import CurriculumPageLayout from "./CurriculumPageLayout";
+import CurriculumPageLayout from "../../curriculum/CurriculumPageLayout"
 import { toast } from "react-toastify";
-import axiosInstance from "../../utils/api";
-import { ApiEndpoint } from "../../utils/ApiEndpoint/lmsApiEndpoint";
+import axiosInstance from "../../../utils/api";
+import { ApiEndpoint } from "../../../utils/ApiEndpoint/lmsApiEndpoint";
 import { Info, HelpCircle, List, ArrowUpDown } from "lucide-react";
 
 interface CourseItem {

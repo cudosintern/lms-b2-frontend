@@ -8,7 +8,7 @@ import QuestionnairePage from "../pages/mentoring/QuestionnairePage";
 import MentoringSessionPage from "../pages/mentoring/MentoringSessionPage";
 import MapMentorMenteePage from "../pages/mentoring/MapMentorMenteePage";
 import MmpReportPage from "../pages/mentoring/MmpReportPage";
-import CourseRegistrationPage from "../pages/curriculum/CourseRegistrationPage";
+import CourseRegistrationPage from "../pages/lms/Registration_setup/CourseRegistrationPage";
 import IssueObservationReportPage from "../pages/lms/mmp/reports/IssueObservationReportPage";
 import { FaHome, FaUsers, FaBook } from "react-icons/fa";
 import ManageTopicInstructor from "../pages/lms/manageTopicInstructor/ManageTopicInstructor";
@@ -16,10 +16,23 @@ import ManageQuizPage from "../pages/lms/manageQuiz/ManageQuizPage";
 import ManageShareMaterialsPage from "../pages/lms/manageshare/ManageShareMaterialsPage";
 import TimetableListPage from "../pages/lms/timetable/timetableListPage";
 import TimetableCalendarPage from "../pages/lms/timetableCalendar/TimetableCalendarPage";
-import ReceiveAnnouncementPage from "../pages/lms/ReciveAnnouncement/ReceiveAnnouncementPage";
-import SendAnnouncementPage from "../pages/lms/sendAnnouncement/SendAnnouncementPage";
+// import ReceiveAnnouncementPage from "../pages/lms/ReciveAnnouncement/ReceiveAnnouncementPage";
+// import SendAnnouncementPage from "../pages/lms/sendAnnouncement/SendAnnouncementPage";
 import AnnouncementPage from "../pages/lms/announcement/AnnouncementPage";
 import ManageAssignmentPage from "../pages/lms/manageAssignment/ManageAssignmentPage";
+
+import student_DCTRReport from "../pages/lms/reports/student_DCTRReport";
+import student_sharedmaterial from "../pages/lms/reports/student_sharedmaterial";
+import  AttendanceReportPage  from "../pages/lms/reports/AttendanceReportPage";
+import  studentRecordPage  from "../pages/lms/studentRecord/StudentRecordPage"
+import  StudentAttendanceReport  from "../pages/lms/studentAttendanceReport/StudentAttendanceReport"
+// import student_StudentQuiz from "../pages/lms/reports/student_StudentQuiz/student_StudentQuiz"  
+import StudentQuiz from "../pages/lms/reports/student_StudentQuiz";
+
+import MyAssignmentPage from "../pages/lms_student/my_assignment/MyAssignmentPage";
+import MyClass from "../pages/lms_student/student_myClass/MyClass";
+import MyQuizPage from "../pages/lms_student/myQuiz/MyQuizPage";
+
 
 export const MAINROUTE = [
   {
@@ -77,29 +90,28 @@ export const MAINROUTE = [
       subItems: [],
       // hidden: true,
     },
-    {
-      name: "Receive Announcement",
-      href: "receive-announcement",
-      element: ReceiveAnnouncementPage,
-      roles: [],
-      subItems: [],
-      // hidden: true,
-    },
-    {
-      name: "Send Announcement",
-      href: "send-announcement",
-      element: SendAnnouncementPage,
-      roles: [],
-      subItems: [],
-      // hidden: true,
-    },
+    // {
+    //   name: "Receive Announcement",
+    //   href: "receive-announcement",
+    //   element: ReceiveAnnouncementPage,
+    //   roles: [],
+    //   subItems: [],
+    //   // hidden: true,
+    // },
+    // {
+    //   name: "Send Announcement",
+    //   href: "send-announcement",
+    //   element: SendAnnouncementPage,
+    //   roles: [],
+    //   subItems: [],
+    //   // hidden: true,
+    // },
       {
       name: "Announcement",
       href: "announcement",
       element: AnnouncementPage,
       roles: [],
       subItems: [],
-      // hidden: true,
     },
     {
       name: "Manage Assignment",
@@ -107,9 +119,105 @@ export const MAINROUTE = [
       roles: ["faculty"],
       element: ManageAssignmentPage,
       subItems: [],
-      // hidden: true,
+    },
+
+    {
+      name: "Registration Setup",
+      href: "course-registration-setup",
+      roles: ["faculty"],
+      element: CourseRegistrationPage,
+      subItems: [],
     },
     ],
+  },
+
+  {
+    
+    name: "Reports",
+    href: "/reports",
+    element: ManageTopicInstructor,
+    icon: React.createElement("div", { className: "w-6 h-6 rounded bg-emerald-600 flex items-center justify-center text-white mr-1.5" }, React.createElement(FaUsers, { size: 11 })),
+    roles: [],
+    subItems: [
+       {
+       name: "DCTR Report",
+      href: "student-dctr-report",
+      element: student_DCTRReport,
+      roles: [],
+      subItems: [],
+      }
+      ,{
+       name: "Attendance Report",
+      href: "attendance-report",
+      element: AttendanceReportPage,
+      roles: [],
+      subItems: [],
+      }
+      ,{
+       name: "Student Record Report",
+      href: "student-record-report",
+      element: studentRecordPage,
+      roles: [],
+      subItems: [],
+      }
+      ,{
+       name: "Student Attendance Report",
+      href: "student-attendance-report",
+      element: StudentAttendanceReport,
+      roles: [],
+      subItems: [],
+      },
+       {
+       name: "Attendance Report",
+      href: "attendance-report",
+      element: AttendanceReportPage,
+      roles: [],
+      subItems: [],
+      }
+      ,
+       {
+       name: "Student Quiz Report",
+      href: "student-quiz-report",
+      element: StudentQuiz,
+      roles: [],
+      subItems: [],
+      }
+    ]
+
+  },
+
+  {
+    name: "Student",
+    href: "/lms",
+    element: ManageTopicInstructor,
+    icon: React.createElement("div", { className: "w-6 h-6 rounded bg-emerald-600 flex items-center justify-center text-white mr-1.5" }, React.createElement(FaUsers, { size: 11 })),
+    roles: [],
+    subItems: [
+      {
+        name: "My Class",
+        href: "my-class",
+        element: MyClass,
+        roles: [],
+        subItems: [],
+      },
+       {
+        name: "My Quiz",
+        href: "my-quiz",
+        element: MyQuizPage,
+        roles: [],
+        subItems: [],
+      },
+       {
+        name: "My Assignment",
+        href: "my-assignment",
+        element: MyAssignmentPage,
+        roles: [],
+        subItems: [],
+      },
+
+
+    ]
+
   },
   
   {
@@ -179,7 +287,7 @@ export const MAINROUTE = [
   {
     name: "Curriculum",
     href: "/curriculum",
-    element: CourseRegistrationPage,
+    element: ChangePasswordPage,
     icon: React.createElement("div", { className: "w-6 h-6 rounded bg-indigo-600 flex items-center justify-center text-white mr-1.5" }, React.createElement(FaBook, { size: 11 })),
     roles: [],
     subItems: [],

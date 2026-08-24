@@ -179,11 +179,30 @@ export const useManageQuizService = () => {
 
 
 
+// const getStudents = async (quizId: number) => {
+//   const res: any = await axiosInstance.get(
+//     ApiEndpoint.quiz.students(quizId)
+//   );
+//   return res.data || [];
+// };
+
+// In manageQuizService.ts
+const getQuizStudents = async (quizId: number, params?: any) => {
+  try {
+    const res: any = await axiosInstance.get(
+      `/api/v1/manage-quiz/${quizId}/students`, 
+      { params }
+    );
+    return res.data?.data || res.data || [];
+  } catch (error) {
+    console.error('Error fetching students:', error);
+    return [];
+  }
+};
+
+// Also update the existing getStudents to use the new function
 const getStudents = async (quizId: number) => {
-  const res: any = await axiosInstance.get(
-    ApiEndpoint.quiz.students(quizId)
-  );
-  return res.data || [];
+  return getQuizStudents(quizId);
 };
 
 const assignStudents = async (payload: any) => {
@@ -193,11 +212,6 @@ const assignStudents = async (payload: any) => {
   );
   return res.data;
 };
-
-  
-
- 
-
   const shareQuiz = async (id: number, payload: any) => {
     const res: any = await axiosInstance.post(ApiEndpoint.quiz.share(id), payload);
     return res.data;
@@ -244,7 +258,8 @@ const getQuizQuestions = async (quizId: number) => {
     getMetaCurriculums,
     getMetaTerms,
     getMetaCourses,
-    getMetaSections
+    getMetaSections,
+    getQuizStudents
   };
 };
 

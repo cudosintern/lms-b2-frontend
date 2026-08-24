@@ -1091,7 +1091,7 @@ const handleShare = async () => {
                   </div>
                   <div className="px-3 py-2 flex items-center gap-1">
                     <span className="font-semibold text-gray-600 whitespace-nowrap">Term:</span>
-                    <span className="text-gray-800">{terms.find(t => String(t.semester_id) === selectedTerm)?.semester} - {terms.find(t => String(t.semester_id) === selectedTerm)?.semester_desc}</span>
+                    <span className="text-gray-800">{terms.find(t => String(t.semester_id) === selectedTerm)?.semester} - Semester</span>
                   </div>
                   <div className="px-3 py-2 flex items-center gap-1">
                     <span className="font-semibold text-gray-600 whitespace-nowrap">Material Name:</span>

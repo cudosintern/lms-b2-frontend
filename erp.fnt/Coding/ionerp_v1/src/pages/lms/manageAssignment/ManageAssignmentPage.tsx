@@ -20,7 +20,7 @@ interface Assignment {
   section_id?: number | string;
   topic_id?: number | string;
   bloom_ids?: number[];
-  update_count?: number;
+  // update_count?: number;
 }
 interface BloomLevel { bloom_id: number; bloom_name: string; bloom_code: string; }
 interface ShareStudent { student_id: number; usno: string; name: string; first_name: string; last_name: string; }
@@ -54,6 +54,23 @@ const defaultForm = {
 const ManageAssignmentPage: React.FC = () => {
   const authState = LocalStorageHelper.getObject<loginData>('auth_state');
   const userId: number = (authState as any)?.user_id ?? (authState as any)?.id ?? 1;
+
+  const [touched, setTouched] = useState({
+  batch: false,
+  term: false,
+  course: false,
+  section: false,
+});
+
+// Function to mark all fields as touched when trying to add
+const validateAll = () => {
+  setTouched({
+    batch: true,
+    term: true,
+    course: true,
+    section: true,
+  });
+};
 
   // Dropdown state
   const [curriculums, setCurriculums] = useState<Curriculum[]>([]);
@@ -105,16 +122,29 @@ const ManageAssignmentPage: React.FC = () => {
   const [reviewForm, setReviewForm] = useState<{ action: 'approve' | 'rework' | 'pending'; secured_marks: string; remark: string }>({ action: 'approve', secured_marks: '', remark: '' });
   const [reviewSaving, setReviewSaving] = useState(false);
 
-  // Load topics when course changes
-  const loadTopics = useCallback((batchId: string, termId: string, courseId: string) => {
-    if (!batchId || !termId || !courseId) { setTopics([]); return; }
-    setLoadingTopics(true);
-    axiosInstance.get(`${QUIZ_META}/meta/topics`, {
-      params: { academic_batch_id: Number(batchId), semester_id: Number(termId), crs_id: Number(courseId) }
+  const loadTopics = useCallback((batchId: string, termId: string, courseId: string, sectionId: string) => {
+  if (!batchId || !termId || !courseId || !sectionId) { 
+    setTopics([]); 
+    return; 
+  }
+  setLoadingTopics(true);
+  axiosInstance.get(`${QUIZ_META}/meta/topics`, {
+    params: { 
+      academic_batch_id: Number(batchId), 
+      semester_id: Number(termId), 
+      crs_id: Number(courseId),
+      section_id: Number(sectionId)
+    }
+  })
+    .then((r: any) => { 
+      setTopics(Array.isArray(r.data?.data) ? r.data.data : []); 
+      setLoadingTopics(false); 
     })
-      .then((r: any) => { setTopics(Array.isArray(r.data?.data) ? r.data.data : []); setLoadingTopics(false); })
-      .catch(() => { setTopics([]); setLoadingTopics(false); });
-  }, []);
+    .catch(() => { 
+      setTopics([]); 
+      setLoadingTopics(false); 
+    });
+}, []);
 
   // Load curriculums on mount
   useEffect(() => {
@@ -145,45 +175,125 @@ const ManageAssignmentPage: React.FC = () => {
   }, [selectedBatch, selectedTerm]);
 
   useEffect(() => {
-    if (!selectedBatch || !selectedTerm) { setSections([]); setSelectedSection(''); return; }
-    setLoadingSection(true);
-    const doneD = () => setLoadingSection(false);
-    axiosInstance.get(`${QUIZ_META}/meta/sections`, { params: { academic_batch_id: selectedBatch, semester_id: selectedTerm } })
-      .then((r: any) => { setSections(Array.isArray(r.data?.data) ? r.data.data : []); setSelectedSection(''); doneD(); }, doneD);
-  }, [selectedBatch, selectedTerm]);
+  if (!selectedBatch || !selectedTerm || !selectedCourse) { 
+    setSections([]); 
+    setSelectedSection(''); 
+    return; 
+  }
+  setLoadingSection(true);
+  
+  axiosInstance.get(`${QUIZ_META}/meta/sections`, { 
+    params: { 
+      academic_batch_id: selectedBatch, 
+      semester_id: selectedTerm,
+      course_id: selectedCourse
+    } 
+  })
+    .then((r: any) => { 
+      setLoadingSection(false);
+      
+      // Handle different response formats
+      let sectionsData = [];
+      
+      if (r.data?.data) {
+        sectionsData = r.data.data;
+      } else if (r.data) {
+        sectionsData = r.data;
+      }
+      
+      if (!Array.isArray(sectionsData)) {
+        setSections([]);
+        return;
+      }
+      
+      // Format sections for dropdown
+      const formattedSections = sectionsData.map((item: any) => ({
+        section_id: item.section_id || item.value || item.id,
+        section: item.section || item.label || item.mt_details_name || item.name || ''
+      })).filter(item => item.section_id && item.section);
+      
+      setSections(formattedSections); 
+      setSelectedSection(''); 
+    })
+    .catch(() => {
+      setLoadingSection(false);
+      setSections([]);
+      setSelectedSection('');
+    });
+}, [selectedBatch, selectedTerm, selectedCourse]);
 
   // When course changes, reload topics
-  useEffect(() => {
-    loadTopics(selectedBatch, selectedTerm, selectedCourse);
-  }, [selectedBatch, selectedTerm, selectedCourse, loadTopics]);
+ // When course changes, reload topics (now includes section)
+useEffect(() => {
+  loadTopics(selectedBatch, selectedTerm, selectedCourse, selectedSection);
+}, [selectedBatch, selectedTerm, selectedCourse, selectedSection, loadTopics]);
 
-  const fetchAssignments = useCallback(async () => {
-    // Only fetch when all three required dropdowns are selected
-    if (!selectedBatch || !selectedTerm || !selectedCourse) {
-      setAssignments([]);
-      return;
-    }
-    setLoading(true);
-    try {
-      const params: any = {
-        created_by: userId,
-        academic_batch_id: Number(selectedBatch),
-        semester_id: Number(selectedTerm),
-        crs_id: Number(selectedCourse),
-      };
-      const r: any = await axiosInstance.get(`${ASSIGN_API}/list`, { params });
-      const items = r.data?.data?.items ?? r.data?.items ?? r.data;
-      const fetched = Array.isArray(items) ? items : [];
-      setAssignments(fetched);
-    } catch {
-      setAssignments([]);
-    }
-    finally { setLoading(false); }
-  }, [userId, selectedBatch, selectedTerm, selectedCourse]);
+
+//   const fetchAssignments = useCallback(async () => {
+//   // Only fetch when all three required dropdowns are selected
+//   if (!selectedBatch || !selectedTerm || !selectedCourse) {
+//     setAssignments([]);
+//     return;
+//   }
+//   setLoading(true);
+//   try {
+//     const params: any = {
+//       created_by: userId,
+//       academic_batch_id: Number(selectedBatch),
+//       semester_id: Number(selectedTerm),
+//       crs_id: Number(selectedCourse),
+//     };
+    
+//     // Only add section_id if a section is selected
+//     if (selectedSection) {
+//       params.section_id = Number(selectedSection);
+//     }
+    
+//     const r: any = await axiosInstance.get(`${ASSIGN_API}/list`, { params });
+//     const items = r.data?.data?.items ?? r.data?.items ?? r.data;
+//     const fetched = Array.isArray(items) ? items : [];
+//     setAssignments(fetched);
+//   } catch (error) {
+//     console.error('Error fetching assignments:', error);
+//     setAssignments([]);
+//   }
+//   finally { 
+//     setLoading(false); 
+//   }
+// }, [userId, selectedBatch, selectedTerm, selectedCourse, selectedSection]); 
+
+const fetchAssignments = useCallback(async () => {
+  // All four dropdowns are required
+  if (!selectedBatch || !selectedTerm || !selectedCourse || !selectedSection) {
+    setAssignments([]);
+    return;
+  }
+  
+  setLoading(true);
+  try {
+    const params: any = {
+      created_by: userId,
+      academic_batch_id: Number(selectedBatch),
+      semester_id: Number(selectedTerm),
+      crs_id: Number(selectedCourse),
+      section_id: Number(selectedSection), // Now required
+    };
+    
+    const r: any = await axiosInstance.get(`${ASSIGN_API}/list`, { params });
+    const items = r.data?.data?.items ?? r.data?.items ?? r.data;
+    const fetched = Array.isArray(items) ? items : [];
+    setAssignments(fetched);
+  } catch (error) {
+    console.error('Error fetching assignments:', error);
+    setAssignments([]);
+  } finally { 
+    setLoading(false); 
+  }
+}, [userId, selectedBatch, selectedTerm, selectedCourse, selectedSection]);
 
   useEffect(() => {
-    fetchAssignments();
-  }, [selectedBatch, selectedTerm, selectedCourse, fetchAssignments]);
+  fetchAssignments();
+}, [selectedBatch, selectedTerm, selectedCourse, selectedSection, fetchAssignments]); 
 
   const closeModal = () => {
     setModalMode(null); setForm(defaultForm); setSelectedAssignment(null);
@@ -192,6 +302,12 @@ const ManageAssignmentPage: React.FC = () => {
   };
 
   const openAdd = () => {
+
+    // Check if all required dropdowns are selected
+  if (!selectedBatch || !selectedTerm || !selectedCourse || !selectedSection) {
+    toast.warning('Please select Curriculum, Term, Course, and Section first');
+    return;
+  }
     setForm({ ...defaultForm, section_id: selectedSection });
     setSelectedAssignment(null);
     setModalMode('add');
@@ -226,23 +342,44 @@ const ManageAssignmentPage: React.FC = () => {
   };
 
   const openShare = async (a: Assignment) => {
-    if (a.lms_assignment_id < 0) { toast.info('This is demo data — sharing is disabled.'); return; }
-    setSelectedAssignment(a); setShareStudents([]); setSelectedStudentIds(new Set()); setModalMode('share');
-    setSharedStatusMap(new Map()); setAssignmentDetails(null); setStudentSearchTerm('');
-    setLoadingStudents(true);
+  if (a.lms_assignment_id < 0) { 
+    toast.info('This is demo data — sharing is disabled.'); 
+    return; 
+  }
+  
+  setSelectedAssignment(a); 
+  setShareStudents([]); 
+  setSelectedStudentIds(new Set()); 
+  setModalMode('share');
+  setSharedStatusMap(new Map()); 
+  setAssignmentDetails(null); 
+  setStudentSearchTerm('');
+  setLoadingStudents(true);
 
-    // Step 1: Fetch students list (required)
-    try {
-      const params: any = {};
-      if (selectedBatch) params.academic_batch_id = Number(selectedBatch);
-      if (selectedTerm) params.semester_id = Number(selectedTerm);
-      if (selectedSection) params.section = sections.find(s => String(s.section_id) === selectedSection)?.section;
-      const r1: any = await axiosInstance.get(`${ASSIGN_API}/meta/students`, { params });
-      const items = r1.data?.data?.items ?? r1.data?.items ?? r1.data;
-      setShareStudents(Array.isArray(items) ? items : []);
-    } catch {
-      toast.error('Failed to load student list');
+  try {
+    const params: any = {};
+    
+    // All filters must be selected
+    if (!selectedBatch || !selectedTerm || !selectedCourse || !selectedSection) {
+      toast.warning('Please select all filters first');
+      setLoadingStudents(false);
+      return;
     }
+    
+    params.academic_batch_id = Number(selectedBatch);
+    params.semester_id = Number(selectedTerm);
+    params.crs_id = Number(selectedCourse); // This is CRITICAL
+    params.section = sections.find(s => String(s.section_id) === selectedSection)?.section;
+    
+    console.log('Fetching students with params:', params);
+    
+    const r1: any = await axiosInstance.get(`${ASSIGN_API}/meta/students`, { params });
+    const items = r1.data?.data?.items ?? r1.data?.items ?? r1.data;
+    setShareStudents(Array.isArray(items) ? items : []);
+  } catch (error) {
+    console.error('Failed to load student list:', error);
+    toast.error('Failed to load student list');
+  }
 
     // Step 2: Fetch assignment details + already-shared students (optional — don't block modal)
     try {
@@ -393,42 +530,112 @@ const ManageAssignmentPage: React.FC = () => {
         </div>
 
         <div className="p-4">
-          {/* Filter Row */}
-          <div className="grid grid-cols-5 gap-3 mb-4 items-end">
+         {/* Filter Row */}
+          <div className="grid grid-cols-5 gap-3 mb-4 items-start">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Curriculum <span className="text-red-500">*</span></label>
-              <select className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm bg-white focus:outline-none disabled:opacity-50"
-                value={selectedBatch} onChange={e => { setSelectedBatch(e.target.value); setCurrentPage(1); }} disabled={loadingBatch}>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Curriculum <span className="text-red-500">*</span>
+              </label>
+              <select 
+                className={`w-full border ${touched.batch && !selectedBatch ? 'border-red-400 bg-red-50' : 'border-gray-300'} rounded px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50`}
+                value={selectedBatch} 
+                onChange={e => { 
+                  setSelectedBatch(e.target.value); 
+                  setCurrentPage(1);
+                  setTouched(prev => ({ ...prev, batch: true }));
+                }} 
+                onBlur={() => setTouched(prev => ({ ...prev, batch: true }))}
+                disabled={loadingBatch}
+              >
                 <option value="">{loadingBatch ? 'Loading...' : 'Select Curriculum'}</option>
                 {curriculums.map(c => <option key={c.academic_batch_id} value={c.academic_batch_id}>{c.academic_batch_desc} {c.academic_year || `(${c.academic_batch_code})`}</option>)}
               </select>
+              {touched.batch && !selectedBatch && <span className="text-xs text-red-500 mt-1 block">Required</span>}
             </div>
+            
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Term <span className="text-red-500">*</span></label>
-              <select className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm bg-white focus:outline-none disabled:opacity-50"
-                value={selectedTerm} onChange={e => { setSelectedTerm(e.target.value); setCurrentPage(1); }} disabled={!selectedBatch || loadingTerm}>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Term <span className="text-red-500">*</span>
+              </label>
+              <select 
+                className={`w-full border ${touched.term && !selectedTerm ? 'border-red-400 bg-red-50' : 'border-gray-300'} rounded px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50`}
+                value={selectedTerm} 
+                onChange={e => { 
+                  setSelectedTerm(e.target.value); 
+                  setCurrentPage(1);
+                  setTouched(prev => ({ ...prev, term: true }));
+                }} 
+                onBlur={() => setTouched(prev => ({ ...prev, term: true }))}
+                disabled={!selectedBatch || loadingTerm}
+              >
                 <option value="">{loadingTerm ? 'Loading...' : 'Select Term'}</option>
-                {terms.map(t => <option key={t.semester_id} value={t.semester_id}>{t.semester} - {t.semester_desc}</option>)}
+                {terms.map(t => <option key={t.semester_id} value={t.semester_id}>{t.semester} - Semester</option>)}
               </select>
+              {touched.term && !selectedTerm && <span className="text-xs text-red-500 mt-1 block">Required</span>}
             </div>
+            
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Course <span className="text-red-500">*</span></label>
-              <select className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm bg-white focus:outline-none disabled:opacity-50"
-                value={selectedCourse} onChange={e => { setSelectedCourse(e.target.value); setCurrentPage(1); }} disabled={!selectedTerm || loadingCourse}>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Course <span className="text-red-500">*</span>
+              </label>
+              <select 
+                className={`w-full border ${touched.course && !selectedCourse ? 'border-red-400 bg-red-50' : 'border-gray-300'} rounded px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50`}
+                value={selectedCourse} 
+                onChange={e => { 
+                  setSelectedCourse(e.target.value); 
+                  setCurrentPage(1);
+                  setTouched(prev => ({ ...prev, course: true }));
+                }} 
+                onBlur={() => setTouched(prev => ({ ...prev, course: true }))}
+                disabled={!selectedTerm || loadingCourse}
+              >
                 <option value="">{loadingCourse ? 'Loading...' : 'Select Course'}</option>
                 {courses.map(c => <option key={c.crs_id} value={c.crs_id}>{c.crs_title} ({c.crs_code})</option>)}
               </select>
+              {touched.course && !selectedCourse && <span className="text-xs text-red-500 mt-1 block">Required</span>}
             </div>
+            
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Section <span className="text-red-500">*</span></label>
-              <select className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm bg-white focus:outline-none disabled:opacity-50"
-                value={selectedSection} onChange={e => { setSelectedSection(e.target.value); setCurrentPage(1); }} disabled={!selectedTerm || loadingSection}>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Section <span className="text-red-500">*</span>
+              </label>
+              <select 
+                className={`w-full border ${touched.section && !selectedSection ? 'border-red-400 bg-red-50' : 'border-gray-300'} rounded px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50`}
+                value={selectedSection} 
+                onChange={e => { 
+                  setSelectedSection(e.target.value); 
+                  setCurrentPage(1);
+                  setTouched(prev => ({ ...prev, section: true }));
+                }} 
+                onBlur={() => setTouched(prev => ({ ...prev, section: true }))}
+                disabled={!selectedTerm || loadingSection}
+              >
                 <option value="">{loadingSection ? 'Loading...' : 'Select Section'}</option>
                 {sections.map(s => <option key={s.section_id} value={s.section_id}>{s.section}</option>)}
               </select>
+              {touched.section && !selectedSection && <span className="text-xs text-red-500 mt-1 block">Required</span>}
             </div>
-            <div className="flex justify-end">
-              <button onClick={openAdd} className="bg-[#1a73e8] text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700 whitespace-nowrap">
+            
+            <div className="flex justify-end items-end">
+              <button 
+                onClick={() => {
+                  // Mark all as touched when trying to add
+                  setTouched({
+                    batch: true,
+                    term: true,
+                    course: true,
+                    section: true,
+                  });
+                  openAdd();
+                }} 
+                disabled={!selectedBatch || !selectedTerm || !selectedCourse || !selectedSection}
+                className={`px-3 py-1.5 rounded text-sm whitespace-nowrap ${
+                  !selectedBatch || !selectedTerm || !selectedCourse || !selectedSection
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-[#1a73e8] text-white hover:bg-blue-700'
+                }`}
+                title={!selectedBatch || !selectedTerm || !selectedCourse || !selectedSection ? 'Please select all required fields first' : ''}
+              >
                 Add Assignment ⊞
               </button>
             </div>
@@ -467,8 +674,8 @@ const ManageAssignmentPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {!selectedBatch || !selectedTerm || !selectedCourse ? (
-                  <tr><td colSpan={10} className="px-4 py-10 text-center text-gray-400 text-sm">Please select Curriculum, Term and Course to view assignments.</td></tr>
+                {!selectedBatch || !selectedTerm || !selectedCourse || !selectedSection ? (
+                  <tr><td colSpan={10} className="px-4 py-10 text-center text-gray-400 text-sm">Please select Curriculum, Term, Course, and Section to view assignments.</td></tr>
                 ) : loading ? (
                   <tr><td colSpan={10} className="px-4 py-10 text-center text-gray-400">Loading...</td></tr>
                 ) : pageData.length > 0 ? pageData.map((a, idx) => (
@@ -477,12 +684,12 @@ const ManageAssignmentPage: React.FC = () => {
                     <td className="px-3 py-2">{(currentPage - 1) * showEntries + idx + 1}</td>
                     <td className="px-3 py-2">
                       <span className="font-medium text-blue-700">{a.assignment_name}</span>
-                      {(a.update_count ?? 0) > 0 && (
-                        <span
+                      {/* {(a.update_count ?? 0) > 0 && ( */}
+                        {/* <span
                           className="ml-1.5 inline-flex items-center justify-center w-[18px] h-[18px] text-[10px] bg-orange-100 text-orange-600 rounded-full font-bold cursor-help align-middle border border-orange-200"
                           title={`Assignment updated ${a.update_count} time(s) after sharing`}
-                        >ℹ</span>
-                      )}
+                        >ℹ</span> */}
+                      {/* )} */}
                     </td>
                     {/* Section — pulled from backend field or filter */}
                     <td className="px-3 py-2 text-xs text-gray-600">
@@ -626,7 +833,7 @@ const ManageAssignmentPage: React.FC = () => {
               </div>
 
               {/* Bloom's Taxonomy */}
-              {bloomLevels.length > 0 && (
+              {bloomLevels.length > 0 && (  // ✅ Only shows if there's data
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Bloom's Taxonomy Levels</label>
                   <div className="flex flex-wrap gap-2">

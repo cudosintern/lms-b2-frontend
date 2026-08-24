@@ -73,6 +73,19 @@ export default function ManageQuizPage() {
   const [studentSearchTerm, setStudentSearchTerm] = useState('');
   const [submittingShare, setSubmittingShare] = useState(false);
 
+
+  // Find the selected objects from the dropdown data
+const selectedCurriculum = curriculums.find(
+  c => Number(c.academic_batch_id) === Number(selectedBatch)
+);
+
+const selectedTermData = terms.find(
+  t => Number(t.semester_id) === Number(selectedTerm)
+);
+
+const selectedCourseData = courses.find(
+  c => Number(c.crs_id) === Number(selectedCourse)
+);
   // Load curriculums on mount
   useEffect(() => {
     setLoadingBatch(true);
@@ -214,16 +227,63 @@ export default function ManageQuizPage() {
     finally { setLoadingQuestions(false); }
   };
 
-  const openStudents = async (quiz: Quiz) => {
+  // const openStudents = async (quiz: Quiz) => {
+  //   setStudentsModal({ quiz, students: [] });
+  //   setLoadingStudents(true);
+  //   try {
+  //     const data = await service.getStudents(quiz.quiz_id);
+  //     const arr = Array.isArray(data) ? data : (data?.items ?? []);
+  //     setStudentsModal({ quiz, students: arr });
+  //   } catch { setStudentsModal({ quiz, students: [] }); }
+  //   finally { setLoadingStudents(false); }
+  // };
+
+const openStudents = async (quiz: Quiz) => {
+  // Check if all filters are selected
+  if (!selectedBatch || !selectedTerm || !selectedCourse) {
+    alert('Please select Curriculum, Term, and Course ');
+    return;
+  }
+  
+  setStudentsModal({ quiz, students: [] });
+  setLoadingStudents(true);
+  
+  try {
+    // Pass all required parameters to get students from the course
+    const params: any = {
+      academic_batch_id: Number(selectedBatch),
+      semester_id: Number(selectedTerm),
+      crs_id: Number(selectedCourse),
+    };
+    
+    
+    const data = await service.getQuizStudents(quiz.quiz_id, params);
+    console.log('📊 Students data:', data);
+    
+    // Handle different response formats
+    let studentsArray = [];
+    if (Array.isArray(data)) {
+      studentsArray = data;
+    } else if (data?.items) {
+      studentsArray = data.items;
+    } else if (data?.data) {
+      studentsArray = data.data;
+    } else {
+      studentsArray = [];
+    }
+    
+    setStudentsModal({ 
+      quiz, 
+      students: studentsArray 
+    });
+    
+  } catch (error) {
+    console.error('Failed to load students:', error);
     setStudentsModal({ quiz, students: [] });
-    setLoadingStudents(true);
-    try {
-      const data = await service.getStudents(quiz.quiz_id);
-      const arr = Array.isArray(data) ? data : (data?.items ?? []);
-      setStudentsModal({ quiz, students: arr });
-    } catch { setStudentsModal({ quiz, students: [] }); }
-    finally { setLoadingStudents(false); }
-  };
+  } finally {
+    setLoadingStudents(false);
+  }
+};
 
   const refreshQuestions = async (quiz: Quiz) => {
     setLoadingQuestions(true);
@@ -556,7 +616,7 @@ export default function ManageQuizPage() {
         </div>
       </div>
 
-      {/* Add Quiz Modal */}
+     {/* Add Quiz Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-auto">
@@ -564,6 +624,9 @@ export default function ManageQuizPage() {
               initialBatchId={Number(selectedBatch)}
               initialSemesterId={Number(selectedTerm)}
               initialCourseId={Number(selectedCourse)}
+              selectedCurriculum={selectedCurriculum}
+              selectedTermData={selectedTermData}
+              selectedCourseData={selectedCourseData}
               onSuccess={() => {
                 setShowAddModal(false);
                 refreshQuizzes();
@@ -862,7 +925,7 @@ export default function ManageQuizPage() {
       )}
 
       {/* ── View Students Modal ── */}
-      {studentsModal && (
+      {/* {studentsModal && (
         <div className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 overflow-y-auto py-6">
           <div className="bg-white rounded-lg shadow-2xl w-full max-w-3xl mx-4 my-auto">
             <div className="bg-[#1f3a4f] text-white px-5 py-3 rounded-t-lg flex justify-between items-center">
@@ -915,7 +978,111 @@ export default function ManageQuizPage() {
             </div>
           </div>
         </div>
-      )}
+      )} */}
+
+      {/* ── View Students Modal ── */}
+{/* ── View Students Modal ── */}
+{studentsModal && (
+  <div className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 overflow-y-auto py-6">
+    <div className="bg-white rounded-lg shadow-2xl w-full max-w-5xl mx-4 my-auto">
+      <div className="bg-[#1f3a4f] text-white px-5 py-3 rounded-t-lg flex justify-between items-center">
+        <div>
+          <span className="font-semibold text-sm">View Students — {studentsModal.quiz.quiz_title}</span>
+          <span className="ml-3 text-xs text-gray-300">
+            ({studentsModal.students.filter(s => s.is_mapped).length} shared / {studentsModal.students.length} total)
+          </span>
+        </div>
+        <button onClick={() => setStudentsModal(null)} className="text-white text-2xl font-light">&times;</button>
+      </div>
+      <div className="p-5">
+        {loadingStudents ? (
+          <div className="flex justify-center py-10">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1f3a4f]"></div>
+          </div>
+        ) : studentsModal.students.length > 0 ? (
+          <div className="border border-gray-200 rounded overflow-hidden">
+            <table className="w-full text-xs">
+              <thead className="bg-[#d6dde3] text-gray-700 sticky top-0">
+                <tr>
+                  <th className="px-3 py-2 w-8">#</th>
+                  <th className="px-3 py-2 text-left">USN</th>
+                  <th className="px-3 py-2 text-left">Student Name</th>
+                  <th className="px-3 py-2 text-left">Section</th>
+                  <th className="px-3 py-2 text-center">Status</th>
+                  <th className="px-3 py-2 text-center">Shared</th>
+                  <th className="px-3 py-2 text-center">Score</th>
+                  <th className="px-3 py-2 text-center">Submitted At</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {studentsModal.students.map((s: any, i: number) => (
+                  <tr key={s.student_id || i} className={`hover:bg-gray-50 ${!s.is_mapped ? 'opacity-60' : ''}`}>
+                    <td className="px-3 py-2 text-center">{i + 1}</td>
+                    <td className="px-3 py-2 font-medium text-gray-700">
+                      {s.usno || '—'}
+                    </td>
+                    <td className="px-3 py-2">
+                      {s.student_name || '—'}
+                    </td>
+                    <td className="px-3 py-2 text-gray-500">{s.section || '—'}</td>
+                    <td className="px-3 py-2 text-center">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                        s.has_submitted 
+                          ? 'bg-green-100 text-green-700' 
+                          : s.has_started
+                            ? 'bg-yellow-100 text-yellow-700'
+                            : s.is_mapped
+                              ? 'bg-blue-100 text-blue-700'
+                              : 'bg-gray-100 text-gray-500'
+                      }`}>
+                        {s.status || 'Not Shared'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      {s.is_mapped ? (
+                        <span className="text-green-600">✅</span>
+                      ) : (
+                        <span className="text-gray-400">❌</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-center font-medium">
+                      {s.has_submitted ? (
+                        `${s.secured_marks || 0} / ${s.total_marks || 0}`
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-center text-gray-500">
+                      {s.submitted_at ? new Date(s.submitted_at).toLocaleString() : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <svg className="mx-auto h-16 w-16 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+            <p className="mt-3 text-sm text-gray-500 font-medium">No students found for this course/section.</p>
+            <p className="text-xs text-gray-400 mt-1">Please check your filters or share the quiz with students.</p>
+          </div>
+        )}
+      </div>
+      <div className="px-5 py-3 border-t flex justify-between items-center">
+        <div className="text-xs text-gray-500">
+          <span className="font-medium">{studentsModal.students.filter(s => s.is_mapped).length}</span> shared out of{' '}
+          <span className="font-medium">{studentsModal.students.length}</span> students
+        </div>
+        <button onClick={() => setStudentsModal(null)}
+          className="px-5 py-1.5 text-sm border border-gray-300 rounded text-gray-600 hover:bg-gray-50">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* ── Share Modal ── */}
       {shareModal && (

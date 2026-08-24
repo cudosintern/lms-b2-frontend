@@ -56,6 +56,15 @@ export interface Quiz {
   total_marks: number;
   section_names?: string;
   topic_names?: string;
+
+   quiz_status?: string;          // "In Progress" | "Completed" | "Not Initiated"
+  quiz_status_color?: string;    // "orange" | "green" | "red"
+  quiz_status_value?: number;    // 0=Not Initiated, 1=Completed, 2=In Progress
+  total_students?: number;       // Total students mapped to quiz
+  completed_students?: number;   // Students who completed
+  clo_map?: number;              // 0 or 1
+  bloom_map?: number;            // 0 or 1
+  is_attempted?: number;         // 0 or 1
 }
 
 export interface QuizQuestion {
