@@ -4,6 +4,31 @@ import { toast } from 'react-toastify';
 import { LocalStorageHelper } from '../../../utils/localStorageHelper';
 import { loginData } from '../../login/loginModel';
 
+// Helper to get today's date in YYYY-MM-DD format
+const getTodayDate = () => {
+  const today = new Date();
+  return today.toISOString().split('T')[0];
+};
+
+// Helper to check if date is valid (current or future)
+const isValidDate = (dateString: string) => {
+  if (!dateString) return true; // Empty is valid (optional)
+  const selectedDate = new Date(dateString);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return selectedDate >= today;
+};
+
+// Helper to check if due date is on or after issue date
+const isDueDateValid = (issueDate: string, dueDate: string) => {
+  if (!issueDate || !dueDate) return true; // Empty dates are valid (optional)
+  const issue = new Date(issueDate);
+  const due = new Date(dueDate);
+  issue.setHours(0, 0, 0, 0);
+  due.setHours(0, 0, 0, 0);
+  return due >= issue;
+};
+
 interface Curriculum { academic_batch_id: number; academic_batch_desc: string; academic_batch_code: string; academic_year?: string; }
 interface Term { semester_id: number; semester: number; semester_desc: string; }
 interface Course { crs_id: number; crs_code: string; crs_title: string; }
@@ -13,7 +38,9 @@ interface Assignment {
   lms_assignment_id: number; assignment_name: string; additional_info: string | null;
   crs_id: number | null; due_date: string | null; issue_date: string | null;
   status: number; created_by: number; created_date: string; shared_students_count: number;
-  file_name?: string; file_path?: string;
+  file_name?: string;
+  marks?: number; 
+  file_path?: string;
   // Fields populated when backend joins them
   section?: string; section_name?: string;
   topic?: string; topic_title?: string; topic_name?: string;
@@ -41,14 +68,27 @@ const getTopicLabel = (a: Assignment) => a.topic_title || a.topic_name || a.topi
 
 type ModalMode = 'add' | 'edit' | 'share' | null;
 
-const defaultForm = {
-  assignment_name: '', additional_info: '',
-  issue_date: '', due_date: '',
-  topic_id: '' as string,
-  section_id: '' as string,
-  bloom_ids: [] as number[],
-};
+interface AssignmentForm {
+  assignment_name: string;
+  additional_info: string;
+  issue_date: string;
+  due_date: string;
+  topic_id: string;
+  section_id: string;
+  bloom_ids: number[];
+  marks: string; 
+}
 
+const defaultForm: AssignmentForm = {
+  assignment_name: '', 
+  additional_info: '',
+  issue_date: '', 
+  due_date: '',
+  topic_id: '',
+  section_id: '',
+  bloom_ids: [],
+  marks: '', 
+};
 
 
 const ManageAssignmentPage: React.FC = () => {
@@ -104,6 +144,11 @@ const validateAll = () => {
   const [form, setForm] = useState(defaultForm);
   const [assignmentFile, setAssignmentFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const [dateErrors, setDateErrors] = useState({
+    issueDate: '',
+    dueDate: ''
+  });
 
   // Share modal
   const [shareStudents, setShareStudents] = useState<ShareStudent[]>([]);
@@ -314,32 +359,33 @@ const fetchAssignments = useCallback(async () => {
   };
 
   const openEdit = async (a: Assignment) => {
-    setSelectedAssignment(a);
-    setAssignmentFile(null);
-    
-    // Fix section_id mismatch caused by MIN(id) grouping in backend dropdown options
-    let mappedSectionId = a.section_id ? String(a.section_id) : selectedSection;
-    if (a.section_id) {
-      const exactMatch = sections.find(s => String(s.section_id) === String(a.section_id));
-      if (!exactMatch && (a.section_name || a.section)) {
-        const nameMatch = sections.find(s => s.section === (a.section_name || a.section));
-        if (nameMatch) {
-          mappedSectionId = String(nameMatch.section_id);
-        }
+  setSelectedAssignment(a);
+  setAssignmentFile(null);
+  
+  // Fix section_id mismatch caused by MIN(id) grouping in backend dropdown options
+  let mappedSectionId = a.section_id ? String(a.section_id) : selectedSection;
+  if (a.section_id) {
+    const exactMatch = sections.find(s => String(s.section_id) === String(a.section_id));
+    if (!exactMatch && (a.section_name || a.section)) {
+      const nameMatch = sections.find(s => s.section === (a.section_name || a.section));
+      if (nameMatch) {
+        mappedSectionId = String(nameMatch.section_id);
       }
     }
+  }
 
-    setForm({
-      assignment_name: a.assignment_name,
-      additional_info: a.additional_info ?? '',
-      issue_date: a.issue_date?.substring(0, 10) ?? '',
-      due_date: a.due_date?.substring(0, 10) ?? '',
-      topic_id: a.topic_id ? String(a.topic_id) : '',
-      section_id: mappedSectionId,
-      bloom_ids: a.bloom_ids || [],
-    });
-    setModalMode('edit');
-  };
+  setForm({
+    assignment_name: a.assignment_name,
+    additional_info: a.additional_info ?? '',
+    issue_date: a.issue_date?.substring(0, 10) ?? '',
+    due_date: a.due_date?.substring(0, 10) ?? '',
+    topic_id: a.topic_id ? String(a.topic_id) : '',
+    section_id: mappedSectionId,
+    bloom_ids: a.bloom_ids || [],
+    marks: a.marks ? String(a.marks) : '', // ✅ ADD THIS LINE
+  });
+  setModalMode('edit');
+};
 
   const openShare = async (a: Assignment) => {
   if (a.lms_assignment_id < 0) { 
@@ -418,6 +464,22 @@ const fetchAssignments = useCallback(async () => {
 
   const handleSave = async () => {
     if (!form.assignment_name.trim()) { toast.error('Assignment name is required'); return; }
+    // Date validations
+    if (form.issue_date && !isValidDate(form.issue_date)) {
+      toast.error('Issue date must be today or a future date');
+      return;
+    }
+    
+    if (form.due_date && !isValidDate(form.due_date)) {
+      toast.error('Due date must be today or a future date');
+      return;
+    }
+    
+    if (form.issue_date && form.due_date && !isDueDateValid(form.issue_date, form.due_date)) {
+      toast.error('Due date must be on or after the issue date');
+      return;
+    }
+    
     if (selectedAssignment && selectedAssignment.lms_assignment_id < 0) {
       toast.info('This is demo data — save is disabled. Use real data from the backend.');
       closeModal(); return;
@@ -452,6 +514,7 @@ const fetchAssignments = useCallback(async () => {
         assess_attain_flag: 0, created_by: userId, modified_by: userId,
         file_name: uploadedFileName,
         file_path: uploadedFilePath,
+         marks: form.marks ? Number(form.marks) : null,
       };
       if (modalMode === 'add') {
         await axiosInstance.post(`${ASSIGN_API}/create`, payload);
@@ -668,6 +731,7 @@ const fetchAssignments = useCallback(async () => {
                   <th className="px-3 py-2 text-left">Topic(s) ⇅</th>
                   <th className="px-3 py-2 text-left">Issue Date ⇅</th>
                   <th className="px-3 py-2 text-left">Due Date ⇅</th>
+                  <th className="px-3 py-2 text-left">Marks</th>
                   <th className="px-3 py-2 text-left">View Students</th>
                   <th className="px-3 py-2 text-left">Action</th>
                   <th className="px-3 py-2 text-left">Status</th>
@@ -701,6 +765,7 @@ const fetchAssignments = useCallback(async () => {
                     <td className="px-3 py-2 text-xs text-gray-600">{getTopicLabel(a)}</td>
                     <td className="px-3 py-2 text-xs">{fmtDate(a.issue_date)}</td>
                     <td className="px-3 py-2 text-xs">{fmtDate(a.due_date)}</td>
+                    <td className="px-3 py-2 text-xs font-semibold">{a.marks || '—'}</td>
                     <td className="px-3 py-2">
                       <button 
                         onClick={() => openViewStudents(a)} 
@@ -795,11 +860,74 @@ const fetchAssignments = useCallback(async () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Issue Date</label>
-                  <input type="date" className="w-full border rounded px-3 py-2 text-sm" value={form.issue_date} onChange={e => setForm({ ...form, issue_date: e.target.value })} />
+                  <input 
+                    type="date" 
+                    className={`w-full border rounded px-3 py-2 text-sm ${dateErrors.issueDate ? 'border-red-400 bg-red-50' : ''}`}
+                    value={form.issue_date} 
+                    min={getTodayDate()}
+                    onChange={e => {
+                      const newIssueDate = e.target.value;
+                      setForm({ 
+                        ...form, 
+                        issue_date: newIssueDate,
+                        // Reset due date if it becomes invalid
+                        due_date: form.due_date && !isDueDateValid(newIssueDate, form.due_date) ? '' : form.due_date
+                      });
+                      
+                      // Validate issue date
+                      if (newIssueDate && !isValidDate(newIssueDate)) {
+                        setDateErrors(prev => ({ ...prev, issueDate: 'Issue date must be today or future' }));
+                      } else {
+                        setDateErrors(prev => ({ ...prev, issueDate: '' }));
+                      }
+                      
+                      // Validate due date
+                      if (newIssueDate && form.due_date && !isDueDateValid(newIssueDate, form.due_date)) {
+                        setDateErrors(prev => ({ ...prev, dueDate: 'Due date must be on or after issue date' }));
+                      } else if (form.due_date) {
+                        setDateErrors(prev => ({ ...prev, dueDate: '' }));
+                      }
+                    }} 
+                  />
+                  {dateErrors.issueDate && <span className="text-xs text-red-500 mt-1 block">{dateErrors.issueDate}</span>}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
-                  <input type="date" className="w-full border rounded px-3 py-2 text-sm" value={form.due_date} onChange={e => setForm({ ...form, due_date: e.target.value })} />
+                  <input 
+                    type="date" 
+                    className={`w-full border rounded px-3 py-2 text-sm ${dateErrors.dueDate ? 'border-red-400 bg-red-50' : ''}`}
+                    value={form.due_date} 
+                    min={form.issue_date || getTodayDate()}
+                    onChange={e => {
+                      const newDueDate = e.target.value;
+                      setForm({ ...form, due_date: newDueDate });
+                      
+                      // Validate due date
+                      if (form.issue_date && newDueDate && !isDueDateValid(form.issue_date, newDueDate)) {
+                        setDateErrors(prev => ({ ...prev, dueDate: 'Due date must be on or after issue date' }));
+                      } else if (newDueDate && !isValidDate(newDueDate)) {
+                        setDateErrors(prev => ({ ...prev, dueDate: 'Due date must be today or future' }));
+                      } else {
+                        setDateErrors(prev => ({ ...prev, dueDate: '' }));
+                      }
+                    }} 
+                  />
+                  {dateErrors.dueDate && <span className="text-xs text-red-500 mt-1 block">{dateErrors.dueDate}</span>}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Total Marks</label>
+                  <input 
+                    type="number" 
+                    min="0" 
+                    step="0.5"
+                    className="w-full border rounded px-3 py-2 text-sm" 
+                    placeholder="Enter total marks (e.g. 100)"
+                    value={form.marks} 
+                    onChange={e => setForm({ ...form, marks: e.target.value })} 
+                  />
                 </div>
               </div>
 
@@ -831,6 +959,16 @@ const fetchAssignments = useCallback(async () => {
                   placeholder="Describe the assignment requirements..." value={form.additional_info}
                   onChange={e => setForm({ ...form, additional_info: e.target.value })} />
               </div>
+
+              {(dateErrors.issueDate || dateErrors.dueDate) && (
+                  <div className="bg-red-50 border border-red-200 rounded p-2 text-sm text-red-600">
+                    <p className="font-semibold">Please fix date errors:</p>
+                    <ul className="list-disc pl-4">
+                      {dateErrors.issueDate && <li>{dateErrors.issueDate}</li>}
+                      {dateErrors.dueDate && <li>{dateErrors.dueDate}</li>}
+                    </ul>
+                  </div>
+                )}
 
               {/* Bloom's Taxonomy */}
               {bloomLevels.length > 0 && (  // ✅ Only shows if there's data
@@ -908,7 +1046,7 @@ const fetchAssignments = useCallback(async () => {
                   </div>
                   <div className="px-3 py-2 flex items-center gap-1">
                     <span className="font-semibold text-gray-600 whitespace-nowrap">Max marks:</span>
-                    <span className="text-gray-800">5.00</span>
+                    <span className="text-gray-800">{selectedAssignment.marks || 'Not set'}</span>
                   </div>
                 </div>
               </div>

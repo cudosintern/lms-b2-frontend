@@ -10,35 +10,32 @@ export default function QuizQuestionsPage() {
   const service = useManageQuizService();
   
   const [quizDetails, setQuizDetails] = useState<QuizDetails | null>(null);
-  // const [questions, setQuestions] = useState<QuizQuestion[]>([]);
-  // const [loading, setLoading] = useState(true);
-
   const [questions, setQuestions] = useState<any[]>([]);
-const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-const loadData = useCallback(async () => {
-  if (!id) return;
+  const loadData = useCallback(async () => {
+    if (!id) return;
 
-  setLoading(true);
-
-  try {
-    // 1️⃣ Get quiz details
-    const details = await service.getQuizDetails(Number(id));
-    setQuizDetails(details);
-
-    // 2️⃣ Get questions separately (IMPORTANT FIX)
-    const questionsRes = await service.getQuizQuestions(Number(id));
-
-    console.log("Questions API:", questionsRes);
-
-    setQuestions(Array.isArray(questionsRes) ? questionsRes : []);
-
-  } catch (error) {
-    console.error("Failed to load quiz questions:", error);
-  } finally {
     setLoading(true);
-  }
-}, [id, service]);
+
+    try {
+      // 1️⃣ Get quiz details
+      const details = await service.getQuizDetails(Number(id));
+      setQuizDetails(details);
+
+      // 2️⃣ Get questions separately
+      const questionsRes = await service.getQuizQuestions(Number(id));
+      console.log("Questions API:", questionsRes);
+
+      setQuestions(Array.isArray(questionsRes) ? questionsRes : []);
+
+    } catch (error) {
+      console.error("Failed to load quiz questions:", error);
+    } finally {
+      // ✅ FIX: This was set to 'true' originally, which caused the loading spinner to never disappear!
+      setLoading(false); 
+    }
+  }, [id, service]);
 
   useEffect(() => {
     loadData();
@@ -60,6 +57,7 @@ const loadData = useCallback(async () => {
         <div className="p-6 flex-1 overflow-y-auto">
           {/* Quiz Info Header */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-y-4 gap-x-8 mb-8 text-sm border-b pb-6 bg-gray-50 p-4 rounded-lg">
+            
             <div>
               <p className="text-gray-500 mb-1">Academic Batch:</p>
               <p className="font-semibold">{quiz.academic_batch_id}</p>
@@ -72,40 +70,38 @@ const loadData = useCallback(async () => {
               <p className="text-gray-500 mb-1">Course:</p>
               <p className="font-semibold">{quiz.crs_id}</p>
             </div>
-<div className="grid grid-cols-1 md:grid-cols-3 gap-y-4 gap-x-8 mb-8 text-sm border-b pb-6 bg-gray-50 p-4 rounded-lg">
 
-  <div>
-    <p className="text-gray-500 mb-1">Quiz Title:</p>
-    <p className="font-semibold">{quiz.quiz_title}</p>
-  </div>
+            <div>
+              <p className="text-gray-500 mb-1">Quiz Title:</p>
+              <p className="font-semibold">{quiz.quiz_title}</p>
+            </div>
 
-  <div>
-    <p className="text-gray-500 mb-1">Date:</p>
-    <p className="font-semibold">{quiz.quiz_date || "—"}</p>
-  </div>
+            <div>
+              <p className="text-gray-500 mb-1">Date:</p>
+              <p className="font-semibold">{quiz.quiz_date || "—"}</p>
+            </div>
 
-  <div>
-    <p className="text-gray-500 mb-1">Time:</p>
-    <p className="font-semibold">{quiz.start_time || "—"}</p>
-  </div>
+            <div>
+              <p className="text-gray-500 mb-1">Time:</p>
+              <p className="font-semibold">{quiz.start_time || "—"}</p>
+            </div>
 
-  <div>
-    <p className="text-gray-500 mb-1">Duration:</p>
-    <p className="font-semibold">{quiz.duration} Mins.</p>
-  </div>
+            <div>
+              <p className="text-gray-500 mb-1">Duration:</p>
+              <p className="font-semibold">{quiz.duration} Mins.</p>
+            </div>
 
-  <div>
-    <p className="text-gray-500 mb-1">Status:</p>
-    <p className="font-semibold">{quiz.status}</p>
-  </div>
+            <div>
+              <p className="text-gray-500 mb-1">Status:</p>
+              <p className="font-semibold">{quiz.status}</p>
+            </div>
 
-  <div>
-    <p className="text-gray-500 mb-1">Total Questions:</p>
-    <p className="font-semibold">{questions.length}</p>
-  </div>
+            <div>
+              <p className="text-gray-500 mb-1">Total Questions:</p>
+              <p className="font-semibold">{questions.length}</p>
+            </div>
 
-</div>
-          </div>
+          </div> {/* ✅ MISSING CLOSING TAG WAS ADDED HERE */}
 
           {/* Questions List */}
           <div className="space-y-6">
@@ -173,4 +169,3 @@ const loadData = useCallback(async () => {
     </div>
   );
 }
-

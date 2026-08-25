@@ -6,12 +6,53 @@ import FixedAddQuizPage from './FixedAddQuizPage';
 interface Curriculum { academic_batch_id: number; academic_batch_code: string; academic_batch_desc: string; academic_year?: string; }
 interface Term { semester_id: number; semester: number; semester_desc: string; }
 interface Course { crs_id: number; crs_code: string; crs_title: string; }
-interface Quiz {
-  quiz_id: number; quiz_title: string; academic_batch_id: number; semester_id: number;
-  crs_id: number; quiz_date?: string; quiz_time?: string; duration?: string; status: number;
-  section_names?: string; topic_names?: string;
-  question_count?: number; student_count?: number; started_count?: number;
-  total_marks?: number;
+// In quiz.ts
+export interface Quiz {
+  quiz_id: number;
+  quiz_title: string;
+  quiz_instruction?: string;
+  quiz_description?: string;
+  academic_batch_id: number;
+  semester_id: number;
+  crs_id: number;
+  quiz_date?: string;
+  quiz_time?: string;
+  start_date?: string;
+  start_time?: string;
+  end_date?: string;
+  end_time?: string;
+  duration: string;
+  file_name?: string;
+  file_path?: string;
+  marks_flag: number;
+  co_map_flag: number;
+  bl_map_flag: number;
+  practice_quiz: number;
+  shuffle_questions: number;
+  shuffle_options: number;
+  answer_key_share_flag: number;
+  status: number;
+  created_by: number;
+  created_date?: string;
+  question_count: number;
+  student_count: number;
+  started_count: number;
+  answer_count: number;
+  total_marks: number;
+  section_names?: string;
+  topic_names?: string;   
+  topic_ids?: string;     
+  topic?: string;          
+  section_ids?: string;    
+  // New fields from updated API
+  quiz_status?: string;
+  quiz_status_color?: string;
+  quiz_status_value?: number;
+  total_students?: number;
+  completed_students?: number;
+  clo_map?: number;
+  bloom_map?: number;
+  is_attempted?: number;
 }
 
 export default function ManageQuizPage() {
@@ -136,41 +177,106 @@ const selectedCourseData = courses.find(
   };
 
   const handleEdit = async (quiz: Quiz) => {
-    setLoadingEditData(true);
-    try {
-      const data = await service.getQuizDetails(quiz.quiz_id);
+  setLoadingEditData(true);
+  try {
+    console.log('📝 Editing quiz:', quiz);
+    const data = await service.getQuizDetails(quiz.quiz_id);
+    console.log('📝 Edit data received:', data);
+    
+    if (data) {
       setEditData(data);
       setEditQuiz(quiz);
-    } catch {
-      alert('Failed to load quiz details for editing');
-    } finally {
-      setLoadingEditData(false);
+    } else {
+      console.error('No data found for this quiz');
     }
-  };
+  } catch (error) {
+    console.error('Failed to load quiz details:', error);
+    console.error('Failed to load quiz details for editing');
+  } finally {
+    setLoadingEditData(false);
+  }
+};
 
   const handleShare = async (quiz: Quiz) => {
-    setShareModal(quiz);
-    setShareStudents([]);
-    setSelectedStudentIds(new Set());
-    setStudentSearchTerm('');
-    setLoadingShareStudents(true);
+  setShareModal(quiz);
+  setShareStudents([]);
+  setSelectedStudentIds(new Set());
+  setStudentSearchTerm('');
+  setLoadingShareStudents(true);
+  
+  try {
+    const axiosInst = await import('../../../utils/api');
+    
+    // ✅ Use the quiz's course ID, not the selected filter
+    const params: any = {
+      academic_batch_id: quiz.academic_batch_id,
+      semester_id: quiz.semester_id,
+      crs_id: quiz.crs_id,  // This is the KEY fix - use quiz's course
+    };
+    
+    // Also pass section if available from the quiz
+    if (quiz.section_ids) {
+      const sectionIds = quiz.section_ids.split(',').map(Number);
+      if (sectionIds.length > 0) {
+        params.section_id = sectionIds[0];
+      }
+    } 
+    // else if (selectedSection) {
+    //   params.section_id = Number(selectedSection);
+    // }
+    
+    console.log('🔍 Quiz details:', {
+      quiz_id: quiz.quiz_id,
+      quiz_title: quiz.quiz_title,
+      crs_id: quiz.crs_id,
+      academic_batch_id: quiz.academic_batch_id,
+      semester_id: quiz.semester_id
+    });
+    
+    console.log('🔍 Fetching students with params:', params);
+    
+    // Load students from the quiz's course
+    const r: any = await axiosInst.default.get(`/api/v1/manage-quiz/meta/students`, { params })
+      .catch(() => axiosInst.default.get(`/api/v1/manage-assignment/assignment/meta/students`, { params }));
+    
+    const raw = r.data?.data?.items ?? r.data?.data ?? r.data?.items ?? r.data ?? [];
+    console.log('📊 Students fetched:', raw.length);
+    
+    // Map students to ensure consistent format
+    const students = Array.isArray(raw) ? raw.map((s: any) => ({
+      ...s,
+      student_id: s.student_id || s.ssd_id || s.id,
+      usno: s.usno || s.usn || '',
+      name: s.name || `${s.first_name || ''} ${s.last_name || ''}`.trim() || s.usno || ''
+    })) : [];
+    
+    setShareStudents(students);
+    
+    // Check which students are already mapped to this quiz
     try {
-      const axiosInst = await import('../../../utils/api');
-      const params: any = {};
-      if (selectedBatch) params.academic_batch_id = Number(selectedBatch);
-      if (selectedTerm) params.semester_id = Number(selectedTerm);
-      // Load students directly from iems_students filtered by current batch/term match
-      const r: any = await axiosInst.default.get(`/api/v1/manage-quiz/meta/students`, { params })
-        .catch(() => axiosInst.default.get(`/api/v1/manage-assignment/assignment/meta/students`, { params }));
-      const raw = r.data?.data?.items ?? r.data?.data ?? r.data?.items ?? r.data ?? [];
-      setShareStudents(Array.isArray(raw) ? raw : []);
-    } catch {
-      // Non-fatal: share modal still opens, user can use "Share All" button
-      setShareStudents([]);
-    } finally {
-      setLoadingShareStudents(false);
+      const mappedData = await service.getStudents(quiz.quiz_id);
+      const mappedStudentIds = new Set(
+        (Array.isArray(mappedData) ? mappedData : []).map((s: any) => s.ssd_id || s.student_id || s.id)
+      );
+      
+      // Only show available students (not already mapped)
+      const availableStudents = students.filter((s: any) => !mappedStudentIds.has(s.student_id));
+      setShareStudents(availableStudents);
+      
+      if (availableStudents.length === 0 && students.length > 0) {
+        console.info('All students in this course are already shared with this quiz.');
+      }
+    } catch (error) {
+      console.warn('Could not fetch mapped students:', error);
+      setShareStudents(students);
     }
-  };
+  } catch (error) {
+    console.error('Error loading students:', error);
+    setShareStudents([]);
+  } finally {
+    setLoadingShareStudents(false);
+  }
+};
 
   const submitShare = async () => {
     if (!shareModal) return;
@@ -553,9 +659,30 @@ const openStudents = async (quiz: Quiz) => {
                   <tr key={quiz.quiz_id} className="hover:bg-gray-50">
                     <td className="px-3 py-2"><input type="checkbox" /></td>
                     <td className="px-3 py-2">{(currentPage - 1) * showEntries + idx + 1}</td>
-                    <td className="px-3 py-2 text-blue-600 font-medium">{quiz.quiz_title} ({quiz.total_marks || quiz.duration || 'N/A'})</td>
+                    <td className="px-3 py-2 text-blue-600 font-medium">{quiz.quiz_title} ({quiz.total_marks || ''})</td>
                     <td className="px-3 py-2 text-xs">{quiz.section_names || '—'}</td>
-                    <td className="px-3 py-2 text-xs">{quiz.topic_names || '—'}</td>
+                    {/* Topics Column */}
+                    <td className="px-3 py-2">
+                      {quiz.topic_names ? (
+                        <div className="flex flex-wrap gap-1 max-w-[200px]">
+                          {quiz.topic_names.split(',').map((topic: string, i: number) => (
+                            <span 
+                              key={i} 
+                              className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded text-[10px] border border-blue-100"
+                              title={`Topic ID: ${quiz.topic_ids?.split(',')[i] || ''}`}
+                            >
+                              {topic.trim()}
+                            </span>
+                          ))}
+                        </div>
+                      ) : quiz.topic ? (                        <div 
+                          className="text-xs text-gray-600 line-clamp-2" 
+                          dangerouslySetInnerHTML={{ __html: quiz.topic }} 
+                        />
+                      ) : (
+                        <span className="text-gray-400 text-xs">—</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-xs">{formatDate(quiz.quiz_date)}</td>
                     <td className="px-3 py-2 text-xs">{formatTime(quiz.quiz_time)}</td>
                     <td className="px-3 py-2 text-xs">{quiz.duration ? (Number(quiz.duration) >= 60 ? (Number(quiz.duration) / 60).toFixed(1) : `0:${quiz.duration}`) : '—'}</td>
@@ -585,8 +712,8 @@ const openStudents = async (quiz: Quiz) => {
                       </div>
                     </td>
                     <td className="px-3 py-2">
-                      <span className={`px-2 py-0.5 rounded text-xs font-semibold ${getStatusBadge(quiz.status)}`}>
-                        {getStatusText(quiz.status, quiz.started_count)}
+                      <span className={`px-2 py-0.5 rounded text-xs font-semibold ${getStatusBadge(quiz.quiz_status)}`}>
+                        {getStatusText(quiz.quiz_status, quiz.started_count)}
                       </span>
                     </td>
                   </tr>
@@ -638,25 +765,29 @@ const openStudents = async (quiz: Quiz) => {
       )}
 
       {/* Edit Quiz Modal */}
-      {editQuiz && editData && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-auto">
-            <FixedAddQuizPage
-              initialBatchId={editQuiz.academic_batch_id}
-              initialSemesterId={editQuiz.semester_id}
-              initialCourseId={editQuiz.crs_id}
-              editQuizId={editQuiz.quiz_id}
-              editData={editData}
-              onSuccess={() => {
-                setEditQuiz(null);
-                setEditData(null);
-                refreshQuizzes();
-              }}
-              onCancel={() => { setEditQuiz(null); setEditData(null); }}
-            />
-          </div>
-        </div>
-      )}
+{editQuiz && editData && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-auto">
+      <FixedAddQuizPage
+        initialBatchId={editQuiz.academic_batch_id}
+        initialSemesterId={editQuiz.semester_id}
+        initialCourseId={editQuiz.crs_id}
+        editQuizId={editQuiz.quiz_id}
+        editData={editData}  // ✅ Pass the full edit data
+        onSuccess={() => {
+          setEditQuiz(null);
+          setEditData(null);
+          refreshQuizzes();
+          console.info('Quiz updated successfully!');
+        }}
+        onCancel={() => {
+          setEditQuiz(null);
+          setEditData(null);
+        }}
+      />
+    </div>
+  </div>
+)}
 
       {/* ── Quiz Questions Modal ── */}
       {questionsModal && (
@@ -758,12 +889,23 @@ const openStudents = async (quiz: Quiz) => {
                                   <div className="space-y-1.5">
                                     {eqOptions.map((opt, oi) => (
                                       <div key={oi} className="flex items-center gap-2">
-                                        <input type="radio" name="eq_correct" checked={opt.is_answer === 1}
-                                          onChange={() => setEqOptions(prev => prev.map((o, j) => ({ ...o, is_answer: j === oi ? 1 : 0 })))}
-                                          className="accent-green-600" />
-                                        <input type="text" className="flex-1 border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none"
-                                          placeholder={`Option ${oi + 1}`} value={opt.value}
-                                          onChange={e => setEqOptions(prev => prev.map((o, j) => j === oi ? { ...o, value: e.target.value } : o))} />
+                                        {/* ✅ FIX: Toggle current option only */}
+                                        <input 
+                                          type="checkbox" 
+                                          name="eq_correct" 
+                                          checked={opt.is_answer === 1}
+                                          onChange={() => setEqOptions(prev => prev.map((o, j) => 
+                                            j === oi ? { ...o, is_answer: o.is_answer === 1 ? 0 : 1 } : o
+                                          ))}
+                                          className="accent-green-600" 
+                                        />
+                                        <input 
+                                          type="text" 
+                                          className="flex-1 border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none"
+                                          placeholder={`Option ${oi + 1}`} 
+                                          value={opt.value}
+                                          onChange={e => setEqOptions(prev => prev.map((o, j) => j === oi ? { ...o, value: e.target.value } : o))} 
+                                        />
                                       </div>
                                     ))}
                                   </div>
@@ -873,18 +1015,48 @@ const openStudents = async (quiz: Quiz) => {
                   </div>
 
                   {/* MCQ Options */}
+                  {/* {aqType === 1 && (
+                    <div>
+                      <label className="text-xs font-medium text-gray-600 block mb-1">Options (tick correct answer)</label>
+                      <div className="space-y-1.5">
+                        {aqOptions.map((opt, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <input type="checkbox" name="aq_correct" checked={opt.is_answer === 1}
+                              onChange={() => setAqOptions(prev => prev.map((o, j) => ({ ...o, is_answer: j === i ? 1 : 0 })))}
+                              className="accent-green-600" />
+                            <input type="text" className="flex-1 border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none"
+                              placeholder={`Option ${i + 1}`} value={opt.value}
+                              onChange={e => setAqOptions(prev => prev.map((o, j) => j === i ? { ...o, value: e.target.value } : o))} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )} */}
+
+                  {/* MCQ Options */}
                   {aqType === 1 && (
                     <div>
                       <label className="text-xs font-medium text-gray-600 block mb-1">Options (tick correct answer)</label>
                       <div className="space-y-1.5">
                         {aqOptions.map((opt, i) => (
                           <div key={i} className="flex items-center gap-2">
-                            <input type="radio" name="aq_correct" checked={opt.is_answer === 1}
-                              onChange={() => setAqOptions(prev => prev.map((o, j) => ({ ...o, is_answer: j === i ? 1 : 0 })))}
-                              className="accent-green-600" />
-                            <input type="text" className="flex-1 border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none"
-                              placeholder={`Option ${i + 1}`} value={opt.value}
-                              onChange={e => setAqOptions(prev => prev.map((o, j) => j === i ? { ...o, value: e.target.value } : o))} />
+                            {/* ✅ FIX: Toggle current option only */}
+                            <input 
+                              type="checkbox" 
+                              name="aq_correct" 
+                              checked={opt.is_answer === 1}
+                              onChange={() => setAqOptions(prev => prev.map((o, j) => 
+                                j === i ? { ...o, is_answer: o.is_answer === 1 ? 0 : 1 } : o
+                              ))}
+                              className="accent-green-600" 
+                            />
+                            <input 
+                              type="text" 
+                              className="flex-1 border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none"
+                              placeholder={`Option ${i + 1}`} 
+                              value={opt.value}
+                              onChange={e => setAqOptions(prev => prev.map((o, j) => j === i ? { ...o, value: e.target.value } : o))} 
+                            />
                           </div>
                         ))}
                       </div>

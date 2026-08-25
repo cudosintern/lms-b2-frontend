@@ -24,10 +24,13 @@ const FixedAddQuizPage: React.FC<FixedAddQuizPageProps> = ({
   selectedCurriculum,
   selectedTermData,
   selectedCourseData,
+  editQuizId,
+  editData,
   onSuccess,
   onCancel
 }) => {
   const userId = 1;
+  const [isEdit, setIsEdit] = useState(false);
 
   // Form fields
   const [quizTitle, setQuizTitle] = useState('');
@@ -67,7 +70,6 @@ const FixedAddQuizPage: React.FC<FixedAddQuizPageProps> = ({
   const [loadingTopics, setLoadingTopics] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Use ref to prevent double-fetch in StrictMode
   const batchesFetched = useRef(false);
 
   // Load batches once on mount
@@ -76,142 +78,172 @@ const FixedAddQuizPage: React.FC<FixedAddQuizPageProps> = ({
     batchesFetched.current = true;
     setLoadingBatches(true);
     axiosInstance.get(`${API}/meta/curriculums`)
-      .then((r: any) => setBatches(Array.isArray(r.data?.data) ? r.data.data : []))
-      .catch(() => {})
-      .then(() => setLoadingBatches(false), () => setLoadingBatches(false));
+      .then((r: any) => {
+        setBatches(Array.isArray(r.data?.data) ? r.data.data : []);
+        setLoadingBatches(false);
+      })
+      .catch(() => {
+        setLoadingBatches(false);
+      });
   }, []);
 
   // Load semesters when batch changes
   useEffect(() => {
-    if (!batchId) { setSemesters([]); setSemesterId(0); return; }
+    if (!batchId) { 
+      setSemesters([]); 
+      setSemesterId(0); 
+      return; 
+    }
     setLoadingSemesters(true);
     axiosInstance.get(`${API}/meta/terms`, { params: { academic_batch_id: batchId } })
-      .then((r: any) => { 
-        setSemesters(Array.isArray(r.data?.data) ? r.data.data : []); 
-        if (!initialSemesterId) {
-          setSemesterId(0);
-        }
+      .then((r: any) => {
+        setSemesters(Array.isArray(r.data?.data) ? r.data.data : []);
+        setLoadingSemesters(false);
       })
-      .catch(() => setSemesters([]))
-      .then(() => setLoadingSemesters(false), () => setLoadingSemesters(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+      .catch(() => {
+        setSemesters([]);
+        setLoadingSemesters(false);
+      });
   }, [batchId]);
 
   // Load courses when semester changes
   useEffect(() => {
-    if (!batchId || !semesterId) { setCourses([]); setCourseId(0); setSections([]); setSectionIds([]); return; }
+    if (!batchId || !semesterId) { 
+      setCourses([]); 
+      setCourseId(0); 
+      setSections([]); 
+      setSectionIds([]); 
+      return; 
+    }
     setLoadingCourses(true);
     axiosInstance.get(`${API}/meta/courses`, { params: { academic_batch_id: batchId, semester_id: semesterId } })
-      .then((r: any) => { 
-        setCourses(Array.isArray(r.data?.data) ? r.data.data : []); 
-        if (!initialCourseId) {
-          setCourseId(0);
-        }
+      .then((r: any) => {
+        setCourses(Array.isArray(r.data?.data) ? r.data.data : []);
+        setLoadingCourses(false);
       })
-      .catch(() => setCourses([]))
-      .then(() => setLoadingCourses(false), () => setLoadingCourses(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+      .catch(() => {
+        setCourses([]);
+        setLoadingCourses(false);
+      });
   }, [batchId, semesterId]);
 
-  // ✅ Load sections when course changes (FIXED)
+  // Load sections when course changes
   useEffect(() => {
     if (!batchId || !semesterId || !courseId) { 
       setSections([]); 
       setSectionIds([]); 
       return; 
     }
-    
     setLoadingSections(true);
     axiosInstance.get(`${API}/meta/sections`, { 
       params: { 
         academic_batch_id: batchId, 
         semester_id: semesterId,
-        course_id: courseId  // ✅ This is the key parameter
+        course_id: courseId
       } 
     })
-      .then((r: any) => { 
-        // Handle different response formats
+      .then((r: any) => {
         let sectionsData = r.data?.data || r.data || [];
-        
-        // If sectionsData is not an array, try to extract it
         if (!Array.isArray(sectionsData)) {
           sectionsData = sectionsData?.items || sectionsData?.sections || [];
         }
-        
-        // If it's still not an array, make it empty
         if (!Array.isArray(sectionsData)) {
           sectionsData = [];
         }
-        
-        console.log('✅ Sections loaded:', sectionsData);
-        setSections(sectionsData); 
-        setSectionIds([]); 
+        setSections(sectionsData);
+        setLoadingSections(false);
       })
-      .catch((err) => {
-        console.error('❌ Error loading sections:', err);
+      .catch(() => {
         setSections([]);
-        setSectionIds([]);
-      })
-      .then(() => setLoadingSections(false), () => setLoadingSections(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+        setLoadingSections(false);
+      });
   }, [batchId, semesterId, courseId]);
 
   // Load topics when course changes
   useEffect(() => {
-    if (!batchId || !semesterId || !courseId) { setTopics([]); setTopicIds([]); return; }
+    if (!batchId || !semesterId || !courseId) { 
+      setTopics([]); 
+      setTopicIds([]); 
+      return; 
+    }
     setLoadingTopics(true);
-    axiosInstance.get(`${API}/meta/topics`, { params: { academic_batch_id: batchId, semester_id: semesterId, crs_id: courseId } })
-      .then((r: any) => { 
+    axiosInstance.get(`${API}/meta/topics`, { 
+      params: { 
+        academic_batch_id: batchId, 
+        semester_id: semesterId, 
+        crs_id: courseId
+      } 
+    })
+      .then((r: any) => {
         const topicsData = r.data?.data || r.data || [];
-        setTopics(Array.isArray(topicsData) ? topicsData : []); 
-        setTopicIds([]); 
+        setTopics(Array.isArray(topicsData) ? topicsData : []);
+        setLoadingTopics(false);
       })
-      .catch(() => setTopics([]))
-      .then(() => setLoadingTopics(false), () => setLoadingTopics(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+      .catch(() => {
+        setTopics([]);
+        setLoadingTopics(false);
+      });
   }, [batchId, semesterId, courseId]);
 
-  // Get display labels
-  const getBatchLabel = () => {
-    const foundInBatches = batches.find(b => Number(b.academic_batch_id) === Number(initialBatchId));
-    if (foundInBatches) {
-      return foundInBatches.academic_batch_desc || foundInBatches.label || foundInBatches.name || String(initialBatchId);
+  // ✅ Load edit data if in edit mode
+  useEffect(() => {
+    console.log('🔍 Edit mode check:', { editQuizId, editData });
+    
+    if (editQuizId && editData) {
+      console.log('📝 Loading edit data:', editData);
+      setIsEdit(true);
+      
+      // Extract quiz data
+      const quiz = editData.quiz || editData;
+      console.log('📝 Quiz data:', quiz);
+      
+      // Set form fields from edit data
+      setQuizTitle(quiz.quiz_title || '');
+      setBatchId(quiz.academic_batch_id || initialBatchId || 0);
+      setSemesterId(quiz.semester_id || initialSemesterId || 0);
+      setCourseId(quiz.crs_id || initialCourseId || 0);
+      setQuizDate(quiz.quiz_date || '');
+      setQuizTime(quiz.quiz_time || '');
+      setInstructions(quiz.quiz_instruction || '');
+      setDescription(quiz.quiz_description || '');
+      setDisplayDate(quiz.show_date || '');
+      setDisplayTime(quiz.show_time || '');
+      
+      // Set checkboxes
+      setCoMap(quiz.co_map_flag === 1);
+      setBlMap(quiz.bl_map_flag === 1);
+      setShuffleQ(quiz.shuffle_questions === 1);
+      setShuffleO(quiz.shuffle_options === 1);
+      setPracticeQuiz(quiz.practice_quiz === 1);
+      setShareAnswerKey(quiz.answer_key_share_flag === 1);
+      
+      // ✅ Set section and topic IDs from edit data
+      const sectionIdsFromEdit = editData.section_ids || [];
+      const topicIdsFromEdit = editData.topic_ids || [];
+      
+      console.log('📝 Section IDs from edit:', sectionIdsFromEdit);
+      console.log('📝 Topic IDs from edit:', topicIdsFromEdit);
+      
+      setSectionIds(sectionIdsFromEdit);
+      setTopicIds(topicIdsFromEdit);
+      
+      // Parse duration into hours and minutes
+      const durationStr = quiz.duration || '';
+      if (durationStr) {
+        const durationMinutes = parseInt(durationStr);
+        if (!isNaN(durationMinutes)) {
+          setHours(Math.floor(durationMinutes / 60));
+          setMinutes(durationMinutes % 60);
+        }
+      }
+    } else {
+      // Reset to default values when not in edit mode
+      setIsEdit(false);
+      setBatchId(initialBatchId || 0);
+      setSemesterId(initialSemesterId || 0);
+      setCourseId(initialCourseId || 0);
     }
-    if (selectedCurriculum) {
-      if (selectedCurriculum.academic_batch_desc) return selectedCurriculum.academic_batch_desc;
-      if (selectedCurriculum.label) return selectedCurriculum.label;
-      if (selectedCurriculum.value) return selectedCurriculum.value;
-    }
-    return String(initialBatchId || 'Not selected');
-  };
-
-  const getSemesterLabel = () => {
-    const foundInSemesters = semesters.find(s => Number(s.semester_id) === Number(initialSemesterId));
-    if (foundInSemesters) {
-      return foundInSemesters.semester_desc || foundInSemesters.label || `Semester ${foundInSemesters.semester}` || String(initialSemesterId);
-    }
-    if (selectedTermData) {
-      if (selectedTermData.semester_desc) return selectedTermData.semester_desc;
-      if (selectedTermData.label) return selectedTermData.label;
-      if (selectedTermData.semester) return `Semester ${selectedTermData.semester}`;
-      if (selectedTermData.value) return selectedTermData.value;
-    }
-    return String(initialSemesterId || 'Not selected');
-  };
-
-  const getCourseLabel = () => {
-    const foundInCourses = courses.find(c => Number(c.crs_id) === Number(initialCourseId));
-    if (foundInCourses) {
-      return foundInCourses.crs_title || foundInCourses.label || foundInCourses.name || String(initialCourseId);
-    }
-    if (selectedCourseData) {
-      if (selectedCourseData.crs_title) return selectedCourseData.crs_title;
-      if (selectedCourseData.label) return selectedCourseData.label;
-      if (selectedCourseData.value) return selectedCourseData.value;
-      if (selectedCourseData.crs_code) return `${selectedCourseData.crs_title || ''} (${selectedCourseData.crs_code})`;
-    }
-    return String(initialCourseId || 'Not selected');
-  };
+  }, [editQuizId, editData, initialBatchId, initialSemesterId, initialCourseId]);
 
   const handleSubmit = async () => {
     const finalDuration = hours * 60 + minutes;
@@ -234,7 +266,7 @@ const FixedAddQuizPage: React.FC<FixedAddQuizPageProps> = ({
     setSaving(true);
 
     try {
-      await axiosInstance.post(`${API}/create`, {
+      const payload: any = {
         quiz_title: quizTitle.trim(),
         academic_batch_id: batchId,
         semester_id: semesterId,
@@ -244,8 +276,8 @@ const FixedAddQuizPage: React.FC<FixedAddQuizPageProps> = ({
         duration: String(finalDuration),
         section_ids: sectionIds,
         topic_ids: topicIds,
-        display_date: displayDate || quizDate,
-        display_time: displayTime || quizTime,
+        show_date: displayDate || quizDate,
+        show_time: displayTime || quizTime,
         quiz_instruction: instructions || "",
         quiz_description: description || "",
         co_map_flag: coMap ? 1 : 0,
@@ -257,12 +289,25 @@ const FixedAddQuizPage: React.FC<FixedAddQuizPageProps> = ({
         marks_flag: 0,
         status: 1,
         created_by: userId
-      });
+      };
 
-      toast.success('Quiz created successfully!');
+      console.log('📤 Submitting payload:', payload);
+
+      if (isEdit && editQuizId) {
+        // Update existing quiz
+        payload.modified_by = userId;
+        await axiosInstance.put(`${API}/${editQuizId}`, payload);
+        toast.success('Quiz updated successfully!');
+      } else {
+        // Create new quiz
+        await axiosInstance.post(`${API}/create`, payload);
+        toast.success('Quiz created successfully!');
+      }
+
       if (onSuccess) onSuccess();
 
     } catch (err: any) {
+      console.error('❌ Error:', err);
       toast.error(`Failed: ${err?.response?.data?.detail || err?.message || 'Unknown error'}`);
     } finally {
       setSaving(false);
@@ -272,11 +317,36 @@ const FixedAddQuizPage: React.FC<FixedAddQuizPageProps> = ({
   const selCls = "w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none disabled:opacity-50 bg-white text-gray-800";
   const lblCls = "block text-sm font-medium text-gray-700 mb-1";
 
+  // Get display labels
+  const getBatchLabel = () => {
+    if (selectedCurriculum) {
+      return selectedCurriculum.academic_batch_desc || selectedCurriculum.label || selectedCurriculum.name || String(initialBatchId);
+    }
+    const found = batches.find(b => Number(b.academic_batch_id) === Number(initialBatchId));
+    return found?.academic_batch_desc || found?.label || found?.name || String(initialBatchId);
+  };
+
+  const getSemesterLabel = () => {
+    if (selectedTermData) {
+      return selectedTermData.semester_desc || selectedTermData.label || `Semester ${selectedTermData.semester}` || String(initialSemesterId);
+    }
+    const found = semesters.find(s => Number(s.semester_id) === Number(initialSemesterId));
+    return found?.semester_desc || found?.label || `Semester ${found?.semester}` || String(initialSemesterId);
+  };
+
+  const getCourseLabel = () => {
+    if (selectedCourseData) {
+      return selectedCourseData.crs_title || selectedCourseData.label || selectedCourseData.name || String(initialCourseId);
+    }
+    const found = courses.find(c => Number(c.crs_id) === Number(initialCourseId));
+    return found?.crs_title || found?.label || found?.name || String(initialCourseId);
+  };
+
   return (
     <div className="p-5">
       {/* Header */}
       <div className="bg-[#1f4e5f] text-white px-4 py-2.5 rounded-t-lg font-semibold text-sm flex justify-between items-center">
-        <span>Create New Quiz</span>
+        <span>{isEdit ? 'Edit Quiz' : 'Create New Quiz'}</span>
         <button 
           onClick={() => onCancel && onCancel()} 
           className="text-white text-lg"
@@ -285,24 +355,13 @@ const FixedAddQuizPage: React.FC<FixedAddQuizPageProps> = ({
         </button>
       </div>
 
-      {/* Display selected curriculum, semester, and course labels */}
       <div className="grid grid-cols-3 gap-4 mb-4 text-sm p-3 bg-gray-50 rounded border">
-        <div>
-          <strong>Curriculum:</strong> 
-          <span className="font-medium ml-1">{getBatchLabel()}</span>
-        </div>
-        <div>
-          <strong>Semester:</strong> 
-          <span className="font-medium ml-1">{getSemesterLabel()}</span>
-        </div>
-        <div>
-          <strong>Course:</strong> 
-          <span className="font-medium ml-1">{getCourseLabel()}</span>
-        </div>
+        <div><strong>Curriculum:</strong> <span className="font-medium ml-1">{getBatchLabel()}</span></div>
+        <div><strong>Semester:</strong> <span className="font-medium ml-1">{getSemesterLabel()}</span></div>
+        <div><strong>Course:</strong> <span className="font-medium ml-1">{getCourseLabel()}</span></div>
       </div>
 
       <div className="border border-gray-200 rounded-b-lg bg-white p-5">
-        {/* Quiz Title, Date, Time, Duration */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Quiz Title *</label>
@@ -360,7 +419,7 @@ const FixedAddQuizPage: React.FC<FixedAddQuizPageProps> = ({
           </div>
         </div>
 
-        {/* ✅ Sections - Now properly populated */}
+        {/* Sections */}
         <div className="mb-4">
           <label className={lblCls}>
             Sections {loadingSections && <span className="text-blue-500">⟳ Loading...</span>}
@@ -382,7 +441,9 @@ const FixedAddQuizPage: React.FC<FixedAddQuizPageProps> = ({
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-gray-500 mt-1">{sectionIds.length} selected (Hold Ctrl/Cmd to select multiple)</p>
+              <p className="text-xs text-gray-500 mt-1">
+                {sectionIds.length} selected (Hold Ctrl/Cmd to select multiple)
+              </p>
             </>
           ) : (
             <div className="text-sm text-gray-400 py-2">No sections available for this course</div>
@@ -412,7 +473,9 @@ const FixedAddQuizPage: React.FC<FixedAddQuizPageProps> = ({
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-gray-500 mt-1">{topicIds.length} selected (Hold Ctrl/Cmd to select multiple)</p>
+              <p className="text-xs text-gray-500 mt-1">
+                {topicIds.length} selected (Hold Ctrl/Cmd to select multiple)
+              </p>
             </>
           ) : (
             <div className="text-sm text-gray-400 py-2">No topics available for this course</div>
@@ -503,7 +566,7 @@ const FixedAddQuizPage: React.FC<FixedAddQuizPageProps> = ({
             disabled={saving}
             className="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-6 py-2 rounded text-sm font-medium flex items-center gap-2"
           >
-            {saving ? <><span className="animate-spin">⟳</span> Creating...</> : 'Create Quiz'}
+            {saving ? <><span className="animate-spin">⟳</span> {isEdit ? 'Updating...' : 'Creating...'}</> : isEdit ? 'Update Quiz' : 'Create Quiz'}
           </button>
           <button
             onClick={() => onCancel && onCancel()}

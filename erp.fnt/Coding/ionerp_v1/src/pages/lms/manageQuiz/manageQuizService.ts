@@ -3,7 +3,6 @@ import { ApiEndpoint } from "../../../utils/ApiEndpoint/lmsApiEndpoint";
 import type { CreateQuizPayload } from "./quiz";
 import { useAxios } from "../../../hooks/useAxios";
 
-
 export const useManageQuizService = () => {
   const { customApiCall } = useAxios("", {
     method: "post",
@@ -11,12 +10,15 @@ export const useManageQuizService = () => {
     loader: false,
   });
 
-  
-
   // Quiz CRUD
   const getQuizList = async (params?: any) => {
-    const res: any = await axiosInstance.get(ApiEndpoint.quiz.list, { params });
-    return res.data?.data?.items || res.data?.items || [];
+    try {
+      const res: any = await axiosInstance.get(ApiEndpoint.quiz.list, { params });
+      return res.data?.data?.items || res.data?.items || [];
+    } catch (error) {
+      console.error("Error fetching quiz list:", error);
+      return [];
+    }
   };
 
   const createQuiz = async (payload: CreateQuizPayload) => {
@@ -29,118 +31,27 @@ export const useManageQuizService = () => {
     return res.data;
   };
 
-  // Curriculum (reuse topic service pattern)
-  const getCurriculums = async () => {
-    try {
-      const response = await customApiCall<{}, any[]>(
-        ApiEndpoint.topic.curriculumList,
-        "post",
-        {}
-      );
-      console.log("✅ Curriculums fetched:", response);
-      
-      // Transform to consistent {value, label} format
-      const transformed = (response || []).map((item: any) => ({
-        value: item.value || item.id || "",
-        label: item.label || item.academic_batch_desc || ""
-      }));
-      return transformed;
-    } catch (error) {
-      console.error("❌ Error fetching curriculums:", error);
-      return [];
-    }
-  };
-
-  // Semester  
-  const getSemesters = async () => {
-    try {
-      const response = await customApiCall<{}, any[]>(
-        ApiEndpoint.topic.semesterList,
-        "post",
-        {}
-      );
-      console.log("✅ Semesters fetched:", response);
-      
-      const transformed = (response || []).map((item: any) => ({
-        value: item.value || item.id || "",
-        label: item.label || item.semester_desc || `Semester ${item.semester}`
-      }));
-      return transformed;
-    } catch (error) {
-      console.error("❌ Error fetching semesters:", error);
-      return [];
-    }
-  };
-
-  // Courses (needs curriculum_id)
-  const getCourses = async (curriculum_id?: number) => {
-    try {
-      console.log("DEBUG: getCourses payload:", { curriculum_id });
-      const payload = curriculum_id ? { curriculum_id } : {};
-      
-      const response = await customApiCall<any, any[]>(
-        ApiEndpoint.topic.courseList,
-        "post",
-        payload
-      );
-      console.log("✅ Courses fetched:", response);
-      
-      const transformed = (response || []).map((item: any) => ({
-        value: item.value || item.crs_id || "",
-        label: item.label || item.crs_title || ""
-      }));
-      return transformed;
-    } catch (error) {
-      console.error("❌ Error fetching courses:", error);
-      return [];
-    }
-  };
-
-  // Sections (needs course_id, semester_id, academic_batch_id=curriculum_id)
-  const getSections = async (params: { 
-    course_id?: number; 
-    semester_id?: number; 
-    curriculum_id?: number 
-  } = {}) => {
-    try {
-      console.log("DEBUG: getSections params:", params);
-      const payload = {
-        course_id: params.course_id,
-        semester_id: params.semester_id,
-        academic_batch_id: params.curriculum_id
-      };
-
-      const response = await customApiCall<any, any[]>(
-        ApiEndpoint.topic.sectionList,
-        "post",
-        payload
-      );
-      console.log("✅ Sections fetched:", response);
-      
-      const transformed = (response || []).map((item: any) => ({
-        value: item.value || item.id || "",
-        label: item.label || item.section || ""
-      }));
-      return transformed;
-    } catch (error) {
-      console.error("❌ Error fetching sections:", error);
-      return [];
-    }
-  };
-  
-  // Meta dropdowns
+  // Meta dropdowns with proper error handling
   const getMetaCurriculums = async () => {
-    const res: any = await axiosInstance.get(ApiEndpoint.quiz.curriculumList);
-    return res.data?.data || res.data || [];
+    try {
+      const res: any = await axiosInstance.get('/api/v1/manage-quiz/meta/curriculums');
+      return res.data?.data || res.data || [];
+    } catch (error) {
+      console.error("Error fetching curriculums:", error);
+      return [];
+    }
   };
 
   const getMetaTerms = async (academic_batch_id?: number) => {
     try {
       const params: any = {};
       if (academic_batch_id) params.academic_batch_id = academic_batch_id;
-      const res: any = await axiosInstance.get(ApiEndpoint.quiz.semesterList, { params });
+      const res: any = await axiosInstance.get('/api/v1/manage-quiz/meta/terms', { params });
       return res.data?.data || res.data || [];
-    } catch { return []; }
+    } catch (error) {
+      console.error("Error fetching terms:", error);
+      return [];
+    }
   };
 
   const getMetaCourses = async (academic_batch_id?: number, semester_id?: number) => {
@@ -148,50 +59,101 @@ export const useManageQuizService = () => {
       const params: any = {};
       if (academic_batch_id) params.academic_batch_id = academic_batch_id;
       if (semester_id) params.semester_id = semester_id;
-      const res: any = await axiosInstance.get(ApiEndpoint.quiz.courseList, { params });
+      const res: any = await axiosInstance.get('/api/v1/manage-quiz/meta/courses', { params });
       return res.data?.data || res.data || [];
-    } catch { return []; }
+    } catch (error) {
+      console.error("Error fetching courses:", error);
+      return [];
+    }
   };
 
-  const getMetaSections = async (academic_batch_id?: number, semester_id?: number) => {
+  const getMetaSections = async (academic_batch_id?: number, semester_id?: number, course_id?: number) => {
     try {
       const params: any = {};
       if (academic_batch_id) params.academic_batch_id = academic_batch_id;
       if (semester_id) params.semester_id = semester_id;
-      const res: any = await axiosInstance.get(ApiEndpoint.quiz.sectionList, { params });
+      if (course_id) params.course_id = course_id;
+      const res: any = await axiosInstance.get('/api/v1/manage-quiz/meta/sections', { params });
       return res.data?.data || res.data || [];
-    } catch { return []; }
+    } catch (error) {
+      console.error("Error fetching sections:", error);
+      return [];
+    }
   };
 
   const getMetaTopics = async (academic_batch_id: number, semester_id: number, crs_id: number) => {
     try {
       const params = { academic_batch_id, semester_id, crs_id };
-      const res: any = await axiosInstance.get(ApiEndpoint.quiz.topics, { params });
+      const res: any = await axiosInstance.get('/api/v1/manage-quiz/meta/topics', { params });
       return res.data?.data || res.data || [];
-    } catch { return []; }
+    } catch (error) {
+      console.error("Error fetching topics:", error);
+      return [];
+    }
   };
 
   // Detail methods
   const getQuizDetails = async (id: number) => {
-    const res: any = await axiosInstance.get(ApiEndpoint.quiz.details(id));
-    return res.data?.data || res.data || null;
+    try {
+      const res: any = await axiosInstance.get(`/api/v1/manage-quiz/${id}`);
+      return res.data?.data || res.data || null;
+    } catch (error) {
+      console.error("Error fetching quiz details:", error);
+      return null;
+    }
   };
 
+  // const getQuizStudents = async (quizId: number, params?: any) => {
+  //   try {
+  //     const res: any = await axiosInstance.get(`/api/v1/manage-quiz/${quizId}/students`, { params });
+  //     return res.data?.data || res.data || [];
+  //   } catch (error) {
+  //     console.error('Error fetching students:', error);
+  //     return [];
+  //   }
+  // };
 
+  const getStudents = async (quizId: number) => {
+    return getQuizStudents(quizId);
+  };
 
-// const getStudents = async (quizId: number) => {
-//   const res: any = await axiosInstance.get(
-//     ApiEndpoint.quiz.students(quizId)
-//   );
-//   return res.data || [];
-// };
+  const assignStudents = async (payload: any) => {
+    const res = await axiosInstance.post(ApiEndpoint.quiz.assignStudents, payload);
+    return res.data;
+  };
 
-// In manageQuizService.ts
-const getQuizStudents = async (quizId: number, params?: any) => {
+  const shareQuiz = async (id: number, payload: any) => {
+    try {
+      const res: any = await axiosInstance.post(`/api/v1/manage-quiz/${id}/share`, payload);
+      return res.data;
+    } catch (error) {
+      console.error("Error sharing quiz:", error);
+      throw error;
+    }
+  };
+
+  const getQuizQuestions = async (quizId: number) => {
+    try {
+      const res: any = await axiosInstance.get(`/api/v1/manage-quiz/${quizId}`);
+      return res.data?.data?.questions || res.data?.questions || [];
+    } catch (error) {
+      console.error("Error fetching quiz questions:", error);
+      return [];
+    }
+  };
+
+  const getQuizStudents = async (quizId: number, params?: any) => {
   try {
+    // Ensure all required params are passed
+    const queryParams = {
+      academic_batch_id: params?.academic_batch_id,
+      semester_id: params?.semester_id,
+      crs_id: params?.crs_id
+    };
+    
     const res: any = await axiosInstance.get(
       `/api/v1/manage-quiz/${quizId}/students`, 
-      { params }
+      { params: queryParams }
     );
     return res.data?.data || res.data || [];
   } catch (error) {
@@ -200,68 +162,44 @@ const getQuizStudents = async (quizId: number, params?: any) => {
   }
 };
 
-// Also update the existing getStudents to use the new function
-const getStudents = async (quizId: number) => {
-  return getQuizStudents(quizId);
-};
-
-const assignStudents = async (payload: any) => {
-  const res = await axiosInstance.post(
-    ApiEndpoint.quiz.assignStudents,
-    payload
-  );
-  return res.data;
-};
-  const shareQuiz = async (id: number, payload: any) => {
-    const res: any = await axiosInstance.post(ApiEndpoint.quiz.share(id), payload);
+  const addQuizQuestion = async (quizId: number, payload: any) => {
+    const res = await axiosInstance.post(`/api/v1/manage-quiz/${quizId}/question`, payload);
     return res.data;
   };
 
-const getQuizQuestions = async (quizId: number) => {
-  const res = await axiosInstance.get(
-    `${ApiEndpoint.quiz.getQuizQuestions}/${quizId}`
-  );
-  return res.data;
-};
+  const updateQuiz = async (quizId: number, payload: any) => {
+    const res: any = await axiosInstance.put(`/api/v1/manage-quiz/${quizId}`, payload);
+    return res.data;
+  };
 
- const addQuizQuestion = async (payload: any) => {
-  const res = await axiosInstance.post(
-    `/api/v1/manage_quiz/add_question`,
-    payload
-  );
-  return res.data;
-};
+  const deleteQuestion = async (qqId: number) => {
+    const res: any = await axiosInstance.delete(`/api/v1/manage-quiz/question/${qqId}`);
+    return res.data;
+  };
 
   const getAssignedStudents = async (quizId: number) => {
-  const res = await axiosInstance.get(
-    `/api/v1/manage_quiz/${quizId}/assigned-students`
-  );
-  return res.data;
-};
+    const res = await axiosInstance.get(`/api/v1/manage-quiz/${quizId}/assigned-students`);
+    return res.data;
+  };
 
   return {
     getQuizList,
     createQuiz,
     deleteQuiz,
-    getCurriculums,
-    getSemesters,
-    getCourses,
-    getSections,
-    getMetaTopics,
-    getQuizDetails,
-    getStudents,
-    shareQuiz,
-    assignStudents,
-    addQuizQuestion,
-    getQuizQuestions,
-    getAssignedStudents,
     getMetaCurriculums,
     getMetaTerms,
     getMetaCourses,
     getMetaSections,
-    getQuizStudents
+    getMetaTopics,
+    getQuizDetails,
+    getStudents,
+    getQuizStudents,
+    shareQuiz,
+    assignStudents,
+    addQuizQuestion,
+    getQuizQuestions,
+    updateQuiz,
+    deleteQuestion,
+    getAssignedStudents
   };
 };
-
-
-
