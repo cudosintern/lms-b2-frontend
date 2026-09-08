@@ -9,7 +9,7 @@ import DeptConfigurationPage from "../pages/lms/mmp/deptConfiguration/DeptConfig
 import MmpReportPage from "../pages/lms/mmp/reports/MmpReportPage";
 import MentorListPage from "../pages/lms/mmp/reports/MentorListPage";
 import IssueObservationReportPage from "../pages/lms/mmp/reports/IssueObservationReportPage";
-import CourseRegistrationPage from "../pages/lms/Registration_setup/CourseRegistrationPage";
+// import CourseRegistrationPage from "../pages/lms/CourseRegistrationPage";
 import QuestionnairePage from "../pages/lms/mmp/questionnaire/QuestionnairePage";
 import QuestionnaireCreatePage from "../pages/lms/mmp/questionnaire/QuestionnaireCreatePage";
 
@@ -26,9 +26,10 @@ import sharedmaterial from "../pages/lms/reports/student_sharedmaterial";
 
 import AnnouncementPage from "../pages/lms/announcement/AnnouncementPage";
 import ManageAssignmentPage from "../pages/lms/manageAssignment/ManageAssignmentPage";
-import MyAssignmentPage from "../pages/lms_student/my_assignment/MyAssignmentPage";
-import MyQuizPage from "../pages/lms_student/myQuiz/MyQuizPage";
+// import MyAssignmentPage from "../pages/lms/my_assignment/MyAssignmentPage";
+// import MyQuizPage from "../pages/lms/myQuiz/MyQuizPage";
 import AttendanceManagementPage from "../pages/lms/AttendanceManagement/AttendanceManagementPage";
+import CourseRegistrationPage from "../pages/lms/Registration_setup/CourseRegistrationPage";
 import StudentAssignmentReport from "../pages/lms/studentAssignmentReport/StudentAssignmentReport";
 import AttendanceStatusReportPage from "../pages/lms/attendanceStatusReport/AttendanceStatusReportPage";
 import StudentRecordPage from "../pages/lms/studentRecord/StudentRecordPage";
@@ -39,7 +40,7 @@ import SendAnnouncementPage from "../pages/lms/sendAnnouncement/SendAnnouncement
 import { AttendanceReportPage } from "../pages/lms/reports";
 import ConsolidatedAbsenteesReport from "../pages/lms/consolidatedAbsenteesReport/ConsolidatedAbsenteesReport";
 import TopicCoverageAndTracking from "../pages/lms/TopicCoverageAndTracking/TopicCoverageAndTracking";
-import MyClass from "../pages/lms_student/student_myClass/MyClass";
+// import MyClass from "../pages/lms/student_myClass/MyClass";
 
 export const LMSROUTE = [
   {
@@ -103,17 +104,24 @@ export const LMSROUTE = [
         element: ManageAssignmentPage,
       },
       {
-        name: "My Assignment",
-        href: "my-assignment",
-        roles: ["student"],
-        element: MyAssignmentPage,
+        name: "Registration Setup",
+        href: "course-registration-setup",
+        roles: ["faculty"],
+        element: CourseRegistrationPage,
+        subItems: [],
       },
-      {
-        name: "My Quiz",
-        href: "my-quiz",
-        roles: ["student"],
-        element: MyQuizPage,
-      },
+      // {
+      //   name: "My Assignment",
+      //   href: "my-assignment",
+      //   roles: ["student"],
+      //   element: MyAssignmentPage,
+      // },
+      // {
+      //   name: "My Quiz",
+      //   href: "my-quiz",
+      //   roles: ["student"],
+      //   element: MyQuizPage,
+      // },
       
       {
         name: "Attendance Management",
@@ -129,16 +137,7 @@ export const LMSROUTE = [
       },
 
     ],
-  },  
-  {
-
-    name: "Reports",
-    href: "/mmp",
-    element: Outlet,
-    roles: [],
-    subItems: [
-    ]
-  },   
+  },     
 
   {
     name: "Mentor Mentee Program",
@@ -325,11 +324,11 @@ export const LMSROUTE = [
   hidden: true,
   subItems: [],
 },
-{
-  name: "Course Registration",
-  href: "/curriculum",
-  element: CourseRegistrationPage,
-  roles: [],
-  subItems: [],
-},
+// {
+//   name: "Course Registration",
+//   href: "/curriculum",
+//   element: CourseRegistrationPage,
+//   roles: [],
+//   subItems: [],
+// },
 ];

@@ -3,7 +3,7 @@ import {
   MarksTableCourseHeader,
   MarksTableRow,
   MarksTransformedTable,
-} from "./consolidatedStudentMarksReport";
+} from "./consolidatedStudentMarksReportTypes";
 
 const normalizeComponentKey = (courseId: number, occasionName: string) =>
   `${courseId}::${occasionName.trim()}`;

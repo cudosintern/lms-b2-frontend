@@ -1,0 +1,62 @@
+.student-assignment-report {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.student-assignment-report .assignment-report-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  align-items: end;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.student-assignment-report .assignment-report-field {
+  min-width: 0;
+}
+
+.student-assignment-report .assignment-report-field label {
+  display: block;
+  margin-bottom: 6px;
+}
+
+/* Override the unscoped select minimum width from course registration. */
+.student-assignment-report .assignment-report-field select {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  height: 40px;
+  text-overflow: ellipsis;
+}
+
+.student-assignment-report .assignment-report-filters > button {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  white-space: nowrap;
+}
+
+.student-assignment-report .assignment-report-table {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.student-assignment-report .assignment-report-table .ag-root-wrapper {
+  border: 1px solid #d9e1e8;
+  border-radius: 6px;
+}
+
+/* Keep pagination controls inside a scrollable grid on narrow screens. */
+.student-assignment-report .assignment-report-table > div {
+  min-width: 580px;
+}
+
+@media (max-width: 600px) {
+  .student-assignment-report {
+    padding: 12px;
+  }
+}

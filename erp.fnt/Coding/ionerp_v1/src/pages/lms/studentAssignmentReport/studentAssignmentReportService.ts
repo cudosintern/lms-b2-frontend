@@ -1,124 +1,61 @@
-import { useAxios } from "../../../hooks/useAxios";
+import axiosInstance from "../../../utils/api";
 import { ApiEndpoint } from "../../../utils/ApiEndpoint/lmsApiEndpoint";
 
-interface DropdownOption {
-  value: string | number;
-  label: string;
+export interface DropdownOption { value: string | number; label: string }
+export interface ReportContext {
+  academic_batch_id: number;
+  semester_id: number;
+  course_id: number;
+  section_id: number;
 }
-
-interface StudentReportRow {
+export interface StudentReportRow {
   id: number;
   student_usn: string;
   student_name: string;
-  secured_marks: number | string;
+  secured_marks: number | string | null;
 }
 
-// Helper: extract array from any response shape customApiCall might return.
-// Backend sends: { status: true, data: [...] }  OR  customApiCall may unwrap to just [...]
-function extractArray(response: any): any[] {
-  if (Array.isArray(response))            return response;           // already an array
-  if (Array.isArray(response?.data))      return response.data;      // { data: [...] }
-  if (Array.isArray(response?.data?.data)) return response.data.data; // double-wrapped
-  return [];
-}
-
-export const useStudentAssignmentReportService = () => {
-  const { customApiCall } = useAxios("", {
-    method: "post",
-    shouldFetch: false,
-    loader: false,
-  });
-
-  // ── Assignment dropdown ───────────────────────────────────────────
-  // Backend: POST /api/v1/student_assignment/assignment_list
-  // Payload: { course_id, semester_id, academic_batch_id }
-  // Returns: { status: true, data: [{ value, label }, ...] }
-  const getAssignments = async (
-    course_id: number,
-    semester_id: number,
-    academic_batch_id: number
-  ): Promise<DropdownOption[]> => {
-    try {
-      const response: any = await customApiCall(
-        ApiEndpoint.studentAssignmentReport.assignmentList,
-        "post",
-        { course_id, semester_id, academic_batch_id }
-      );
-
-      const raw = extractArray(response);
-
-      return raw.map((item: any) => ({
-        value: String(item.value ?? item.lms_assignment_id ?? ""),
-        label: item.label ?? item.assignment_name ?? `Assignment ${item.lms_assignment_id ?? ""}`,
-      }));
-    } catch (error) {
-      console.error("getAssignments error:", error);
-      return [];
-    }
-  };
-
-  // ── Student report ────────────────────────────────────────────────
-  // Backend: POST /api/v1/student_assignment/report
-  // Payload: { assignment_id }
-  // Returns: { status: true, data: [{ student_usn, student_name, secured_marks, ... }] }
-  const getStudentReport = async (assignment_id: number) => {
-  try {
-    const response: any = await customApiCall(
-      ApiEndpoint.studentAssignmentReport.report,
-      "post",
-      { assignment_id }
-    );
-
-    console.log("RAW API RESPONSE:", response);
-
-    // ✅ FORCE extraction
-    let dataArray = [];
-
-    if (Array.isArray(response)) {
-      dataArray = response;
-    } else if (Array.isArray(response?.data)) {
-      dataArray = response.data;
-    } else if (Array.isArray(response?.data?.data)) {
-      dataArray = response.data.data;
-    }
-
-    console.log("EXTRACTED DATA:", dataArray);
-
-    return dataArray.map((row: any, index: number) => ({
-      id: index + 1,
-      student_usn: row.student_usn ?? "",
-      student_name: row.student_name ?? row.student_usn ?? "N/A",
-      secured_marks: row.secured_marks ?? 0,
-    }));
-
-  } catch (error) {
-    console.error("getStudentReport error:", error);
-    return [];
+// Reject failed requests instead of displaying them as a successful empty report.
+export function extractArray(response: any): any[] {
+  if (response?.status === false || response?.success === false) {
+    throw new Error(response.message || response.error || "Unable to load assignment report");
   }
-};
-  // ── Export Excel ────────────────────────────────────────────────────
-  // Backend: POST /api/v1/student_assignment/export  
-  // Payload: { assignment_id }
-  // Returns: FileResponse (Excel blob)
-  const exportReport = async (assignment_id: number, custompdfApiCall: any) => {
-    try {
-      await custompdfApiCall(
-        ApiEndpoint.studentAssignmentReport.export,
-        "post",
-        { assignment_id },
-        false,
-        "excel",
-        `assignment_report_${assignment_id}`
-      );
-    } catch (error) {
-      console.error("exportReport error:", error);
-      throw error;
-    }
-  };
+  if (Array.isArray(response)) return response;
+  if (response?.data != null) return extractArray(response.data);
+  throw new Error("Invalid assignment report response");
+}
 
-  return {
-    getAssignments,
-    getStudentReport,
-    exportReport
-  };
+async function postList(endpoint: string, payload: object, signal?: AbortSignal) {
+  // Axios 1.x supports signals, but the project's legacy @types/axios does not.
+  const config: NonNullable<Parameters<typeof axiosInstance.post>[2]> & { signal?: AbortSignal } = { signal };
+  const response = await axiosInstance.post(endpoint, payload, config);
+  return extractArray(response.data);
+}
+
+const service = {
+  getCurriculumList: (signal?: AbortSignal) => postList(ApiEndpoint.topic.curriculumList, {}, signal),
+  getSemesterList: (academic_batch_id: number, signal?: AbortSignal) =>
+    postList(ApiEndpoint.topic.semesterList, { academic_batch_id }, signal),
+  getCourseList: (academic_batch_id: number, semester_id: number, signal?: AbortSignal) =>
+    postList(ApiEndpoint.topic.courseList, { academic_batch_id, semester_id }, signal),
+  getSectionList: (context: Omit<ReportContext, "section_id">, signal?: AbortSignal) =>
+    postList(ApiEndpoint.topic.sectionList, context, signal),
+  getAssignments: async (context: ReportContext, signal?: AbortSignal): Promise<DropdownOption[]> => {
+    const rows = await postList(ApiEndpoint.studentAssignmentReport.assignmentList, context, signal);
+    return rows.map(item => ({
+      value: item.value ?? item.lms_assignment_id ?? item.id,
+      label: item.label ?? item.assignment_name ?? item.name,
+    }));
+  },
+  getStudentReport: async (context: ReportContext & { assignment_id: number }, signal?: AbortSignal): Promise<StudentReportRow[]> => {
+    const rows = await postList(ApiEndpoint.studentAssignmentReport.report, context, signal);
+    return rows.map((row, index) => ({
+      id: row.id ?? index + 1,
+      student_usn: row.student_usn ?? "",
+      student_name: String(row.student_name ?? row.name ?? "").trim() || row.student_usn || "N/A",
+      secured_marks: row.secured_marks == null || String(row.secured_marks).trim() === "" || !Number.isFinite(Number(row.secured_marks)) ? null : Number(row.secured_marks),
+    }));
+  },
 };
+
+export const useStudentAssignmentReportService = () => service;

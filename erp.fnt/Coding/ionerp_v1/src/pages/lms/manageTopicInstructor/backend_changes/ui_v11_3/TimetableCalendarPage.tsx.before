@@ -1,0 +1,776 @@
+import React, { useState, useEffect, useCallback } from "react";
+import axiosInstance from "../../../utils/api";
+import { ApiEndpoint } from "../../../utils/ApiEndpoint/lmsApiEndpoint";
+import { ChevronLeft, ChevronRight, RefreshCw, Loader2, User, BookOpen, X, Plus } from "lucide-react";
+
+interface Curriculum { academic_batch_id: number; academic_batch_desc: string; academic_batch_code: string; academic_year?: string; }
+interface Term { semester_id: number; semester: number; semester_desc: string; }
+interface Course { crs_id: number; crs_code: string; crs_title: string; }
+interface Section { section_id: number | string; section: string; }
+interface ScheduledClass {
+  lls_id?: number; crs_id?: number; plan_date?: string; start_time?: string; end_time?: string;
+  section_id?: number; academic_batch_id?: number; semester_id?: number;
+  id?: number; crs_code?: string; course?: string; date?: string; status?: string; batch_name?: string;
+  crs_title?: string; faculty_name?: string; section?: string; week_day_name?: string;
+  topic_id?: number; topic_code?: string; topic_title?: string; portion_ref?: string;
+  portion_per_hour?: string; video_link?: string;
+  tt_day_map_id?: number; time_table_id?: number; tt_detail_id?: number; class_date?: string;
+  is_announcement?: boolean; description?: string;
+}
+
+interface Announcement {
+    id: number; description: string; delivery_date: string | null;
+    delivery_time: string | null; created_at: string; seen_flag: number;
+}
+
+const QUIZ_META = "/api/v1/manage-quiz";
+
+const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const DAY_NAMES = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+
+const getResponseArray = (response: any): any[] => {
+  const payload = response?.data?.data ?? response?.data;
+  return Array.isArray(payload) ? payload : [];
+};
+
+const normalizeSections = (response: any): Section[] =>
+  getResponseArray(response)
+    .map((item: any) => ({
+      section_id: item.section_id ?? item.batch_id ?? item.value ?? item.id,
+      section: item.section ?? item.section_name ?? item.batch_name ?? item.label ?? item.mt_details_name ?? item.name ?? "",
+    }))
+    .filter((item: Section) => item.section_id !== undefined && item.section_id !== null && item.section.trim());
+
+const normalizeTime = (value?: string) => (value || "").substring(0, 5);
+
+const normalizeDate = (value?: string | null) => {
+  if (!value) return "";
+  const datePart = String(value).trim().split(/[T\s]/)[0];
+
+  // API/database values may be either YYYY-MM-DD or DD-MM-YYYY.
+  const isoMatch = datePart.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (isoMatch) {
+    return `${isoMatch[1]}-${isoMatch[2].padStart(2, "0")}-${isoMatch[3].padStart(2, "0")}`;
+  }
+
+  const displayMatch = datePart.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+  if (displayMatch) {
+    return `${displayMatch[3]}-${displayMatch[2].padStart(2, "0")}-${displayMatch[1].padStart(2, "0")}`;
+  }
+
+  return "";
+};
+
+const formatCalendarTime = (value?: string) => {
+  const [hourText, minute = "00"] = normalizeTime(value).split(":");
+  const hour = Number(hourText);
+  if (!Number.isFinite(hour)) return "";
+  const suffix = hour >= 12 ? "p" : "a";
+  return `${hour % 12 || 12}:${minute}${suffix}`;
+};
+
+const dateInputValue = (value = new Date()) =>
+  `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+
+const scheduleKey = (item: ScheduledClass) => [
+  normalizeDate(item.plan_date || item.class_date || item.date),
+  normalizeTime(item.start_time),
+  normalizeTime(item.end_time),
+  String(item.crs_id || ""),
+].join("|");
+
+function getDaysInMonth(year: number, month: number) {
+  return new Date(year, month + 1, 0).getDate();
+}
+function getFirstDayOfMonth(year: number, month: number) {
+  // Convert JavaScript's Sunday-first index to a Monday-first calendar index.
+  return (new Date(year, month, 1).getDay() + 6) % 7;
+}
+
+const TimetableCalendarPage: React.FC = () => {
+  const today = new Date();
+  const [viewYear, setViewYear] = useState(today.getFullYear());
+  const [viewMonth, setViewMonth] = useState(today.getMonth());
+  const [viewMode, setViewMode] = useState<"month" | "week" | "day">("month");
+
+  // Dropdowns
+  const [curriculums, setCurriculums] = useState<Curriculum[]>([]);
+  const [terms, setTerms] = useState<Term[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [sections, setSections] = useState<Section[]>([]);
+
+  const [selectedBatch, setSelectedBatch] = useState("");
+  const [selectedTerm, setSelectedTerm] = useState("");
+  const [selectedCourse, setSelectedCourse] = useState("");
+  const [selectedSection, setSelectedSection] = useState("");
+
+  const [loadingBatch, setLoadingBatch] = useState(false);
+  const [loadingTerm, setLoadingTerm] = useState(false);
+  const [loadingCourse, setLoadingCourse] = useState(false);
+  const [loadingSection, setLoadingSection] = useState(false);
+
+  // Data
+  const [classes, setClasses] = useState<ScheduledClass[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [selectedClass, setSelectedClass] = useState<ScheduledClass | null>(null);
+  const [loadingClassDetails, setLoadingClassDetails] = useState(false);
+  const [lessonTab, setLessonTab] = useState<"details" | "students">("details");
+  const [topics, setTopics] = useState<any[]>([]);
+  const [bloomLevels, setBloomLevels] = useState<any[]>([]);
+  const [classStudents, setClassStudents] = useState<any[]>([]);
+  const [savingLesson, setSavingLesson] = useState(false);
+  const [showExtraClass, setShowExtraClass] = useState(false);
+  const [savingExtraClass, setSavingExtraClass] = useState(false);
+  const [extraClassForm, setExtraClassForm] = useState({ date: dateInputValue(), startTime: "", endTime: "" });
+  const [lessonForm, setLessonForm] = useState({
+    allotClass: false, topicId: "", portionRef: "", deliveryMethod: "",
+    bloomLevel: "", videoLink: "", status: "0",
+  });
+
+  const authState = (window as any).__AUTH_STATE__ || JSON.parse(localStorage.getItem('auth_state') || '{}');
+  const userId = authState?.user_id ?? authState?.id ?? 1;
+
+  // Fetch Announcements
+  const fetchAnnouncements = useCallback(async () => {
+    try {
+      const res: any = await axiosInstance.get(`/api/v1/announcements/announcements/received/${userId}`);
+      setAnnouncements(res.data?.data || []);
+    } catch { 
+      // Silently fail if announcements don't load
+    }
+  }, [userId]);
+
+  useEffect(() => { fetchAnnouncements(); }, [fetchAnnouncements]);
+
+  // Load curriculums
+  useEffect(() => {
+    setLoadingBatch(true);
+    const done1 = () => setLoadingBatch(false);
+    axiosInstance.get(`${QUIZ_META}/meta/curriculums`)
+      .then((r: any) => { setCurriculums(Array.isArray(r.data?.data) ? r.data.data : []); done1(); }, done1);
+  }, []);
+
+  useEffect(() => {
+    if (!selectedBatch) { setTerms([]); setSelectedTerm(""); setCourses([]); setSelectedCourse(""); setSections([]); setSelectedSection(""); return; }
+    setLoadingTerm(true);
+    const done2 = () => setLoadingTerm(false);
+    axiosInstance.get(`${QUIZ_META}/meta/terms`, { params: { academic_batch_id: selectedBatch } })
+      .then((r: any) => { setTerms(Array.isArray(r.data?.data) ? r.data.data : []); setSelectedTerm(""); setCourses([]); setSelectedCourse(""); setSections([]); setSelectedSection(""); done2(); }, done2);
+  }, [selectedBatch]);
+
+  useEffect(() => {
+    if (!selectedBatch || !selectedTerm) { setCourses([]); setSelectedCourse(""); setSections([]); setSelectedSection(""); return; }
+    setLoadingCourse(true);
+    const done3 = () => setLoadingCourse(false);
+    axiosInstance.get(`${QUIZ_META}/meta/courses`, { params: { academic_batch_id: selectedBatch, semester_id: selectedTerm } })
+      .then((r: any) => { setCourses(Array.isArray(r.data?.data) ? r.data.data : []); setSelectedCourse(""); setSections([]); setSelectedSection(""); done3(); }, done3);
+  }, [selectedBatch, selectedTerm]);
+
+  useEffect(() => {
+    if (!selectedBatch || !selectedTerm || !selectedCourse) { setSections([]); setSelectedSection(""); return; }
+    setLoadingSection(true);
+    let cancelled = false;
+
+    const loadSections = async () => {
+      try {
+        const quizResponse: any = await axiosInstance.get(`${QUIZ_META}/meta/sections`, {
+          params: { academic_batch_id: selectedBatch, semester_id: selectedTerm, course_id: selectedCourse },
+        });
+        let sectionOptions = normalizeSections(quizResponse);
+
+        if (sectionOptions.length === 0) {
+          const timetableResponse: any = await axiosInstance.post("/api/v1/timetable/get_section_details", {
+            academic_batch_id: Number(selectedBatch),
+            semester_id: Number(selectedTerm),
+          });
+          sectionOptions = normalizeSections(timetableResponse);
+        }
+
+        if (!cancelled) setSections(sectionOptions);
+      } catch {
+        if (!cancelled) setSections([]);
+      } finally {
+        if (!cancelled) {
+          setSelectedSection("");
+          setLoadingSection(false);
+        }
+      }
+    };
+
+    loadSections();
+    return () => { cancelled = true; };
+  }, [selectedBatch, selectedTerm, selectedCourse]);
+
+  const fetchClasses = useCallback(async () => {
+    if (!selectedBatch || !selectedTerm || !selectedCourse || !selectedSection) {
+      setClasses([]);
+      setError(null);
+      return;
+    }
+    setLoading(true); setError(null);
+    try {
+      const params = {
+        academic_batch_id: Number(selectedBatch),
+        semester_id: Number(selectedTerm),
+        section_id: Number(selectedSection),
+        crs_id: Number(selectedCourse),
+      };
+
+      // Timetable day mappings are the source of truth for calendar occurrences.
+      // Lesson schedules are optional enrichment and may not exist yet.
+      const [timetableResponse, lessonResponse] = await Promise.all([
+        axiosInstance.get("/api/v1/schedule-class/schedule-class/meta/batches-sections", {
+          params: { crs_id: Number(selectedCourse) },
+        }) as Promise<any>,
+        (axiosInstance.get("/api/v1/schedule-class/schedule-class/list", { params }) as Promise<any>)
+          .catch(() => null),
+      ]);
+
+      const timetablePayload: any = timetableResponse.data?.data ?? timetableResponse.data;
+      const timeSlots: any[] = Array.isArray(timetablePayload?.time_slots) ? timetablePayload.time_slots : [];
+      const courseDetails = timetablePayload?.course || {};
+      const lessonPayload: any = lessonResponse?.data?.data ?? lessonResponse?.data;
+      const lessonRows: ScheduledClass[] = Array.isArray(lessonPayload?.items)
+        ? lessonPayload.items
+        : Array.isArray(lessonPayload) ? lessonPayload : [];
+      const lessonsBySlot = new Map(lessonRows.map(item => [scheduleKey(item), item]));
+
+      const scheduledClasses: ScheduledClass[] = timeSlots
+        .filter(slot =>
+          Number(slot.academic_batch_id) === Number(selectedBatch) &&
+          Number(slot.semester_id) === Number(selectedTerm) &&
+          Number(slot.crs_id) === Number(selectedCourse) &&
+          Number(slot.section_id) === Number(selectedSection) &&
+          Boolean(normalizeDate(slot.class_date))
+        )
+        .map(slot => {
+          const timetableClass: ScheduledClass = {
+            ...slot,
+            plan_date: normalizeDate(slot.class_date),
+            start_time: slot.class_start_time,
+            end_time: slot.class_end_time,
+            crs_code: slot.crs_code || courseDetails.crs_code,
+            crs_title: slot.crs_title || courseDetails.crs_title,
+          };
+          const lessonDetails = lessonsBySlot.get(scheduleKey(timetableClass));
+          return {
+            ...timetableClass,
+            ...(lessonDetails || {}),
+            plan_date: normalizeDate(lessonDetails?.plan_date) || timetableClass.plan_date,
+          };
+        })
+        .sort((a, b) => `${a.plan_date} ${a.start_time}`.localeCompare(`${b.plan_date} ${b.start_time}`));
+
+      setClasses(scheduledClasses);
+
+      // The API is ordered by latest plan date. Show its month when data exists;
+      // otherwise retain the current month selected when the page was opened.
+      const referenceDate = new Date();
+      const currentMonthPrefix = `${referenceDate.getFullYear()}-${String(referenceDate.getMonth() + 1).padStart(2, "0")}`;
+      const currentMonthClass = scheduledClasses.find(item => item.plan_date?.startsWith(currentMonthPrefix));
+      const nearestClass = scheduledClasses.reduce<ScheduledClass | undefined>((nearest, item) => {
+        if (!item.plan_date) return nearest;
+        if (!nearest?.plan_date) return item;
+        const itemDistance = Math.abs(new Date(`${item.plan_date.substring(0, 10)}T00:00:00`).getTime() - referenceDate.getTime());
+        const nearestDistance = Math.abs(new Date(`${nearest.plan_date.substring(0, 10)}T00:00:00`).getTime() - referenceDate.getTime());
+        return itemDistance < nearestDistance ? item : nearest;
+      }, undefined);
+      const firstScheduledDate = (currentMonthClass || nearestClass)?.plan_date;
+      if (firstScheduledDate) {
+        const [year, month] = firstScheduledDate.substring(0, 10).split("-").map(Number);
+        if (year && month) {
+          setViewYear(year);
+          setViewMonth(month - 1);
+        }
+      }
+    } catch {
+      setError("Failed to load timetable classes. Is the backend running?");
+    } finally { setLoading(false); }
+  }, [selectedBatch, selectedTerm, selectedCourse, selectedSection]);
+
+  useEffect(() => { fetchClasses(); }, [fetchClasses]);
+
+  // Calendar helpers
+  const navMonth = (delta: number) => {
+    const d = new Date(viewYear, viewMonth + delta, 1);
+    setViewYear(d.getFullYear()); setViewMonth(d.getMonth());
+  };
+  const goToday = () => { setViewYear(today.getFullYear()); setViewMonth(today.getMonth()); };
+
+  const daysInMonth = getDaysInMonth(viewYear, viewMonth);
+  const firstDay = getFirstDayOfMonth(viewYear, viewMonth);
+
+  // Map classes to date string
+  const classesByDate: Record<string, ScheduledClass[]> = {};
+  classes.forEach(c => {
+    const dateKey = normalizeDate(c.plan_date || c.date);
+    if (dateKey) {
+      if (!classesByDate[dateKey]) classesByDate[dateKey] = [];
+      classesByDate[dateKey].push(c);
+    }
+  });
+
+  // Merge announcements into the date map
+  announcements.forEach(a => {
+    const dateKey = normalizeDate(a.delivery_date || a.created_at);
+    if (dateKey) {
+      if (!classesByDate[dateKey]) classesByDate[dateKey] = [];
+      classesByDate[dateKey].push({
+        is_announcement: true,
+        description: a.description,
+        plan_date: dateKey,
+        start_time: a.delivery_time || "12:00:00",
+        id: a.id
+      });
+    }
+  });
+
+  // Build calendar grid (weeks)
+  const calendarDays: Array<{ day: number | null; dateStr: string }> = [];
+  for (let i = 0; i < firstDay; i++) calendarDays.push({ day: null, dateStr: "" });
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    calendarDays.push({ day: d, dateStr });
+  }
+  // Pad end
+  while (calendarDays.length % 7 !== 0) calendarDays.push({ day: null, dateStr: "" });
+  const weeks: typeof calendarDays[] = [];
+  for (let i = 0; i < calendarDays.length; i += 7) weeks.push(calendarDays.slice(i, i + 7));
+
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+  const openClassDetails = async (scheduledClass: ScheduledClass) => {
+    setSelectedClass(scheduledClass);
+    setLessonTab("details");
+    setLessonForm({
+      allotClass: false,
+      topicId: scheduledClass.topic_id ? String(scheduledClass.topic_id) : "",
+      portionRef: scheduledClass.portion_ref || scheduledClass.portion_per_hour || "",
+      deliveryMethod: "",
+      bloomLevel: "",
+      videoLink: scheduledClass.video_link || "",
+      status: String(scheduledClass.status ?? 0),
+    });
+
+    const metaParams = {
+      academic_batch_id: Number(selectedBatch), semester_id: Number(selectedTerm), crs_id: Number(selectedCourse),
+    };
+    axiosInstance.get("/api/v1/manage-assignment/assignment/meta/students", {
+      params: { ...metaParams, section: scheduledClass.section },
+    }).then((studentResponse: any) => {
+      const studentData = studentResponse?.data?.data ?? studentResponse?.data;
+      setClassStudents(Array.isArray(studentData?.items) ? studentData.items : Array.isArray(studentData) ? studentData : []);
+    }).catch(() => setClassStudents([]));
+    setLoadingClassDetails(true);
+    try {
+      const response: any = await axiosInstance.post(ApiEndpoint.timetableCalendar.lessonScheduleDetails, {
+        academic_batch_id: Number(selectedBatch),
+        semester_id: Number(selectedTerm),
+        crs_id: Number(selectedCourse),
+        section_id: Number(selectedSection),
+        plan_date: normalizeDate(scheduledClass.plan_date || scheduledClass.class_date || scheduledClass.date),
+        start_time: scheduledClass.start_time || null,
+        end_time: scheduledClass.end_time || null,
+        lls_id: scheduledClass.lls_id || null,
+        tt_day_map_id: scheduledClass.tt_day_map_id || null,
+        topic_id: scheduledClass.topic_id || null,
+      });
+      const details = response.data?.data ?? response.data;
+      if (details && !Array.isArray(details)) {
+        const lesson = details.lesson_schedule || {};
+        setSelectedClass({ ...scheduledClass, ...lesson });
+        setTopics(Array.isArray(details.topic_list) ? details.topic_list : []);
+        setBloomLevels(Array.isArray(details.bloom_level_list) ? details.bloom_level_list : []);
+        setLessonForm(form => ({
+          ...form,
+          topicId: String(lesson.topic_id ?? scheduledClass.topic_id ?? form.topicId),
+          portionRef: lesson.portion_ref || scheduledClass.portion_ref || form.portionRef,
+          videoLink: details.video_link || lesson.video_link || form.videoLink,
+          status: String(details.status ?? lesson.status ?? form.status),
+        }));
+      }
+    } catch {
+      // List data already contains the essential details, so keep the modal usable.
+    } finally {
+      setLoadingClassDetails(false);
+    }
+  };
+
+  const saveLessonSchedule = async () => {
+    if (!selectedClass || (!lessonForm.allotClass && (!lessonForm.topicId || !lessonForm.portionRef || !lessonForm.status))) {
+      window.alert("Please select Topic, Topic Portion and Status.");
+      return;
+    }
+
+    setSavingLesson(true);
+    try {
+      const payload = {
+        academic_batch_id: Number(selectedBatch), semester_id: Number(selectedTerm),
+        crs_id: Number(selectedCourse), section_id: Number(selectedSection),
+        topic_id: lessonForm.topicId ? Number(lessonForm.topicId) : null,
+        plan_date: normalizeDate(selectedClass.plan_date || selectedClass.class_date),
+        start_time: selectedClass.start_time || "", end_time: selectedClass.end_time || "",
+        portion_ref: lessonForm.portionRef || null, portion_per_hour: lessonForm.portionRef || null,
+        video_link: lessonForm.videoLink || null, status: Number(lessonForm.status),
+      };
+      const classId = selectedClass.lls_id ?? selectedClass.id;
+      if (classId) {
+        await axiosInstance.put(`/api/v1/schedule-class/schedule-class/${classId}`, { ...payload, modified_by: userId });
+      } else {
+        await axiosInstance.post("/api/v1/schedule-class/schedule-class/create", { ...payload, created_by: userId });
+      }
+      await fetchClasses();
+      setSelectedClass(null);
+    } catch (saveError: any) {
+      window.alert(saveError?.response?.data?.message || "Failed to save lesson schedule.");
+    } finally {
+      setSavingLesson(false);
+    }
+  };
+
+  const saveExtraClass = async () => {
+    if (!extraClassForm.date || !extraClassForm.startTime || !extraClassForm.endTime) {
+      window.alert("Date, start time and end time are required.");
+      return;
+    }
+    if (extraClassForm.startTime >= extraClassForm.endTime) {
+      window.alert("End time must be later than start time.");
+      return;
+    }
+
+    setSavingExtraClass(true);
+    try {
+      const contextClass = classes[0];
+      const response: any = await axiosInstance.post(ApiEndpoint.timetableCalendar.extraClass, {
+        academic_batch_id: Number(selectedBatch), semester_id: Number(selectedTerm),
+        crs_id: Number(selectedCourse), section_id: Number(selectedSection),
+        extra_class_date: extraClassForm.date,
+        start_time: extraClassForm.startTime, end_time: extraClassForm.endTime,
+        tt_detail_id: contextClass?.tt_detail_id || null,
+      });
+      const responseData = response.data;
+      if (responseData?.success === false || responseData?.status === false) {
+        throw new Error(responseData?.message || "Failed to save extra class.");
+      }
+      setShowExtraClass(false);
+      setExtraClassForm({ date: dateInputValue(), startTime: "", endTime: "" });
+      await fetchClasses();
+    } catch (extraClassError: any) {
+      window.alert(extraClassError?.response?.data?.message || extraClassError?.message || "Failed to save extra class.");
+    } finally {
+      setSavingExtraClass(false);
+    }
+  };
+
+  return (
+    <div className="p-4 bg-gray-50 min-h-screen">
+      <div className="bg-white rounded-md shadow-sm border border-gray-200 overflow-hidden">
+        {/* Header */}
+        <div className="bg-[#1f3a4f] text-white px-4 py-2.5 flex justify-between items-center">
+          <h1 className="text-sm font-semibold">Time Table Calendar</h1>
+          <button onClick={fetchClasses} disabled={loading}
+            className="flex items-center gap-1 text-xs bg-white/10 hover:bg-white/20 px-2 py-1 rounded">
+            <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} /> Refresh
+          </button>
+        </div>
+
+        <div className="p-4">
+          {/* Filter Row */}
+          <div className="grid grid-cols-4 gap-3 mb-4 items-end">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Curriculum <span className="text-red-500">*</span></label>
+              <select className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm bg-white focus:outline-none disabled:opacity-50"
+                value={selectedBatch} onChange={e => setSelectedBatch(e.target.value)} disabled={loadingBatch}>
+                <option value="">{loadingBatch ? "Loading..." : "Select Curriculum"}</option>
+                {curriculums.map(c => <option key={c.academic_batch_id} value={c.academic_batch_id}>{c.academic_batch_desc} {c.academic_year || `(${c.academic_batch_code})`}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Term <span className="text-red-500">*</span></label>
+              <select className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm bg-white focus:outline-none disabled:opacity-50"
+                value={selectedTerm} onChange={e => setSelectedTerm(e.target.value)} disabled={!selectedBatch || loadingTerm}>
+                <option value="">{loadingTerm ? "Loading..." : "Select Term"}</option>
+                {terms.map(t => <option key={t.semester_id} value={t.semester_id}>{t.semester} - {t.semester_desc}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Course <span className="text-red-500">*</span></label>
+              <select className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm bg-white focus:outline-none disabled:opacity-50"
+                value={selectedCourse} onChange={e => setSelectedCourse(e.target.value)} disabled={!selectedTerm || loadingCourse}>
+                <option value="">{loadingCourse ? "Loading..." : "Select Course"}</option>
+                {courses.map(c => <option key={c.crs_id} value={c.crs_id}>{c.crs_title} ({c.crs_code})</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Section <span className="text-red-500">*</span></label>
+              <select className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm bg-white focus:outline-none disabled:opacity-50"
+                value={selectedSection} onChange={e => setSelectedSection(e.target.value)} disabled={!selectedCourse || loadingSection}>
+                <option value="">{loadingSection ? "Loading..." : "Select Section"}</option>
+                {sections.map(s => <option key={s.section_id} value={s.section_id}>{s.section}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="mb-4">
+            <button type="button" onClick={() => setShowExtraClass(true)} disabled={!selectedBatch || !selectedTerm || !selectedCourse || !selectedSection}
+              className="flex items-center gap-1.5 rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
+              <Plus className="h-4 w-4" /> Extra Class
+            </button>
+          </div>
+
+          {/* Calendar Navigation */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <button onClick={() => navMonth(-1)} className="p-1 rounded hover:bg-gray-100"><ChevronLeft className="w-4 h-4" /></button>
+              <button onClick={() => navMonth(1)} className="p-1 rounded hover:bg-gray-100"><ChevronRight className="w-4 h-4" /></button>
+              <button onClick={goToday} className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50">today</button>
+              <h2 className="text-base font-semibold text-gray-800 ml-2">{MONTH_NAMES[viewMonth]} {viewYear}</h2>
+            </div>
+            <div className="flex border border-gray-300 rounded overflow-hidden text-sm">
+              <button onClick={() => setViewMode("month")} className={`px-3 py-1 ${viewMode === "month" ? "bg-[#1f3a4f] text-white" : "hover:bg-gray-50 text-gray-700"}`}>month</button>
+              <button onClick={() => setViewMode("week")} className={`px-3 py-1 border-l border-gray-300 ${viewMode === "week" ? "bg-[#1f3a4f] text-white" : "hover:bg-gray-50 text-gray-700"}`}>week</button>
+              <button onClick={() => setViewMode("day")} className={`px-3 py-1 border-l border-gray-300 ${viewMode === "day" ? "bg-[#1f3a4f] text-white" : "hover:bg-gray-50 text-gray-700"}`}>day</button>
+            </div>
+          </div>
+
+          {/* Error */}
+          {error && !loading && (
+            <div className="text-center py-8 text-red-500 text-sm">
+              <p>{error}</p>
+              <button onClick={fetchClasses} className="mt-2 text-xs px-3 py-1 border border-red-300 rounded">Retry</button>
+            </div>
+          )}
+
+          {/* Loading */}
+          {loading && (
+            <div className="flex justify-center py-16 text-gray-400 gap-2">
+              <Loader2 className="w-5 h-5 animate-spin" />
+              <span className="text-sm">Loading schedule…</span>
+            </div>
+          )}
+
+          {/* Calendar Grid (Month View) */}
+          {!loading && !error && viewMode === "month" && (
+            <div className="border border-gray-200 rounded overflow-hidden">
+              {/* Day headers */}
+              <div className="grid grid-cols-7 bg-[#1f3a4f]">
+                {DAY_NAMES.map(d => (
+                  <div key={d} className="text-center text-white text-xs font-semibold py-2">{d}</div>
+                ))}
+              </div>
+              {/* Weeks */}
+              {weeks.map((week, wi) => (
+                <div key={wi} className="grid grid-cols-7 border-t border-gray-200">
+                  {week.map((cell, di) => {
+                    const isToday = cell.dateStr === todayStr;
+                    const dayClasses = cell.dateStr ? (classesByDate[cell.dateStr] || []) : [];
+                    return (
+                      <div
+                        key={di}
+                        className={`min-h-[150px] border-l border-gray-200 p-1 ${cell.day ? "hover:bg-blue-50/40" : "bg-gray-50"} ${isToday ? "bg-blue-100/70" : ""}`}
+                      >
+                        {cell.day && (
+                          <>
+                            <div className={`text-xs font-semibold w-6 h-6 flex items-center justify-center rounded-full mb-1 ${isToday ? "bg-[#1f3a4f] text-white" : "text-gray-700"}`}>
+                              {cell.day}
+                            </div>
+                            {dayClasses.map((cls, ci) => {
+                              if (cls.is_announcement) {
+                                return (
+                                  <div key={`ann-${cls.id || ci}`} className="text-[10px] px-1 py-0.5 rounded border mb-0.5 truncate bg-amber-50 border-amber-300 text-amber-900 font-medium">
+                                    📢 {cls.description || "Announcement"}
+                                  </div>
+                                );
+                              }
+                              const timeStr = formatCalendarTime(cls.start_time);
+                              return (
+                                <button
+                                  type="button"
+                                  key={cls.lls_id || cls.id || ci}
+                                  onClick={() => openClassDetails(cls)}
+                                  className="mb-1 block w-full truncate rounded border border-amber-300 bg-amber-200 px-1 py-1 text-left text-[11px] font-semibold text-green-800 hover:bg-amber-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                  title={`${timeStr} ${cls.crs_code || ""} ${cls.crs_title || ""}`}
+                                >
+                                  {timeStr} {cls.crs_code || `Course ${cls.crs_id || ""}`} {cls.crs_title || cls.course || ""}
+                                </button>
+                              );
+                            })}
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Week View (simplified) */}
+          {!loading && !error && viewMode === "week" && (
+            <div className="text-center py-12 text-gray-400">
+              <p className="text-sm">Week view — select a day in month view to drill down</p>
+            </div>
+          )}
+
+          {/* Day View (simplified) */}
+          {!loading && !error && viewMode === "day" && (
+            <div className="text-center py-12 text-gray-400">
+              <p className="text-sm">Day view — click a day cell in month view to see details</p>
+            </div>
+          )}
+
+          {/* Stats */}
+          {!loading && !error && classes.length > 0 && (
+            <div className="mt-4 grid grid-cols-3 gap-3">
+              <div className="rounded-lg bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3">
+                <div className="text-xl font-bold">{classes.length}</div>
+                <div className="text-xs mt-0.5 opacity-80">Total Scheduled Classes</div>
+              </div>
+              <div className="rounded-lg bg-green-50 border border-green-200 text-green-700 px-4 py-3">
+                <div className="text-xl font-bold">{new Set(classes.map(c => c.plan_date || c.date)).size}</div>
+                <div className="text-xs mt-0.5 opacity-80">Days With Classes</div>
+              </div>
+              <div className="rounded-lg bg-gray-50 border border-gray-200 text-gray-600 px-4 py-3">
+                <div className="text-xl font-bold">{MONTH_NAMES[viewMonth]} {viewYear}</div>
+                <div className="text-xs mt-0.5 opacity-80">Current View</div>
+              </div>
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!loading && !error && classes.length === 0 && (
+            <div className="text-center py-12 text-gray-400">
+              <p className="text-sm">No scheduled classes found for the selected filters.</p>
+              <p className="text-xs mt-1">Select Curriculum, Term, Course and Section to load the timetable.</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {showExtraClass && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onMouseDown={() => setShowExtraClass(false)}>
+          <div className="w-full max-w-lg overflow-hidden rounded-lg bg-white shadow-2xl" onMouseDown={event => event.stopPropagation()}>
+            <div className="flex items-center justify-between border-b px-5 py-4">
+              <h2 className="text-lg font-semibold text-gray-800">Add Extra Class</h2>
+              <button type="button" onClick={() => setShowExtraClass(false)} className="rounded p-1 text-gray-400 hover:bg-gray-100" aria-label="Close"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="space-y-4 p-5">
+              <div className="rounded bg-blue-50 px-3 py-2 text-sm text-blue-800">
+                {courses.find(course => String(course.crs_id) === selectedCourse)?.crs_code} — {sections.find(section => String(section.section_id) === selectedSection)?.section}
+              </div>
+              <label className="block text-sm font-medium text-gray-700">Extra Class Date <span className="text-red-500">*</span>
+                <input type="date" value={extraClassForm.date} onChange={e => setExtraClassForm(form => ({ ...form, date: e.target.value }))} className="mt-1 w-full rounded border border-gray-300 px-3 py-2" />
+              </label>
+              <div className="grid grid-cols-2 gap-4">
+                <label className="block text-sm font-medium text-gray-700">Start Time <span className="text-red-500">*</span>
+                  <input type="time" value={extraClassForm.startTime} onChange={e => setExtraClassForm(form => ({ ...form, startTime: e.target.value }))} className="mt-1 w-full rounded border border-gray-300 px-3 py-2" />
+                </label>
+                <label className="block text-sm font-medium text-gray-700">End Time <span className="text-red-500">*</span>
+                  <input type="time" value={extraClassForm.endTime} onChange={e => setExtraClassForm(form => ({ ...form, endTime: e.target.value }))} className="mt-1 w-full rounded border border-gray-300 px-3 py-2" />
+                </label>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 border-t bg-gray-50 px-5 py-3">
+              <button type="button" onClick={() => setShowExtraClass(false)} className="rounded border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Close</button>
+              <button type="button" onClick={saveExtraClass} disabled={savingExtraClass} className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">{savingExtraClass ? "Saving..." : "Save"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add / Edit Lesson Schedule */}
+      {selectedClass && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onMouseDown={() => setSelectedClass(null)}>
+          <div className="w-full max-w-4xl overflow-hidden rounded-lg bg-white shadow-2xl" onMouseDown={event => event.stopPropagation()}>
+            <div className="flex items-center justify-between border-b px-5 py-4">
+              <h2 className="text-lg font-semibold text-gray-800">Add Lesson Schedule</h2>
+              <button type="button" onClick={() => setSelectedClass(null)} className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700" aria-label="Close">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="max-h-[75vh] overflow-y-auto p-5">
+              {loadingClassDetails && (
+                <div className="mb-4 flex items-center gap-2 text-sm text-gray-500">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading complete class details…
+                </div>
+              )}
+
+              <div className="grid gap-4 text-sm md:grid-cols-4">
+                <div><span className="font-semibold">Course: </span>{selectedClass.crs_code || `Course ${selectedClass.crs_id || "—"}`} - {selectedClass.crs_title || "—"}</div>
+                <div><span className="font-semibold">Day: </span>{selectedClass.week_day_name || "—"}</div>
+                <div><span className="font-semibold">Date: </span>{selectedClass.plan_date?.substring(0, 10) || "—"}</div>
+                <div><span className="font-semibold">Time: </span>{selectedClass.start_time?.substring(0, 5) || "—"} - {selectedClass.end_time?.substring(0, 5) || "—"}</div>
+              </div>
+
+              <label className="mt-4 flex items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" checked={lessonForm.allotClass} onChange={e => setLessonForm(form => ({ ...form, allotClass: e.target.checked }))} />
+                Allot class
+              </label>
+
+              {!lessonForm.allotClass && (
+                <>
+                  <div className="mt-4 grid gap-5 md:grid-cols-2">
+                    <label className="text-sm font-medium text-gray-700">Topic: <span className="text-red-500">*</span>
+                      <select value={lessonForm.topicId} onChange={e => setLessonForm(form => ({ ...form, topicId: e.target.value }))} className="mt-1 w-full rounded border border-gray-300 bg-white px-3 py-2">
+                        <option value="">Select Topic</option>
+                        {topics.map(topic => <option key={topic.topic_id} value={topic.topic_id}>{topic.topic_code ? `${topic.topic_code} - ` : ""}{topic.topic_title}</option>)}
+                      </select>
+                    </label>
+                    <label className="text-sm font-medium text-gray-700">Topic Portion: <span className="text-red-500">*</span>
+                      <input value={lessonForm.portionRef} onChange={e => setLessonForm(form => ({ ...form, portionRef: e.target.value }))} placeholder="Enter topic portion" className="mt-1 w-full rounded border border-gray-300 px-3 py-2" />
+                    </label>
+                  </div>
+                  <p className="mt-4 text-sm text-gray-600">Note: Lesson schedule should be completed to select Topic Portion list</p>
+                </>
+              )}
+
+              <div className="mt-5 flex border-b border-gray-300">
+                <button type="button" onClick={() => setLessonTab("details")} className={`flex items-center gap-2 border border-b-0 px-4 py-2 text-sm ${lessonTab === "details" ? "bg-white text-gray-800" : "border-transparent text-blue-600"}`}><BookOpen className="h-4 w-4" /> Class Details</button>
+                <button type="button" onClick={() => setLessonTab("students")} className={`flex items-center gap-2 border border-b-0 px-4 py-2 text-sm ${lessonTab === "students" ? "bg-white text-gray-800" : "border-transparent text-blue-600"}`}><User className="h-4 w-4" /> Student List</button>
+              </div>
+
+              {lessonTab === "details" ? (
+                <div className="space-y-4 pt-5">
+                  <label className="grid items-center gap-3 text-sm font-medium text-gray-700 md:grid-cols-[200px_1fr]">Delivery Method:
+                    <input value={lessonForm.deliveryMethod} onChange={e => setLessonForm(form => ({ ...form, deliveryMethod: e.target.value }))} placeholder="Select Delivery Method" className="rounded border border-gray-300 px-3 py-2 font-normal" />
+                  </label>
+                  <label className="grid items-center gap-3 text-sm font-medium text-gray-700 md:grid-cols-[200px_1fr]">Bloom&apos;s Level:
+                    <select value={lessonForm.bloomLevel} onChange={e => setLessonForm(form => ({ ...form, bloomLevel: e.target.value }))} className="rounded border border-gray-300 bg-white px-3 py-2 font-normal">
+                      <option value="">Select Bloom Level</option>
+                      {bloomLevels.map(level => <option key={level.bloom_id} value={level.bloom_id}>{level.bloom_name || level.level || level.bloom_code}</option>)}
+                    </select>
+                  </label>
+                  <label className="grid items-center gap-3 text-sm font-medium text-gray-700 md:grid-cols-[200px_1fr]">Video Link:
+                    <input value={lessonForm.videoLink} onChange={e => setLessonForm(form => ({ ...form, videoLink: e.target.value }))} placeholder="Paste video link here..." className="rounded border border-gray-300 px-3 py-2 font-normal" />
+                  </label>
+                  <label className="grid items-center gap-3 text-sm font-medium text-gray-700 md:grid-cols-[200px_1fr]">Status: <span className="sr-only">required</span>
+                    <select value={lessonForm.status} onChange={e => setLessonForm(form => ({ ...form, status: e.target.value }))} className="rounded border border-gray-300 bg-white px-3 py-2 font-normal">
+                      <option value="0">Pending</option><option value="1">Complete</option>
+                    </select>
+                  </label>
+                </div>
+              ) : (
+                <div className="max-h-56 overflow-y-auto pt-4">
+                  {classStudents.length === 0 ? <p className="py-6 text-center text-sm text-gray-500">No students found for this class.</p> : (
+                    <table className="w-full text-left text-sm"><thead><tr className="border-b bg-gray-50"><th className="px-3 py-2">USN</th><th className="px-3 py-2">Student Name</th></tr></thead><tbody>{classStudents.map(student => <tr key={student.student_id} className="border-b"><td className="px-3 py-2">{student.usno || "—"}</td><td className="px-3 py-2">{student.name || `${student.first_name || ""} ${student.last_name || ""}`}</td></tr>)}</tbody></table>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 border-t bg-gray-50 px-5 py-3">
+              <button type="button" onClick={() => setSelectedClass(null)} className="rounded border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Close</button>
+              <button type="button" onClick={saveLessonSchedule} disabled={savingLesson || loadingClassDetails} className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">{savingLesson ? "Saving..." : "Save"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default TimetableCalendarPage;

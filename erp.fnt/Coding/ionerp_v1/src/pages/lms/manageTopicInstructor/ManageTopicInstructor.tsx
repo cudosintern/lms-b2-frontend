@@ -1,10 +1,11 @@
-import React, { useMemo, useState, useEffect, useCallback } from "react";
-import DataTable from "../../../components/Table/DataTable";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useTopicService } from "./topicService";
 import EditTopicPage from "./EditTopicPage";
 import AssignInstructorModal from "./AssignInstructorModal";
-import { SquarePen, Trash2 } from "lucide-react";
+import { SquarePen, Download } from "lucide-react";
 import { toast } from "react-toastify";
+import { TopicPortion, displayDate } from "./topicUi";
+import "./manageTopicInstructor.css";
 
 interface DropdownOption {
   value: number | string;
@@ -25,6 +26,8 @@ interface TopicRow {
   num_of_sessions: number;
   section_id?: number;
   instructor_id?: number;
+  instructor_ids?: number[];
+  portions?: TopicPortion[];
   instructor_name?: string;
   lesson_schedule?: string; // kept internally
   conduction_date?: string;
@@ -43,12 +46,17 @@ interface DropdownState {
 const ManageTopicInstructor: React.FC = () => {
   const topicService = useTopicService();
 
-  const [filters, setFilters] = useState({
-    curriculum: "",
-    semester: "",
-    course: "",
-    section: ""
+  const [filters, setFilters] = useState(() => {
+    const empty = { curriculum: "", semester: "", course: "", section: "" };
+    try {
+      const saved = JSON.parse(sessionStorage.getItem("lms.topicInstructor.filters") || "null");
+      if (saved && Object.keys(empty).every(k => typeof saved[k] === "string")) return { ...empty, ...saved } as typeof empty;
+    } catch { /* Storage may be unavailable. */ }
+    return empty;
   });
+  useEffect(() => {
+    try { sessionStorage.setItem("lms.topicInstructor.filters", JSON.stringify(filters)); } catch { /* Optional persistence. */ }
+  }, [filters]);
 
   const [dropdownOptions, setDropdownOptions] = useState<DropdownState>({
     curriculumOptions: [],
@@ -61,6 +69,8 @@ const ManageTopicInstructor: React.FC = () => {
   const [editingTopic, setEditingTopic] = useState<TopicRow | null>(null);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [loading, setLoading] = useState(false);
+  const requestVersion = useRef(0);
+  const context = { academic_batch_id: Number(filters.curriculum), semester_id: Number(filters.semester), course_id: Number(filters.course), section_id: Number(filters.section) };
 
  // ── Load curriculum on mount ────────────────────────────
   useEffect(() => {
@@ -78,10 +88,12 @@ const ManageTopicInstructor: React.FC = () => {
 
   // ── Filter semesters when curriculum changes ──────────────────────────
   useEffect(() => {
+    let active = true;
     if (filters.curriculum) {
       topicService.getSemesterList({ 
         academic_batch_id: Number(filters.curriculum) 
       }).then((res: any) => {
+        if (!active) return;
         const arr = Array.isArray(res) ? res : (res?.data || []);
         setDropdownOptions(prev => ({
           ...prev,
@@ -95,15 +107,18 @@ const ManageTopicInstructor: React.FC = () => {
       setDropdownOptions(prev => ({ ...prev, semesterOptions: [] }));
       setFilters(prev => ({ ...prev, semester: "", course: "", section: "" }));
     }
+    return () => { active = false; };
   }, [filters.curriculum]);
 
    // ── Load courses when curriculum + semester change ──────────────────
   useEffect(() => {
+    let active = true;
     if (filters.curriculum && filters.semester) {
       topicService.getCourseList({
         academic_batch_id: Number(filters.curriculum),
         semester_id: Number(filters.semester)
       }).then((res: any) => {
+        if (!active) return;
         console.log("Course data from service:", res);
         const arr = Array.isArray(res) ? res : (res?.data || res?.courses || []);
         setDropdownOptions(prev => ({
@@ -124,6 +139,7 @@ const ManageTopicInstructor: React.FC = () => {
           }
         }
       }).catch(error => {
+        if (!active) return;
         console.error("Error fetching courses:", error);
         setDropdownOptions(prev => ({ ...prev, courseOptions: [] }));
       });
@@ -133,10 +149,12 @@ const ManageTopicInstructor: React.FC = () => {
         setFilters(prev => ({ ...prev, course: "", section: "" }));
       }
     }
+    return () => { active = false; };
   }, [filters.curriculum, filters.semester]);
 
   // ── Load sections when semester/course change ───────────────────────
   useEffect(() => {
+    let active = true;
     if (filters.semester && filters.curriculum && filters.course) {
       const payload = {
         semester_id: Number(filters.semester),
@@ -145,6 +163,7 @@ const ManageTopicInstructor: React.FC = () => {
       };
 
       topicService.getSectionList(payload).then((res: any) => {
+        if (!active) return;
         console.log("Section data from service:", res);
         const arr = Array.isArray(res) ? res : [];
         setDropdownOptions(prev => ({
@@ -155,12 +174,14 @@ const ManageTopicInstructor: React.FC = () => {
           }))
         }));
       }).catch(error => {
+        if (!active) return;
         console.error("Error fetching sections:", error);
         setDropdownOptions(prev => ({ ...prev, sectionOptions: [] }));
       });
     } else {
       setDropdownOptions(prev => ({ ...prev, sectionOptions: [] }));
     }
+    return () => { active = false; };
   }, [filters.semester, filters.curriculum, filters.course]);
 
   // ── Load topics whenever all 4 filters are set ──────────────────────
@@ -170,7 +191,8 @@ const ManageTopicInstructor: React.FC = () => {
     const sectionId   = Number(filters.section);
     const curriculumId= Number(filters.curriculum);
 
-    if (!courseId || !semesterId || !sectionId || !curriculumId) return;
+    const version = ++requestVersion.current;
+    if (!courseId || !semesterId || !sectionId || !curriculumId) { setTableData([]); setLoading(false); return; }
 
     setLoading(true);
     try {
@@ -181,6 +203,7 @@ const ManageTopicInstructor: React.FC = () => {
         section_id: sectionId,
       });
 
+      if (version !== requestVersion.current) return;
       const arr = Array.isArray(res) ? res : (res?.data || []);
 
       if (Array.isArray(arr) && arr.length > 0) {
@@ -197,6 +220,8 @@ const ManageTopicInstructor: React.FC = () => {
           num_of_sessions:      Number(item.num_of_sessions ?? 0),
           section_id:           item.section_id || sectionId,
           instructor_id:        item.instructor_id,
+          instructor_ids:       item.instructor_ids || [],
+          portions:             item.portions || [],
           instructor_name:      item.instructor_name || "Not Assigned",
           lesson_schedule:      item.lesson_schedule || "",
           conduction_date:      item.conduction_date,
@@ -209,9 +234,9 @@ const ManageTopicInstructor: React.FC = () => {
       }
     } catch (err) {
       console.error("Failed to load topics", err);
-      setTableData([]);
+      if (version === requestVersion.current) { setTableData([]); toast.error("Unable to load topics"); }
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
   }, [filters.curriculum, filters.course, filters.semester, filters.section, topicService]);
 
@@ -221,188 +246,61 @@ const ManageTopicInstructor: React.FC = () => {
     const s = Number(filters.semester);
     const sec = Number(filters.section);
     const cur = Number(filters.curriculum);
-    if (c && s && sec && cur) loadTopics();
+    loadTopics();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.curriculum, filters.course, filters.semester, filters.section]);
 
-  // ── Table mutation helpers ─────────────────────────────────────────
-  const updateTopicInTable = useCallback((topicId: number, updates: Partial<TopicRow>) => {
-    setTableData(prev => prev.map(t => t.topic_id === topicId ? { ...t, ...updates } : t));
-  }, []);
 
-  const addTopicToTable = useCallback((newTopic: TopicRow) => {
-    setTableData(prev => {
-      const exists = prev.some(t => t.topic_id === newTopic.topic_id);
-      if (exists) return prev.map(t => t.topic_id === newTopic.topic_id ? { ...t, ...newTopic } : t);
-      return [...prev, newTopic];
-    });
-  }, []);
-
-  // ── Handlers ──────────────────────────────────────────────────────
-  const handleImportTopics = () => {
-    if (!filters.curriculum || !filters.course || !filters.semester || !filters.section) {
-      toast("Please select Curriculum, Semester, Course and Section first");
-      return;
-    }
-    setShowAssignModal(true);
+  const labels = {
+    curriculum: dropdownOptions.curriculumOptions.find(o => String(o.value) === filters.curriculum)?.label || "",
+    semester: dropdownOptions.semesterOptions.find(o => String(o.value) === filters.semester)?.label || "",
+    course: dropdownOptions.courseOptions.find(o => String(o.value) === filters.course)?.label || "",
+    section: dropdownOptions.sectionOptions.find(o => String(o.value) === filters.section)?.label || "",
   };
+  if (editingTopic) return <EditTopicPage topic={editingTopic} academic_batch_id={context.academic_batch_id}
+    semester_id={context.semester_id} labels={labels}
+    filters={{ course: context.course_id, semester: context.semester_id, section: context.section_id, academic_batch_id: context.academic_batch_id }}
+    close={() => setEditingTopic(null)} refresh={loadTopics} />;
 
-  const handleEdit = (topic: TopicRow) => {
-    if (topic?.topic_id) setEditingTopic(topic);
-  };
-
-  const handleDelete = async (topic: TopicRow) => {
-    if (!topic?.topic_id) return;
-    if (!window.confirm(`Are you sure you want to delete topic "${topic.topic_title}"?`)) return;
-    try {
-      await topicService.deleteTopic(topic.topic_id);
-      setTableData(prev => prev.filter(t => t.topic_id !== topic.topic_id));
-      toast("✅ Topic deleted successfully");
-    } catch (err) {
-      console.error("Delete failed", err);
-      toast("❌ Failed to delete topic");
-    }
-  };
-
-  // ── Column definitions — Lesson Schedule replaced by Topic Content ─
-  const columnDefs = useMemo(() => [
-    { headerName: "Sl No",        valueGetter: (p: any) => p.node.rowIndex + 1, width: 70 },
-    { headerName: "Topic Title",  field: "topic_title",  flex: 1, minWidth: 180 },
-    {
-      headerName: "Topic Content",
-      field: "topic_content",
-      flex: 2,
-      minWidth: 250,
-      cellRenderer: (p: any) => (
-        <div style={{ whiteSpace: "normal", lineHeight: "1.4", padding: "4px 0", fontSize: 12 }}>
-          {p.data.topic_content || "—"}
-        </div>
-      )
-    },
-    {
-      headerName: "Handled By",
-      field: "instructor_name",
-      width: 160,
-      valueGetter: (p: any) => p.data.instructor_name || "Not Assigned"
-    },
-    {
-      headerName: "Delivery Date",
-      field: "actual_delivery_date",
-      width: 130,
-      valueGetter: (p: any) => p.data.actual_delivery_date || "—"
-    },
-    {
-      headerName: "Actions",
-      width: 100,
-      cellRenderer: (p: any) => (
-        <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
-          <SquarePen
-            size={18} color="#17439c" style={{ cursor: "pointer" }}
-            onClick={() => handleEdit(p.data)}
-          />
-          <Trash2
-            size={18} color="#d11a2a" style={{ cursor: "pointer" }}
-            onClick={() => handleDelete(p.data)}
-          />
-        </div>
-      )
-    },
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], []);
-
-  return (
-    <div className="p-6">
-      <div className="bg-[#1f4e5f] text-white px-4 py-2 rounded-t-md font-semibold">
-        Manage Topic Instructor
-      </div>
-
-      <div className="border p-4 bg-white rounded-b-md">
-        {/* Filters */}
-        <div className="grid grid-cols-5 gap-4 items-end mb-6">
-          {["curriculum", "semester", "course", "section"].map(field => (
-            <div key={field}>
-              <label className="block text-sm font-medium mb-1 capitalize">{field} *</label>
-              <select
-                className="w-full border rounded px-2 py-2"
-                value={filters[field as keyof typeof filters]}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setFilters(prev => {
-                    const updated = { ...prev, [field]: val };
-                    if (field === "curriculum" || field === "semester") {
-                      updated.course  = "";
-                      updated.section = "";
-                    }
-                    if (field === "course") updated.section = "";
-                    return updated;
-                  });
-                }}
-              >
-                <option value="">Select {field}</option>
-                {dropdownOptions[`${field}Options` as keyof typeof dropdownOptions]?.map((o: DropdownOption) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            </div>
-          ))}
-
-          <button
-            onClick={handleImportTopics}
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded transition"
-            disabled={!filters.course || !filters.semester || !filters.section}
-          >
-            Import Topics
-          </button>
-        </div>
-
-        {loading ? (
-          <div className="text-center py-4">
-            <span className="spinner-border spinner-border-sm me-2" />
-            Loading topics...
-          </div>
-        ) : (
-          <DataTable columnDefs={columnDefs} rowData={tableData} pagination pageSize={10} />
-        )}
-      </div>
-
-      {/* Edit modal */}
-      {editingTopic && (
-        <EditTopicPage
-          topic={editingTopic}
-          academic_batch_id={Number(filters.curriculum) || 0}
-          semester_id={Number(filters.semester) || 0}
-          filters={{
-            course:            Number(filters.course)     || undefined,
-            semester:          Number(filters.semester)   || undefined,
-            section:           Number(filters.section)    || undefined,
-            academic_batch_id: Number(filters.curriculum) || undefined
-          }}
-          close={() => setEditingTopic(null)}
-          refresh={loadTopics}
-          updateTopicInTable={updateTopicInTable}
-          addTopicToTable={addTopicToTable}
-          tableData={tableData}
-        />
-      )}
-
-      {/* Assign/Import modal */}
-      {showAssignModal && (
-        <AssignInstructorModal
-          filters={{
-            curriculum: Number(filters.curriculum),
-            semester:   Number(filters.semester),
-            course:     Number(filters.course),
-            section:    Number(filters.section),
-          }}
-          topics={tableData}
-          close={() => setShowAssignModal(false)}
-          refresh={loadTopics}
-          updateTopicInTable={updateTopicInTable}
-          addTopicToTable={addTopicToTable}
-        />
-      )}
+  return <div className="mti"><section className="mti-card">
+    <h1 className="mti-heading">Manage Topic Instructor</h1>
+    <div className="mti-filters">
+      {(["curriculum", "semester", "course", "section"] as const).map(field => <div key={field}>
+        <label htmlFor={`mti-${field}`}>{field === "curriculum" ? "Curriculum" : field === "semester" ? "Term" : field === "course" ? "Course" : "Section"}: <span className="mti-required">*</span></label>
+        <select id={`mti-${field}`} className="mti-field" value={filters[field]} onChange={e => {
+          const value=e.target.value;
+          ++requestVersion.current;
+          setTableData([]);
+          setDropdownOptions(prev => ({ ...prev,
+            ...(field === "curriculum" ? { semesterOptions: [], courseOptions: [], sectionOptions: [] } : {}),
+            ...(field === "semester" ? { courseOptions: [], sectionOptions: [] } : {}),
+            ...(field === "course" ? { sectionOptions: [] } : {}) }));
+          setFilters(prev => ({ ...prev, [field]:value,
+            ...(field === "curriculum" ? { semester:"",course:"",section:"" } : {}),
+            ...(field === "semester" ? { course:"",section:"" } : {}),
+            ...(field === "course" ? { section:"" } : {}) }));
+        }}>
+          <option value="">Select {field === "semester" ? "Term" : field}</option>
+          {dropdownOptions[`${field}Options` as keyof DropdownState].map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+      </div>)}
     </div>
-  );
+    <div className="mti-toolbar"><button className="mti-button mti-success" disabled={!filters.curriculum || !filters.semester || !filters.course || !filters.section} onClick={() => setShowAssignModal(true)}><Download size={13} />Import Topics</button></div>
+    {loading ? <p role="status">Loading topics…</p> : <div className="mti-table-wrap"><table className="mti-table mti-list-table">
+      <thead><tr><th>Sl No.</th><th>Topic Title</th><th>Lesson Schedule</th><th>Delivery date</th><th>Handled by</th><th>Edit</th></tr></thead>
+      {tableData.map((topic,index) => {
+        const rows = topic.portions?.length ? topic.portions : [{ schedule_id:0, session_number:1, portion_to_be_covered:topic.lesson_schedule || "", actual_delivery_date:topic.actual_delivery_date }];
+        return <tbody key={topic.topic_id}>{rows.map((portion,rowIndex) => <tr key={portion.schedule_id || rowIndex}>
+          {rowIndex === 0 && <><td rowSpan={rows.length} style={{ verticalAlign:"top",textAlign:"center" }}>{index+1}</td><td rowSpan={rows.length} className="mti-topic-title">{topic.topic_title}</td></>}
+          <td className={`mti-portion ${"lesson_schedule_id" in portion && !portion.lesson_schedule_id ? "mti-added" : ""}`}>{portion.portion_to_be_covered || "—"}</td>
+          <td className="mti-date">{displayDate(portion.actual_delivery_date)}</td>
+          {rowIndex === 0 && <><td rowSpan={rows.length} className="mti-instructor">{topic.instructor_name}</td><td rowSpan={rows.length} className="mti-edit"><button className="mti-link-button" aria-label={`Edit ${topic.topic_title}`} title={topic.mapping_id ? "Edit lesson schedule" : "Import and assign this topic first"} disabled={!topic.mapping_id} onClick={() => setEditingTopic(topic)}><SquarePen size={15} /></button></td></>}
+        </tr>)}</tbody>;
+      })}
+      {!tableData.length && <tbody><tr><td colSpan={6} style={{ textAlign:"center" }}>No data available in table</td></tr></tbody>}
+    </table></div>}
+  </section>
+  {showAssignModal && <AssignInstructorModal filters={{ curriculum:context.academic_batch_id,semester:context.semester_id,course:context.course_id,section:context.section_id }} topics={tableData} close={() => setShowAssignModal(false)} refresh={loadTopics} />}
+  </div>;
 };
-
 export default ManageTopicInstructor;

@@ -32,7 +32,7 @@ import {
   MarksSectionOption,
   MarksSelectOption,
   MarksTermOption,
-} from "./consolidatedStudentMarksReport";
+} from "./consolidatedStudentMarksReportTypes";
 import { transformConsolidatedStudentMarks } from "./transformConsolidatedStudentMarks";
 
 type ActiveTab = "report" | "graph";

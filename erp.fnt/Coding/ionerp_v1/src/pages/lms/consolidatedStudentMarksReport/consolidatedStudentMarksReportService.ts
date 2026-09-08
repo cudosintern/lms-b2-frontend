@@ -10,7 +10,7 @@ import {
   MarksDropdownOption,
   MarksSectionOption,
   MarksTermOption,
-} from "./consolidatedStudentMarksReport";
+} from "./consolidatedStudentMarksReportTypes";
 
 interface ApiEnvelope<T> {
   status: boolean;

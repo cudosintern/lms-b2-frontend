@@ -1,7 +1,7 @@
 import React, { useRef, useMemo, useState, useEffect, useCallback, useTransition } from "react";
 import { AgGridReact } from "ag-grid-react";
-import "ag-grid-community/styles/ag-grid.css";
-import "ag-grid-community/styles/ag-theme-alpine.css";
+// import "ag-grid-community/styles/ag-grid.css";
+// import "ag-grid-community/styles/ag-theme-alpine.css";
 import UIButton from "../FormBuilder/fields/Button";
 import { useTheme } from "../../contexts/ThemeContext";
 import moment from "moment";
@@ -67,10 +67,10 @@ const DataTable: React.FC<DataTableProps> = ({
         setCurrentRowData(
           Array.isArray(rowData)
             ? rowData.map((row, index) => ({
-                ...row,
-                idX: row.idX || index, // Ensure unique ID
-                isSelected: row.isSelected || false, // Set default selection state
-              }))
+              ...row,
+              idX: String(row.idX || index), // Ensure unique ID as string
+              isSelected: row.isSelected || false, // Set default selection state
+            }))
             : [],
         );
       });
@@ -224,7 +224,7 @@ const DataTable: React.FC<DataTableProps> = ({
           loading={isPending}
           stopEditingWhenCellsLoseFocus={true}
           onFirstDataRendered={onFirstDataRendered}
-          getRowId={(params: { data: { idX: any } }) => params.data.idX}
+          getRowId={(params: { data: { idX: any } }) => String(params.data.idX)}
           rowStyle={{
             cursor: "pointer",
           }}

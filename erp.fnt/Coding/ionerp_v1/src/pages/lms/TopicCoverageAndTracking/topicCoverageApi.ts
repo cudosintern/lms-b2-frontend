@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios from "../../../utils/api";
 import { ApiEndpoint } from "../../../utils/ApiEndpoint/lmsApiEndpoint";
 
 import {
@@ -8,15 +8,9 @@ import {
   CourseTopicsResponse,
 } from "./topicCoverageInterface";
 
-const BASE = "http://127.0.0.1:8000";
-
-function api(path: string): string {
-  return `${BASE}/${path}`.replace(/([^:])\/\//g, "$1/");
-}
-
 export const getCurriculumList = async (): Promise<CurriculumOption[]> => {
   const res = await axios.get<CurriculumOption[]>(
-    api(ApiEndpoint.topicCoverage.curriculum)
+    ApiEndpoint.topicCoverage.curriculum
   );
 
   console.log("🔥 Curriculum API:", res.data);   // ✅ ADD
@@ -26,7 +20,7 @@ export const getCurriculumList = async (): Promise<CurriculumOption[]> => {
 
 export const getTerms = async (curriculumId: number): Promise<TermOption[]> => {
   const res = await axios.get<TermOption[]>(
-    api(ApiEndpoint.topicCoverage.terms(curriculumId))
+    ApiEndpoint.topicCoverage.terms(curriculumId)
   );
   return res.data;
 };
@@ -35,7 +29,7 @@ export const getCourses = async (
   academicBatchId: number,
   semesterId: number
 ): Promise<SectionGroup[]> => {
-  const res = await axios.get<SectionGroup[]>(api(ApiEndpoint.topicCoverage.courses), {
+  const res = await axios.get<SectionGroup[]>(ApiEndpoint.topicCoverage.courses, {
     params: { academic_batch_id: academicBatchId, semester_id: semesterId },
   });
   return res.data;
@@ -48,7 +42,7 @@ export const getCourseTopics = async (
   semesterId: number
 ): Promise<any> => {
   const res = await axios.get(
-    api(ApiEndpoint.topicCoverage.courseTopics),
+    ApiEndpoint.topicCoverage.courseTopics,
     {
       params: {
         course_id: courseId,
@@ -65,7 +59,7 @@ export const getCourseTopics = async (
 // Triggers a PDF download in the browser
 export const exportPdf = async (academicBatchId: number, semesterId: number) => {
   const res = await axios.get<Blob>(
-    api(ApiEndpoint.topicCoverage.exportPdf),
+    ApiEndpoint.topicCoverage.exportPdf,
     {
       params: {
         academic_batch_id: academicBatchId,

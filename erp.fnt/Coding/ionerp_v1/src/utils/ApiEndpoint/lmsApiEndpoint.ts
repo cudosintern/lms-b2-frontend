@@ -191,6 +191,10 @@ export const ApiEndpoint = {
   },
 
   timetable: {
+    curriculumList: "/api/v1/timetable/meta/curriculums",
+    semesterList: "/api/v1/timetable/meta/terms",
+    sectionList: "/api/v1/timetable/meta/sections",
+
     scheduledClasses: "/api/v1/timetable/scheduled-classes",
     scheduledClass: (id: number) => `/api/v1/timetable/scheduled-classes/${id}`,
     deleteTimetable: (id: number) => `/api/v1/timetable/${id}`,
@@ -200,6 +204,39 @@ export const ApiEndpoint = {
     exportPdf: "/api/v1/comman_function/timetable/export-pdf",
     getTimetables: "/api/v1/timetable/timetables",
   },
+
+  manageTimetable: {
+  fetchCurriculum: "/api/v1/timetable/fetch_curriculum",
+  fetchTermDesign: "/api/v1/timetable/fetch_term_design",
+  setDeptPgmSession: "/api/v1/timetable/set_dept_pgm_session",
+  getSectionDetails: "/api/v1/timetable/get_section_details",
+
+  selectCourse: "/api/v1/timetable/select_course",
+  selectBatch: "/api/v1/timetable/select_batch",
+  getEditClassCourse: "/api/v1/timetable/get_edit_class_course",
+
+  generateTimetable: "/api/v1/timetable/generate_time_table_grid",
+  getScheduleClass: "/api/v1/timetable/get_schedule_class",
+  getDetails: "/api/v1/timetable/get_details",
+  checkTimeTableDateExist: "/api/v1/timetable/check_time_table_date_exist",
+  updateTimetable: "/api/v1/timetable/update_tt",
+  deleteTimetable: "/api/v1/timetable/delete_tt",
+
+  saveClasses: "/api/v1/timetable/save_classes",
+  checkOverlap: "/api/v1/timetable/check_overlap_classes",
+  updateClass: "/api/v1/timetable/update_class",
+  deleteClass: "/api/v1/timetable/delete_class",
+
+  compensateClass: "/api/v1/timetable/compensate_class",
+
+  checkDateExists: "/api/v1/timetable/check_time_table_date_exist",
+  downloadTemplate: "/api/v1/timetable/download_template",
+  verifyExcel: "/api/v1/timetable/verify_excel",
+  saveExcel: "/api/v1/timetable/save_excel",
+  exportTimetable: "/api/v1/timetable/export",
+  viewTimetable: "/api/v1/timetable/view_timetable",
+  exportTimetablePdf: "/api/v1/timetable/export_timetable_pdf",
+},
   
 
   topic: {
@@ -274,11 +311,11 @@ export const ApiEndpoint = {
   },
 
   topicCoverage: {
-    curriculum:   "api/v1/topic_coverage/curriculum",
-    terms:        (curriculumId: number) => `api/v1/topic_coverage/terms/${curriculumId}`,
-    courses:      "api/v1/topic_coverage/courses",
-    courseTopics: "api/v1/topic_coverage/course-topics",
-    exportPdf:    "api/v1/topic_coverage/export-pdf",
+    curriculum:   "api/v1/topic-coverage/curriculum",
+    terms:        (curriculumId: number) => `api/v1/topic-coverage/terms/${curriculumId}`,
+    courses:      "api/v1/topic-coverage/courses",
+    courseTopics: "api/v1/topic-coverage/course-topics",
+    exportPdf:    "api/v1/topic-coverage/export-pdf",
   },
 
   myClass: {
@@ -311,6 +348,49 @@ export const ApiEndpoint = {
     start: (quiz_id: number) =>`/api/v1/student-quiz/${quiz_id}/start`,
     submit: (quiz_id: number) =>`/api/v1/student-quiz/${quiz_id}/submit`,
     downloadFile: (quiz_id: number) =>`/api/v1/student-quiz/${quiz_id}/download`,
+  },
+
+  student: {
+    notifications: {
+      unread: "/api/v1/student/notifications/unread",
+      read: "/api/v1/student/notifications/read",
+      counts: "/api/v1/student/notifications/counts",
+      markRead: (notificationId: number | string) =>
+        `/api/v1/student/notifications/${notificationId}/mark-read`,
+    },
+    attendance: {
+      curriculums: "/api/v1/student/attendance/curriculums",
+      terms: "/api/v1/student/attendance/terms",
+      summary: "/api/v1/student/attendance/summary",
+      daywise: "/api/v1/student/attendance/daywise",
+    },
+  },
+  registrationSetup: {
+  departments: "api/v1/registration_setup/departments",
+
+  programs: (departmentId: string | number) =>
+    `api/v1/registration_setup/programs/${departmentId}`,
+
+  curriculums: (programId: string | number) =>
+    `api/v1/registration_setup/curriculums/${programId}`,
+
+  terms: (curriculumId: string | number) =>
+    `api/v1/registration_setup/terms/${curriculumId}`,
+
+  getSetup: (semesterId: string | number) =>
+    `api/v1/registration_setup/registration-setup/${semesterId}`,
+
+  enrollmentDetails: (semesterId: string | number, courseType: string) =>
+    `api/v1/registration_setup/course-enroll-details/${semesterId}/${encodeURIComponent(courseType)}`,
+
+  updateSetup: "api/v1/registration_setup/update-registration-settings",
+
+  exportPdf: "api/v1/registration_setup/export-pdf",
+},
+
+  timetableCalendar: {
+    lessonScheduleDetails: "/api/v1/tt-calendar/lesson-schedule-details",
+    extraClass: "/api/v1/tt-calendar/extra-class",
   },
 } as const;
 

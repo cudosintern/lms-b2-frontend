@@ -1,29 +1,14 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONFIG
 // ─────────────────────────────────────────────────────────────────────────────
-const BASE_URL = "http://127.0.0.1:8000";
-
-function getAuthHeaders(): HeadersInit {
-  const token = localStorage.getItem("token") || "";
-  return {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
+import axiosInstance from "../../../utils/api";
+import { normaliseList, createQuizWorkbook } from "./studentQuizReportService";
 
 async function apiFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, { headers: getAuthHeaders() });
-  if (!res.ok) throw new Error(`API error ${res.status}: ${path}`);
-  return res.json();
-}
-
-// For blob/binary responses (export endpoint)
-async function apiFetchBlob(path: string): Promise<Blob> {
-  const res = await fetch(`${BASE_URL}${path}`, { headers: getAuthHeaders() });
-  if (!res.ok) throw new Error(`API error ${res.status}: ${path}`);
-  return res.blob();
+  const response = await axiosInstance.get<T>(path);
+  return response.data;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -42,20 +27,6 @@ interface StudentRow {
 }
 
 type SortKey = "sl" | "usn" | "name" | "marks";
-
-// ─────────────────────────────────────────────────────────────────────────────
-// HELPER: normalise list responses from various API shapes
-// ─────────────────────────────────────────────────────────────────────────────
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function normaliseList(data: any): any[] {
-  if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.data)) return data.data;
-  if (Array.isArray(data?.data?.items)) return data.data.items;
-  for (const key of Object.keys(data ?? {})) {
-    if (Array.isArray(data[key])) return data[key];
-  }
-  return [];
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ICONS
@@ -194,6 +165,9 @@ export default function StudentQuizReport() {
   const [selQuiz, setSelQuiz] = useState("");
 
   // ── Loading flags
+  const requestVersion = useRef(0);
+  const [loadingCurriculums, setLoadingCurriculums] = useState(true);
+  const [reportError, setReportError] = useState("");
   const [loadingTerms, setLoadingTerms] = useState(false);
   const [loadingCourses, setLoadingCourses] = useState(false);
   const [loadingSections, setLoadingSections] = useState(false);
@@ -224,12 +198,14 @@ export default function StudentQuizReport() {
   );
 
   // ── On mount: load curriculums
-  // API: GET /api/v1/meta/curriculums  (no parameters)
+  // API: GET /api/v1/manage-quiz/meta/curriculums  (no parameters)
   useEffect(() => {
+    let active = true;
     (async () => {
       try {
-        const data = await apiFetch<unknown>("/api/v1/meta/curriculums");
+        const data = await apiFetch<unknown>("/api/v1/manage-quiz/meta/curriculums");
         const list = normaliseList(data);
+        if (!active) return;
         setCurriculums(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           list.map((c: any) => ({
@@ -238,14 +214,26 @@ export default function StudentQuizReport() {
           }))
         );
       } catch {
-        showToast("Failed to load curriculums", "error");
+        if (active) showToast("Failed to load curriculums", "error");
+      } finally {
+        if (active) setLoadingCurriculums(false);
       }
     })();
+    return () => { active = false; requestVersion.current++; };
   }, [showToast]);
 
   // ── Curriculum → Terms
-  // API: GET /api/v1/meta/terms?academic_batch_id={id}
+  // API: GET /api/v1/manage-quiz/meta/terms?academic_batch_id={id}
   const onCurriculumChange = async (val: string) => {
+    const version = ++requestVersion.current;
+    setLoadingTerms(false);
+    setLoadingCourses(false);
+    setLoadingSections(false);
+    setLoadingQuizzes(false);
+    setLoadingStudents(false);
+    setReportError("");
+    setCurrentPage(1);
+
     setSelCurriculum(val);
     setSelTerm("");
     setTerms([]);
@@ -261,26 +249,38 @@ export default function StudentQuizReport() {
     setLoadingTerms(true);
     try {
       const data = await apiFetch<unknown>(
-        `/api/v1/meta/terms?academic_batch_id=${val}`
+        `/api/v1/manage-quiz/meta/terms?academic_batch_id=${val}`
       );
+      if (version !== requestVersion.current) return;
       const list = normaliseList(data);
       setTerms(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         list.map((t: any) => ({
           value: String(t.semester_id),
-          label: String(t.semester_desc),
+          label: String(t.semester_desc ?? t.semester),
         }))
       );
     } catch {
+      if (version !== requestVersion.current) return;
       showToast("Failed to load terms", "error");
     } finally {
+      if (version !== requestVersion.current) return;
       setLoadingTerms(false);
     }
   };
 
   // ── Term → Courses
-  // API: GET /api/v1/meta/courses?academic_batch_id={id}&semester_id={id}
+  // API: GET /api/v1/manage-quiz/meta/courses?academic_batch_id={id}&semester_id={id}
   const onTermChange = async (val: string) => {
+    const version = ++requestVersion.current;
+    setLoadingTerms(false);
+    setLoadingCourses(false);
+    setLoadingSections(false);
+    setLoadingQuizzes(false);
+    setLoadingStudents(false);
+    setReportError("");
+    setCurrentPage(1);
+
     setSelTerm(val);
     setSelCourse("");
     setCourses([]);
@@ -294,26 +294,38 @@ export default function StudentQuizReport() {
     setLoadingCourses(true);
     try {
       const data = await apiFetch<unknown>(
-        `/api/v1/meta/courses?academic_batch_id=${selCurriculum}&semester_id=${val}`
+        `/api/v1/manage-quiz/meta/courses?academic_batch_id=${selCurriculum}&semester_id=${val}`
       );
+      if (version !== requestVersion.current) return;
       const list = normaliseList(data);
       setCourses(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         list.map((c: any) => ({
           value: String(c.crs_id),
-          label: String(c.crs_title ?? c.crs_code ?? c.crs_id),
+          label: [c.crs_code, c.crs_title].filter(Boolean).join(" - ") || String(c.crs_id),
         }))
       );
     } catch {
+      if (version !== requestVersion.current) return;
       showToast("Failed to load courses", "error");
     } finally {
+      if (version !== requestVersion.current) return;
       setLoadingCourses(false);
     }
   };
 
   // ── Course → Sections
-  // API: GET /api/v1/meta/sections?academic_batch_id={id}&semester_id={id}
+  // API: GET /api/v1/manage-quiz/meta/sections?academic_batch_id={id}&semester_id={id}
   const onCourseChange = async (val: string) => {
+    const version = ++requestVersion.current;
+    setLoadingTerms(false);
+    setLoadingCourses(false);
+    setLoadingSections(false);
+    setLoadingQuizzes(false);
+    setLoadingStudents(false);
+    setReportError("");
+    setCurrentPage(1);
+
     setSelCourse(val);
     setSelSection("");
     setSections([]);
@@ -325,33 +337,39 @@ export default function StudentQuizReport() {
     setLoadingSections(true);
     try {
       const data = await apiFetch<unknown>(
-        `/api/v1/meta/sections?academic_batch_id=${selCurriculum}&semester_id=${selTerm}`
+        `/api/v1/manage-quiz/meta/sections?academic_batch_id=${selCurriculum}&semester_id=${selTerm}&course_id=${val}`
       );
+      if (version !== requestVersion.current) return;
       const list = normaliseList(data);
-      console.log("SECTIONS:", list);
+
       setSections(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         list.map((s: any) => ({
-          value: String(s.section_id),
-          label: String(s.section),
+          value: String(s.value ?? s.section_id),
+          label: String(s.label ?? s.section),
         }))
       );
     } catch {
+      if (version !== requestVersion.current) return;
       showToast("Failed to load sections", "error");
     } finally {
+      if (version !== requestVersion.current) return;
       setLoadingSections(false);
     }
   };
 
   // ── Section → Quizzes
-  // API: GET /api/v1/quizzes/scheduled?crs_id={id}&section_id={id}
+  // The report requires numeric IDs for the complete filter context.
   const onSectionChange = async (val: string) => {
-    const selectedSection = sections.find(s => s.value === val);
-  console.log("COURSE:", selCourse);
-  console.log("SECTION:", val);
-  console.log("SEMESTER:", selTerm);
+    const version = ++requestVersion.current;
+    setLoadingTerms(false);
+    setLoadingCourses(false);
+    setLoadingSections(false);
+    setLoadingQuizzes(false);
+    setLoadingStudents(false);
+    setReportError("");
+    setCurrentPage(1);
 
-    
     setSelSection(val);
     setSelQuiz("");
     setQuizzes([]);
@@ -360,30 +378,40 @@ export default function StudentQuizReport() {
 
     setLoadingQuizzes(true);
     try {
-      const sectionName = selectedSection?.label;
-
-const data = await apiFetch<unknown>(
-  `/api/v1/quizzes/scheduled?crs_id=${selCourse}&section_id=${sectionName}&semester_id=${selTerm}`
-);
+      const data = await apiFetch<unknown>(
+        `/api/v1/quiz-report/quizzes?academic_batch_id=${selCurriculum}&semester_id=${selTerm}&crs_id=${selCourse}&section_id=${val}`
+      );
+      if (version !== requestVersion.current) return;
       const list = normaliseList(data);
-      console.log("QUIZ API RESPONSE:", list);
+
       setQuizzes(
   list.map((q: any) => ({
     
     value: String(q.quiz_id),
-    label: String(q.title),   // ✅ FIXED
+    label: String(q.quiz_title),
   }))
 );
     } catch {
+      if (version !== requestVersion.current) return;
       showToast("Failed to load quizzes", "error");
     } finally {
+      if (version !== requestVersion.current) return;
       setLoadingQuizzes(false);
     }
   };
 
   // ── Quiz → Students + Marks
-  // API: GET /api/v1/quizzes/results/{quiz_id}
+  // Load only students mapped to the selected quiz and registration context.
   const onQuizChange = async (val: string) => {
+    const version = ++requestVersion.current;
+    setLoadingTerms(false);
+    setLoadingCourses(false);
+    setLoadingSections(false);
+    setLoadingQuizzes(false);
+    setLoadingStudents(false);
+    setReportError("");
+    setCurrentPage(1);
+
     setSelQuiz(val);
     setAllStudents([]);
     setSearchQuery("");
@@ -392,8 +420,9 @@ const data = await apiFetch<unknown>(
 
     setLoadingStudents(true);
     try {
-      const data = await apiFetch<unknown>(`/api/v1/quizzes/results/${val}`);
+      const data = await apiFetch<unknown>(`/api/v1/quiz-report/students?academic_batch_id=${selCurriculum}&semester_id=${selTerm}&crs_id=${selCourse}&section_id=${selSection}&quiz_id=${val}`);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (version !== requestVersion.current) return;
       const list = normaliseList(data);
       const rows: StudentRow[] = list.map((s: any, i: number) => ({
         sl: i + 1,
@@ -407,11 +436,12 @@ const data = await apiFetch<unknown>(
             : "-",
       }));
       setAllStudents(rows);
-      if (rows.length === 0)
-        showToast("No students found for this quiz", "error");
+
     } catch {
-      showToast("Failed to load student data", "error");
+      if (version !== requestVersion.current) return;
+      setReportError("Failed to load student data. Select the quiz again to retry.");
     } finally {
+      if (version !== requestVersion.current) return;
       setLoadingStudents(false);
     }
   };
@@ -440,11 +470,11 @@ const data = await apiFetch<unknown>(
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
       const va =
-        sortKey === "marks"
+        (sortKey === "marks" || sortKey === "sl")
           ? Number(a[sortKey]) || 0
           : String(a[sortKey]).toLowerCase();
       const vb =
-        sortKey === "marks"
+        (sortKey === "marks" || sortKey === "sl")
           ? Number(b[sortKey]) || 0
           : String(b[sortKey]).toLowerCase();
       if (va < vb) return sortAsc ? -1 : 1;
@@ -453,13 +483,13 @@ const data = await apiFetch<unknown>(
     });
   }, [filtered, sortKey, sortAsc]);
 
-  const totalPages = Math.ceil(sorted.length / pageSize);
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
   const pageStart = (currentPage - 1) * pageSize;
   const pageEnd = Math.min(pageStart + pageSize, sorted.length);
   const pageRows = sorted.slice(pageStart, pageEnd);
 
-  // ── Export XLS
-  // API: GET /api/v1/quizzes/export/{quiz_id}  → returns Excel blob
+  // ── Export Excel (.xlsx)
+  // Export the complete loaded report, independent of search and pagination.
   const exportXLS = async () => {
     if (!selQuiz) {
       showToast("Please select a quiz first", "error");
@@ -468,7 +498,7 @@ const data = await apiFetch<unknown>(
 
     setExportingXLS(true);
     try {
-      const blob = await apiFetchBlob(`/api/v1/quizzes/export/${selQuiz}`);
+      const blob = await createQuizWorkbook(allStudents);
 
       // Determine filename from content-disposition if available, else default
       const url = window.URL.createObjectURL(blob);
@@ -488,7 +518,7 @@ const data = await apiFetch<unknown>(
     }
   };
 
-  const canExport = !!selQuiz && !loadingStudents && !exportingXLS;
+  const canExport = !!selQuiz && allStudents.length > 0 && !reportError && !loadingStudents && !exportingXLS;
 
   // ─────────────────────────────────────────────────────────────────────────────
   // RENDER
@@ -510,7 +540,7 @@ const data = await apiFetch<unknown>(
               value={selCurriculum}
               options={curriculums}
               disabled={false}
-              loading={false}
+              loading={loadingCurriculums}
               onChange={onCurriculumChange}
             />
             <SelectField
@@ -569,7 +599,7 @@ const data = await apiFetch<unknown>(
               ) : (
                 <>
                   <DownloadIcon />
-                  Export XLS
+                  Export Excel (.xlsx)
                 </>
               )}
             </button>
@@ -601,6 +631,7 @@ const data = await apiFetch<unknown>(
             <div style={styles.searchControl}>
               <span style={{ color: "#6b7280", fontSize: 13 }}>Search:</span>
               <input
+                aria-label="Search quiz report"
                 type="text"
                 value={searchQuery}
                 onChange={(e) => {
@@ -636,6 +667,9 @@ const data = await apiFetch<unknown>(
                   ).map(({ key, label, width }) => (
                     <th
                       key={key}
+                      tabIndex={0}
+                      aria-sort={sortKey === key ? (sortAsc ? "ascending" : "descending") : "none"}
+                      onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); handleSort(key); } }}
                       onClick={() => handleSort(key)}
                       style={{ ...styles.th, ...(width ? { width } : {}) }}
                     >
@@ -665,9 +699,7 @@ const data = await apiFetch<unknown>(
                             fontSize: 14,
                           }}
                         >
-                          {allStudents.length === 0
-                            ? "Select all filters above to load quiz report"
-                            : "No data available in table"}
+                          {reportError || (!selQuiz ? "Select all filters above to load quiz report" : "No data available in table")}
                         </p>
                       </div>
                     </td>
@@ -693,7 +725,7 @@ const data = await apiFetch<unknown>(
                         ).style.background = "")
                       }
                     >
-                      <td style={styles.td}>{pageStart + i + 1}</td>
+                      <td style={styles.td}>{row.sl}</td>
                       <td style={styles.td}>
                         <span style={styles.usnBadge}>{row.usn}</span>
                       </td>

@@ -1,16 +1,49 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import api from "../../../utils/api";
 import ScheduleClassModal from "./ScheduleClassModal";
 import { scheduleClassApi } from "./scheduleClassApi";
-
-// import {
-//   CopyClassDayModal,
-//   DeleteTimetableModal,
-// } from "./components/TimetableOptions";
-
 import CopyClassDayModal from "../timetableCalendar/components/CopyClassDayModal";
 import DeleteTimetableModal from "../timetableCalendar/components/DeleteTimetableModal";
 import { toast } from "react-toastify";
+import { timetableApi } from "./timetableApi";
+
+// Types for the fetched data
+interface Curriculum {
+  id: number;
+  name: string;
+  code?: string;
+  description?: string;
+}
+
+interface Term {
+  id: number;
+  name: string;
+  semester?: string;
+  code?: string;
+}
+
+interface Section {
+  id: number;
+  name: string;
+  code?: string;
+  displayName?: string;
+}
+
+interface Timetable {
+  id: number;
+  name: string;
+  startDate?: string;
+  endDate?: string;
+  termId?: number;
+  sectionId?: number;
+}
+
+interface FilterState {
+  curriculumId: string;
+  termId: string;
+  sectionId: string;
+  timetableId: string;
+}
 
 const TimetableListPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -25,74 +58,233 @@ const TimetableListPage: React.FC = () => {
   const [editingRow, setEditingRow] = useState<any>(null);
   const [showTimetableModal, setShowTimetableModal] = useState(false);
 
-  const [selectedCurriculum, setSelectedCurriculum] = useState("");
-  const [selectedTerm, setSelectedTerm] = useState("");
-  const [selectedSection, setSelectedSection] = useState("");
-  const [selectedTimetable, setSelectedTimetable] = useState("");
+  // State for filter dropdown options
+  const [curriculums, setCurriculums] = useState<Curriculum[]>([]);
+  const [terms, setTerms] = useState<Term[]>([]);
+  const [sections, setSections] = useState<Section[]>([]);
+  const [timetables, setTimetables] = useState<Timetable[]>([]);
+  const [isLoadingFilters, setIsLoadingFilters] = useState({
+    curriculums: false,
+    terms: false,
+    sections: false,
+    timetables: false,
+  });
+
+  // Selected filter values
+  const [filters, setFilters] = useState<FilterState>({
+    curriculumId: "",
+    termId: "",
+    sectionId: "",
+    timetableId: "",
+  });
 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-
   const [startTime, setStartTime] = useState("06:00");
   const [endTime, setEndTime] = useState("17:00");
-
   const [method, setMethod] = useState("Regular");
 
+  // Fetch curriculums on component mount
   useEffect(() => {
+    fetchCurriculums();
     fetchData();
   }, []);
 
+  // Fetch terms when curriculum changes
+  useEffect(() => {
+    if (filters.curriculumId) {
+      fetchTermsByCurriculum(Number(filters.curriculumId));
+      // Reset dependent filters
+      setFilters(prev => ({
+        ...prev,
+        termId: "",
+        sectionId: "",
+        timetableId: "",
+      }));
+      setSections([]);
+      setTimetables([]);
+    }
+  }, [filters.curriculumId]);
+
+  // Fetch sections when term changes
+  useEffect(() => {
+    if (filters.curriculumId && filters.termId) {
+      fetchSectionsByCurriculumTerm(Number(filters.curriculumId), filters.termId);
+      // Reset dependent filters
+      setFilters(prev => ({
+        ...prev,
+        sectionId: "",
+        timetableId: "",
+      }));
+      setTimetables([]);
+    }
+  }, [filters.termId]);
+
+  // Fetch timetables when section changes
+  useEffect(() => {
+    if (filters.termId && filters.sectionId) {
+      fetchTimetables(filters.termId, filters.sectionId);
+      setFilters(prev => ({
+        ...prev,
+        timetableId: "",
+      }));
+    }
+  }, [filters.sectionId]);
+
+  const fetchCurriculums = async () => {
+    setIsLoadingFilters(prev => ({ ...prev, curriculums: true }));
+    try {
+      const response = await timetableApi.getCurriculums();
+      if (response?.data) {
+        const data = Array.isArray(response.data) ? response.data : [];
+        setCurriculums(data);
+        
+        // Optionally auto-select first curriculum if available
+        // if (data.length > 0) {
+        //   setFilters(prev => ({ ...prev, curriculumId: String(data[0].id) }));
+        // }
+      }
+    } catch (error) {
+      console.error("Error fetching curriculums:", error);
+      toast.error("Failed to load curriculums");
+      setCurriculums([]);
+    } finally {
+      setIsLoadingFilters(prev => ({ ...prev, curriculums: false }));
+    }
+  };
+
+  
+
+  const fetchTermsByCurriculum = async (curriculumId: number) => {
+    setIsLoadingFilters(prev => ({ ...prev, terms: true }));
+    try {
+      const response = await timetableApi.getTermsByCurriculum(curriculumId);
+      if (response?.data) {
+        const data = Array.isArray(response.data) ? response.data : [];
+        setTerms(data);
+        
+        // Optionally auto-select first term if available
+        // if (data.length > 0) {
+        //   setFilters(prev => ({ ...prev, termId: String(data[0].id) }));
+        // }
+      }
+    } catch (error) {
+      console.error("Error fetching terms:", error);
+      toast.error("Failed to load terms");
+      setTerms([]);
+    } finally {
+      setIsLoadingFilters(prev => ({ ...prev, terms: false }));
+    }
+  };
+
+  const fetchSectionsByCurriculumTerm = async (curriculumId: number, termName: string) => {
+    setIsLoadingFilters(prev => ({ ...prev, sections: true }));
+    try {
+      const response = await timetableApi.getSectionsByCurriculumTerm(curriculumId, termName);
+      if (response?.data) {
+        const data = Array.isArray(response.data) ? response.data : [];
+        setSections(data);
+        
+        // Optionally auto-select first section if available
+        // if (data.length > 0) {
+        //   setFilters(prev => ({ ...prev, sectionId: String(data[0].id) }));
+        // }
+      }
+    } catch (error) {
+      console.error("Error fetching sections:", error);
+      toast.error("Failed to load sections");
+      setSections([]);
+    } finally {
+      setIsLoadingFilters(prev => ({ ...prev, sections: false }));
+    }
+  };
+
+  const fetchTimetables = async (term?: string, section?: string) => {
+    setIsLoadingFilters(prev => ({ ...prev, timetables: true }));
+    try {
+      const response = await timetableApi.getTimetables(term, section);
+      if (response?.data) {
+        const data = Array.isArray(response.data) ? response.data : [];
+        setTimetables(data);
+      }
+    } catch (error) {
+      console.error("Error fetching timetables:", error);
+      toast.error("Failed to load timetables");
+      setTimetables([]);
+    } finally {
+      setIsLoadingFilters(prev => ({ ...prev, timetables: false }));
+    }
+  };
+
   const fetchData = async () => {
     setLoading(true);
+    setError("");
     try {
       const res = await scheduleClassApi.getAll();
       if (res.success && res.data) {
-        setTimetableData(res.data);
+        const data = Array.isArray(res.data) ? res.data : [];
+        setTimetableData(data);
+      } else {
+        setTimetableData([]);
       }
     } catch (err) {
-      console.error(err);
+      console.error("Error fetching data:", err);
+      setError("Failed to load timetable data");
+      toast.error("Failed to load timetable data");
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async (id: any) => {
-    if (
-      window.confirm("Are you sure you want to delete this scheduled class?")
-    ) {
+    if (window.confirm("Are you sure you want to delete this scheduled class?")) {
       try {
         await scheduleClassApi.delete(id);
+        toast.success("Class deleted successfully!");
         fetchData();
       } catch (err) {
         console.error("Delete failed", err);
+        toast.error("Failed to delete class");
       }
     }
   };
 
-  const fetchTimetable = async () => {
+  const fetchTimetable = useCallback(async () => {
     try {
       setLoading(true);
+      setError("");
 
-      const response = await api.get("/api/v1/timetable/timetables", {
-        params: {
-          term: selectedTerm || "1",
-          section: selectedSection || "A",
-        },
-      });
+      // Build params object with only valid filters
+      const params: any = {};
+      if (filters.termId) params.term = filters.termId;
+      if (filters.sectionId) params.section = filters.sectionId;
+      if (filters.timetableId) params.timetableId = filters.timetableId;
 
-      setTimetableData(response.data as any[]);
-    } catch (error) {
+      const response = await api.get("/api/v1/lms_module/timetable/timetables", { params });
+      
+      const data = Array.isArray(response.data) ? response.data : [];
+      setTimetableData(data);
+      
+      if (data.length === 0) {
+        toast.info("No timetable data found for the selected filters");
+      } else {
+        toast.success(`Loaded ${data.length} timetable entries`);
+      }
+    } catch (error: any) {
       console.error("Error fetching timetable:", error);
+      const errorMsg = error?.response?.data?.message || "Failed to fetch timetable";
+      setError(errorMsg);
+      toast.error(errorMsg);
+      setTimetableData([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters.termId, filters.sectionId, filters.timetableId]);
 
   const handleCopyClassDay = async (sourceDate: string, targetDate: string) => {
     try {
-      // Get classes for source date
       const sourceClasses = timetableData.filter(
-        (cls) => cls.date === sourceDate,
+        (cls) => cls.date === sourceDate || cls.classDate === sourceDate,
       );
 
       if (sourceClasses.length === 0) {
@@ -100,15 +292,14 @@ const TimetableListPage: React.FC = () => {
         return;
       }
 
-      // Copy classes to target date
       const copiedClasses = sourceClasses.map((cls) => ({
         ...cls,
         id: undefined,
         date: targetDate,
+        classDate: targetDate,
         createdAt: new Date().toISOString(),
       }));
 
-      // Save each copied class
       for (const classData of copiedClasses) {
         await scheduleClassApi.saveSchedule(classData);
       }
@@ -118,15 +309,15 @@ const TimetableListPage: React.FC = () => {
       );
       fetchData();
     } catch (error) {
+      console.error("Copy failed:", error);
       toast.error("Failed to copy classes");
     }
   };
 
   const handleResetTimetable = async (resetDate: string) => {
     try {
-      // Get classes for the specified date
       const classesToDelete = timetableData.filter(
-        (cls) => cls.date === resetDate,
+        (cls) => cls.date === resetDate || cls.classDate === resetDate,
       );
 
       if (classesToDelete.length === 0) {
@@ -134,7 +325,6 @@ const TimetableListPage: React.FC = () => {
         return;
       }
 
-      // Delete each class
       for (const classData of classesToDelete) {
         await scheduleClassApi.delete(classData.id);
       }
@@ -144,6 +334,7 @@ const TimetableListPage: React.FC = () => {
       );
       fetchData();
     } catch (error) {
+      console.error("Reset failed:", error);
       toast.error("Failed to reset timetable");
     }
   };
@@ -160,7 +351,8 @@ const TimetableListPage: React.FC = () => {
       } else if (deleteOption === "range" && dateRange) {
         classesToDelete = timetableData.filter(
           (cls) =>
-            cls.date >= dateRange.startDate && cls.date <= dateRange.endDate,
+            (cls.date || cls.classDate) >= dateRange.startDate &&
+            (cls.date || cls.classDate) <= dateRange.endDate,
         );
       }
 
@@ -169,7 +361,6 @@ const TimetableListPage: React.FC = () => {
         return;
       }
 
-      // Delete each class
       for (const classData of classesToDelete) {
         await scheduleClassApi.delete(classData.id);
       }
@@ -177,6 +368,7 @@ const TimetableListPage: React.FC = () => {
       toast.success(`Deleted ${classesToDelete.length} classes`);
       fetchData();
     } catch (error) {
+      console.error("Delete timetable failed:", error);
       toast.error("Failed to delete timetable");
     }
   };
@@ -187,27 +379,36 @@ const TimetableListPage: React.FC = () => {
 
   const handleExportPDF = async () => {
     try {
-      const academic_batch_id = 1;
-      const semester_id = selectedTerm || 1;
+      const academic_batch_id = Number(filters.curriculumId) || 1;
+      const semester_id = filters.termId || "1";
 
       const url = `http://127.0.0.1:8000/api/v1/comman_function/timetable/export-pdf?academic_batch_id=${academic_batch_id}&semester_id=${semester_id}`;
 
       const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`Export failed with status: ${response.status}`);
+      }
 
       const blob = await response.blob();
-
       const downloadUrl = window.URL.createObjectURL(blob);
-
       const link = document.createElement("a");
       link.href = downloadUrl;
-      link.download = "timetable.pdf";
-
+      link.download = `timetable_${new Date().toISOString().split("T")[0]}.pdf`;
       document.body.appendChild(link);
       link.click();
       link.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+      
+      toast.success("Timetable exported successfully!");
     } catch (error) {
-      console.error("Export failed", error);
+      console.error("Export failed:", error);
+      toast.error("Failed to export timetable");
     }
+  };
+
+  const handleFilterChange = (key: keyof FilterState, value: string) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
   };
 
   const days = [
@@ -234,6 +435,21 @@ const TimetableListPage: React.FC = () => {
     "17:00",
   ];
 
+  // Helper to get display name for selected items
+  const getSelectedName = (type: 'curriculum' | 'term' | 'section' | 'timetable', id: string) => {
+    if (!id) return "Not Selected";
+    
+    const map: Record<string, any[]> = {
+      curriculum: curriculums,
+      term: terms,
+      section: sections,
+      timetable: timetables
+    };
+    
+    const item = map[type].find(item => String(item.id) === id);
+    return item?.name || item?.displayName || id;
+  };
+
   return (
     <div style={pageStyle}>
       {error && (
@@ -246,9 +462,29 @@ const TimetableListPage: React.FC = () => {
             marginBottom: "15px",
           }}
         >
-          {error}
+          <strong>Error:</strong> {error}
+          <button
+            onClick={() => setError("")}
+            style={{
+              marginLeft: "10px",
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              color: "#991b1b",
+              fontWeight: "bold",
+            }}
+          >
+            ✕
+          </button>
         </div>
       )}
+
+      {loading && (
+        <div style={{ textAlign: "center", padding: "20px" }}>
+          <div>Loading...</div>
+        </div>
+      )}
+
       {/* Schedule Class Modal */}
       <ScheduleClassModal
         show={showScheduleClassModal}
@@ -269,9 +505,11 @@ const TimetableListPage: React.FC = () => {
               });
             }
             setShowScheduleClassModal(false);
+            toast.success("Schedule saved successfully!");
             fetchData();
           } catch (error) {
             console.error("Failed to save schedule:", error);
+            toast.error("Failed to save schedule");
           }
         }}
       />
@@ -281,7 +519,12 @@ const TimetableListPage: React.FC = () => {
         isOpen={showCopyModal}
         onClose={() => setShowCopyModal(false)}
         onCopyComplete={(success, message) => {
-          console.log("Copy completed:", { success, message });
+          if (success) {
+            toast.success(message || "Copy completed successfully");
+            fetchData();
+          } else {
+            toast.error(message || "Copy failed");
+          }
         }}
       />
 
@@ -289,7 +532,12 @@ const TimetableListPage: React.FC = () => {
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
         onDeleteComplete={(success, message) => {
-          console.log("Delete completed:", { success, message });
+          if (success) {
+            toast.success(message || "Delete completed successfully");
+            fetchData();
+          } else {
+            toast.error(message || "Delete failed");
+          }
         }}
       />
 
@@ -307,62 +555,82 @@ const TimetableListPage: React.FC = () => {
         {/* Curriculum */}
         <div style={{ display: "flex", flexDirection: "column" }}>
           <label style={{ fontSize: "13px", fontWeight: "600" }}>
-            Curriculum
+            Curriculum {isLoadingFilters.curriculums && "⏳"}
           </label>
           <select
             style={selectStyle}
-            value={selectedCurriculum}
-            onChange={(e) => setSelectedCurriculum(e.target.value)}
+            value={filters.curriculumId}
+            onChange={(e) => handleFilterChange("curriculumId", e.target.value)}
+            disabled={isLoadingFilters.curriculums}
           >
             <option value="">Select Curriculum</option>
-            <option value="1">BE in Civil Engg 2024-2028</option>
-            <option value="2">BCA 2023-2026</option>
+            {curriculums.map((curriculum) => (
+              <option key={curriculum.id} value={curriculum.id}>
+                {curriculum.name} {curriculum.code ? `(${curriculum.code})` : ""}
+              </option>
+            ))}
           </select>
         </div>
 
         {/* Term */}
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <label style={{ fontSize: "13px", fontWeight: "600" }}>Term</label>
+          <label style={{ fontSize: "13px", fontWeight: "600" }}>
+            Term {isLoadingFilters.terms && "⏳"}
+          </label>
           <select
             style={selectStyle}
-            value={selectedTerm}
-            onChange={(e) => setSelectedTerm(e.target.value)}
+            value={filters.termId}
+            onChange={(e) => handleFilterChange("termId", e.target.value)}
+            disabled={!filters.curriculumId || isLoadingFilters.terms}
           >
             <option value="">Select Term</option>
-            <option value="1">1st Semester</option>
-            <option value="2">2nd Semester</option>
-            <option value="3">3rd Semester</option>
-            <option value="4">4th Semester</option>
+            {terms.map((term) => (
+              <option key={term.id} value={term.id}>
+                {term.name}
+              </option>
+            ))}
           </select>
         </div>
 
         {/* Section */}
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <label style={{ fontSize: "13px", fontWeight: "600" }}>Section</label>
+          <label style={{ fontSize: "13px", fontWeight: "600" }}>
+            Section {isLoadingFilters.sections && "⏳"}
+          </label>
           <select
             style={selectStyle}
-            value={selectedSection}
-            onChange={(e) => setSelectedSection(e.target.value)}
+            value={filters.sectionId}
+            onChange={(e) => handleFilterChange("sectionId", e.target.value)}
+            disabled={!filters.termId || isLoadingFilters.sections}
           >
             <option value="">Select Section</option>
-            <option value="A">A</option>
-            <option value="B">B</option>
-            <option value="C">C</option>
+            {sections.map((section) => (
+              <option key={section.id} value={section.id}>
+                {section.name || section.displayName || section.code}
+              </option>
+            ))}
           </select>
         </div>
 
         {/* Timetable */}
         <div style={{ display: "flex", flexDirection: "column" }}>
           <label style={{ fontSize: "13px", fontWeight: "600" }}>
-            Timetable
+            Timetable {isLoadingFilters.timetables && "⏳"}
           </label>
           <select
             style={selectStyle}
-            value={selectedTimetable}
-            onChange={(e) => setSelectedTimetable(e.target.value)}
+            value={filters.timetableId}
+            onChange={(e) => handleFilterChange("timetableId", e.target.value)}
+            disabled={!filters.sectionId || isLoadingFilters.timetables}
           >
             <option value="">Select Timetable</option>
-            <option value="1">01-07-2026 to 05-01-2027</option>
+            {timetables.map((timetable) => (
+              <option key={timetable.id} value={timetable.id}>
+                {timetable.name ||
+                  `${timetable.startDate || ""} to ${timetable.endDate || ""}` ||
+                  `Timetable ${timetable.id}`}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -392,8 +660,8 @@ const TimetableListPage: React.FC = () => {
           />
         </div>
 
-        <button style={applyBtn} onClick={handleApply}>
-          Apply
+        <button style={applyBtn} onClick={handleApply} disabled={loading}>
+          {loading ? "Loading..." : "Apply"}
         </button>
       </div>
 
@@ -479,56 +747,67 @@ const TimetableListPage: React.FC = () => {
           View Timetable
         </button>
       </div>
+
       <div style={tableWrapper}>
-        <table style={tableStyle}>
-          <thead>
-            <tr>
-              <th style={thStyle}>Time</th>
-              {days.map((day) => (
-                <th key={day} style={thStyle}>
-                  {day}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {timeSlots.map((time) => (
-              <tr key={time}>
-                <td style={tdStyle}>{formatTimeToAMPM(time)}</td>
-
-                {days.map((day) => {
-                  const cls = timetableData.find((c) => {
-                    if (c.day !== day) return false;
-
-                    const start =
-                      c.startTime ||
-                      (typeof c.time === "string"
-                        ? c.time.split(" - ")[0]
-                        : "");
-
-                    if (!start) return false;
-
-                    const normalizedStart = start.slice(0, 5);
-
-                    return normalizedStart === time;
-                  });
-                  return (
-                    <td key={day} style={tdStyle}>
-                      {cls ? (
-                        <div>
-                          <div style={{ fontWeight: 600 }}>{cls.subject}</div>
-                          <div style={{ fontSize: "12px", color: "#6b7280" }}>
-                            {cls.faculty}
-                          </div>
-                        </div>
-                      ) : null}
-                    </td>
-                  );
-                })}
+        {timetableData.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "40px", color: "#6b7280" }}>
+            No timetable data available. Please select filters and click "Apply".
+          </div>
+        ) : (
+          <table style={tableStyle}>
+            <thead>
+              <tr>
+                <th style={thStyle}>Time</th>
+                {days.map((day) => (
+                  <th key={day} style={thStyle}>
+                    {day}
+                  </th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {timeSlots.map((time) => (
+                <tr key={time}>
+                  <td style={tdStyle}>{formatTimeToAMPM(time)}</td>
+
+                  {days.map((day) => {
+                    const cls = timetableData.find((c) => {
+                      if (c.day !== day) return false;
+
+                      const start =
+                        c.startTime ||
+                        (typeof c.time === "string"
+                          ? c.time.split(" - ")[0]
+                          : "");
+
+                      if (!start) return false;
+
+                      const normalizedStart = start.slice(0, 5);
+                      return normalizedStart === time;
+                    });
+                    return (
+                      <td key={day} style={tdStyle}>
+                        {cls ? (
+                          <div>
+                            <div style={{ fontWeight: 600 }}>
+                              {cls.subject || cls.course || cls.topic}
+                            </div>
+                            <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                              {cls.faculty || cls.teacher || cls.instructor}
+                            </div>
+                            <div style={{ fontSize: "11px", color: "#9ca3af" }}>
+                              {cls.room || cls.location || cls.venue}
+                            </div>
+                          </div>
+                        ) : null}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {/* Edit Popup */}
@@ -543,6 +822,7 @@ const TimetableListPage: React.FC = () => {
               onChange={(e) =>
                 setEditingRow({ ...editingRow, subject: e.target.value })
               }
+              placeholder="Subject"
             />
 
             <input
@@ -551,6 +831,7 @@ const TimetableListPage: React.FC = () => {
               onChange={(e) =>
                 setEditingRow({ ...editingRow, faculty: e.target.value })
               }
+              placeholder="Faculty"
             />
 
             <input
@@ -559,6 +840,7 @@ const TimetableListPage: React.FC = () => {
               onChange={(e) =>
                 setEditingRow({ ...editingRow, time: e.target.value })
               }
+              placeholder="Time"
             />
 
             <input
@@ -567,6 +849,7 @@ const TimetableListPage: React.FC = () => {
               onChange={(e) =>
                 setEditingRow({ ...editingRow, room: e.target.value })
               }
+              placeholder="Room"
             />
 
             <div style={{ textAlign: "right", marginTop: "15px" }}>
@@ -582,6 +865,7 @@ const TimetableListPage: React.FC = () => {
 
                   setTimetableData(updated);
                   setShowEditPopup(false);
+                  toast.success("Timetable updated successfully!");
                 }}
               >
                 Save
@@ -590,10 +874,11 @@ const TimetableListPage: React.FC = () => {
           </div>
         </div>
       )}
+
       {/* Timetable Modal */}
       {showTimetableModal && (
         <div style={popupOverlay}>
-          <div style={{ ...popupBox, width: "600px" }}>
+          <div style={{ ...popupBox, width: "700px", maxWidth: "90vw" }}>
             <div
               style={{
                 display: "flex",
@@ -618,6 +903,7 @@ const TimetableListPage: React.FC = () => {
                 ✖
               </button>
             </div>
+
             <div
               style={{
                 backgroundColor: "#f3f4f6",
@@ -628,48 +914,44 @@ const TimetableListPage: React.FC = () => {
               }}
             >
               <strong>Curriculum:</strong>{" "}
-              {selectedCurriculum || "Not Selected"} &nbsp; | &nbsp;
-              <strong>Term:</strong> {selectedTerm || "Not Selected"} &nbsp; |
-              &nbsp;
-              <strong>Section:</strong> {selectedSection || "Not Selected"}{" "}
-              &nbsp; | &nbsp;
-              <strong>Timetable:</strong> {selectedTimetable || "Not Selected"}
+              {getSelectedName('curriculum', filters.curriculumId)} &nbsp; | &nbsp;
+              <strong>Term:</strong> {getSelectedName('term', filters.termId)} &nbsp; | &nbsp;
+              <strong>Section:</strong> {getSelectedName('section', filters.sectionId)} &nbsp; | &nbsp;
+              <strong>Timetable:</strong> {getSelectedName('timetable', filters.timetableId)}
             </div>
 
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr>
-                  <th style={thStyle}>Day</th>
-                  <th style={thStyle}>Time</th>
-                  <th style={thStyle}>Subject</th>
-                  <th style={thStyle}>Faculty</th>
-                  <th style={thStyle}>Room</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {timetableData.length === 0 ? (
+            <div style={{ maxHeight: "400px", overflow: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
                   <tr>
-                    <td
-                      colSpan={5}
-                      style={{ textAlign: "center", padding: "20px" }}
-                    >
-                      No timetable available
-                    </td>
+                    <th style={thStyle}>Day</th>
+                    <th style={thStyle}>Time</th>
+                    <th style={thStyle}>Subject</th>
+                    <th style={thStyle}>Faculty</th>
+                    <th style={thStyle}>Room</th>
                   </tr>
-                ) : (
-                  timetableData.map((row) => (
-                    <tr key={row.id}>
-                      <td style={tdStyle}>{row.day}</td>
-                      <td style={tdStyle}>{row.time}</td>
-                      <td style={tdStyle}>{row.subject}</td>
-                      <td style={tdStyle}>{row.faculty}</td>
-                      <td style={tdStyle}>{row.room}</td>
+                </thead>
+                <tbody>
+                  {timetableData.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} style={{ textAlign: "center", padding: "20px" }}>
+                        No timetable available
+                      </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    timetableData.map((row, index) => (
+                      <tr key={row.id || index}>
+                        <td style={tdStyle}>{row.day}</td>
+                        <td style={tdStyle}>{row.time || row.startTime}</td>
+                        <td style={tdStyle}>{row.subject || row.course || row.topic}</td>
+                        <td style={tdStyle}>{row.faculty || row.teacher}</td>
+                        <td style={tdStyle}>{row.room || row.location}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
 
             <div style={{ marginTop: "20px", textAlign: "right" }}>
               <button
@@ -684,7 +966,7 @@ const TimetableListPage: React.FC = () => {
                 }}
                 onClick={() => {
                   if (timetableData.length === 0) {
-                    alert("No timetable data to export");
+                    toast.warning("No timetable data to export");
                     return;
                   }
                   handleExportPDF();
@@ -694,7 +976,14 @@ const TimetableListPage: React.FC = () => {
               </button>
 
               <button
-                style={cancelBtn}
+                style={{
+                  padding: "6px 12px",
+                  backgroundColor: "#6b7280",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                }}
                 onClick={() => setShowTimetableModal(false)}
               >
                 Close
@@ -738,15 +1027,18 @@ const filterCard: React.CSSProperties = {
 const selectStyle: React.CSSProperties = {
   padding: "8px",
   minWidth: "160px",
+  borderRadius: "4px",
+  border: "1px solid #d1d5db",
 };
 
 const applyBtn: React.CSSProperties = {
-  padding: "8px 16px",
+  padding: "8px 24px",
   backgroundColor: "#2563eb",
   color: "#fff",
   border: "none",
   borderRadius: "4px",
   cursor: "pointer",
+  fontWeight: "500",
 };
 
 const tableWrapper: React.CSSProperties = {
@@ -754,6 +1046,7 @@ const tableWrapper: React.CSSProperties = {
   borderRadius: "8px",
   padding: "16px",
   boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+  overflow: "auto",
 };
 
 const tableStyle: React.CSSProperties = {
@@ -772,53 +1065,52 @@ const thStyle: React.CSSProperties = {
 const tdStyle: React.CSSProperties = {
   padding: "12px",
   borderBottom: "1px solid #e5e7eb",
-  transition: "background-color 0.2s",
   textAlign: "center",
   verticalAlign: "middle",
-  minWidth: "120px",
-};
-
-const editBtn: React.CSSProperties = {
-  padding: "6px 12px",
-  backgroundColor: "#16a34a",
-  color: "#fff",
-  border: "none",
-  borderRadius: "4px",
-  cursor: "pointer",
+  minWidth: "100px",
 };
 
 const popupOverlay: React.CSSProperties = {
   position: "fixed",
   inset: 0,
-  backgroundColor: "rgba(0,0,0,0.4)",
+  backgroundColor: "rgba(0,0,0,0.5)",
   display: "flex",
   justifyContent: "center",
   alignItems: "center",
+  zIndex: 1000,
 };
 
 const popupBox: React.CSSProperties = {
   backgroundColor: "#fff",
-  padding: "20px",
-  width: "320px",
+  padding: "24px",
   borderRadius: "8px",
+  boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "8px",
   marginTop: "10px",
+  borderRadius: "4px",
+  border: "1px solid #d1d5db",
 };
 
 const cancelBtn: React.CSSProperties = {
-  padding: "6px 12px",
+  padding: "6px 16px",
   marginRight: "10px",
+  borderRadius: "4px",
+  border: "1px solid #d1d5db",
+  backgroundColor: "#fff",
+  cursor: "pointer",
 };
 
 const saveBtn: React.CSSProperties = {
-  padding: "6px 12px",
+  padding: "6px 16px",
   backgroundColor: "#2563eb",
   color: "#fff",
   border: "none",
+  borderRadius: "4px",
+  cursor: "pointer",
 };
 
 export default TimetableListPage;

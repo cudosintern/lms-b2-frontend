@@ -4,6 +4,7 @@ import { MdOutlineDoNotDisturbAlt } from "react-icons/md";
 import ModalWithForm from "../../../../components/Modal/ModalWithForm";
 import ConfirmDialog from "../../../../components/Dialog/ConfirmDialog";
 import DataTable from "../../../../components/Table/DataTable";
+// import DataTable from "../../../../components/Table/DataTable";
 import { Schema, SchemaColumnDefs, SchemaFields } from "./departmentSchema";
 import { ApiEndpoint } from "../../../../utils/ApiEndpoint/lmsApiEndpoint";
 import { useAxios } from "../../../../hooks/useAxios";
@@ -130,6 +131,7 @@ const DepartmentPage = () => {
       },
     ];
   }, [handleEdit, handleDelete]);
+  
 
   const handleFormSubmit = useCallback(
     async (data: any) => {

@@ -190,7 +190,7 @@ export const timetableApi = {
   // Get curriculums
   getCurriculums: async (): Promise<any> => {
     try {
-      const response = await axiosInstance.get("/api/v1/timetable/curriculums");
+      const response = await axiosInstance.get("/api/v1/timetable/fetch_curriculum");
       return response.data;
     } catch (error: any) {
       const errorMessage = error?.response?.data?.message || error?.message || "Failed to load curriculums";
