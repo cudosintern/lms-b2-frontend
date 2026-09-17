@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axiosInstance from '../../../utils/api';
 import { toast } from 'react-toastify';
+import { LocalStorageHelper } from '../../../utils/localStorageHelper';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface DropdownItem {
@@ -51,13 +52,141 @@ interface ReportResult {
 const RANGE_OPTIONS = [
   { label: 'Select Range', value: '' },
   { label: '< 40%', value: '0-40' },
-  { label: '40% - 60%', value: '40-60' },
-  { label: '60% - 75%', value: '60-75' },
+  { label: '40% - < 60%', value: '40-60' },
+  { label: '60% - < 75%', value: '60-75' },
   { label: '>= 75%', value: '75-100' },
   { label: 'All', value: 'all' },
 ];
 
-const BASE_API = '/api/v1/reports/consolidated-attendance-report';
+const BASE_API = '/api/v1/consolidated-attendance-report';
+
+const percentageColor = (pct: number) => pct >= 85 ? 'text-green-700' : pct >= 75 ? 'text-yellow-600' : 'text-red-600';
+
+export function horizontalGroups(rows: ReportRow[]) {
+  const sections = new Map<string, { section: string; courses: Map<string, ReportRow>; students: Map<string, Map<string, ReportRow>> }>();
+  rows.forEach(row => {
+    const sectionKey = String(row.section_id ?? row.section);
+    const group = sections.get(sectionKey) ?? { section: row.section, courses: new Map(), students: new Map() };
+    const courseKey = String(row.crs_id ?? row.crs_code);
+    const studentKey = String(row.student_id ?? row.usno);
+    group.courses.set(courseKey, row);
+    const student = group.students.get(studentKey) ?? new Map<string, ReportRow>();
+    student.set(courseKey, row);
+    group.students.set(studentKey, student);
+    sections.set(sectionKey, group);
+  });
+  return Array.from(sections.values());
+}
+
+const overallPercentage = (rows: ReportRow[]) => {
+  const held = rows.reduce((sum, row) => sum + Number(row.total_classes), 0);
+  return held ? rows.reduce((sum, row) => sum + Number(row.present), 0) * 100 / held : 0;
+};
+
+export const HorizontalAttendanceReport: React.FC<{ rows: ReportRow[] }> = ({ rows }) => {
+  const cell = 'border border-gray-300 px-3 py-2';
+  return <div className="p-4 space-y-10">{horizontalGroups(rows).map((group, groupIndex) => {
+    const courses = Array.from(group.courses.entries());
+    return <section key={groupIndex} aria-label={`Horizontal attendance - Section ${group.section}`}>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs border-collapse text-left">
+          <caption className="border border-b-0 border-gray-300 p-2 text-left text-blue-700">Course-wise section-wise student attendance report with percentage (Section: {group.section})</caption>
+          <thead>
+            <tr><th colSpan={3 + courses.length * 2} className={cell}>Course</th><th colSpan={2} className={`${cell} text-center`}>Students displayed</th></tr>
+            {courses.map(([key, course]) => <tr key={key}>
+              <td colSpan={3 + courses.length * 2} className={cell}>{course.crs_code} - {course.crs_title} - Section: {course.section}</td>
+              <td colSpan={2} className={`${cell} text-center`}>{Array.from(group.students.values()).filter(student => student.has(key)).length}</td>
+            </tr>)}
+            <tr><th rowSpan={4} className={cell}>Sl. No.</th><th rowSpan={4} className={cell}>USN</th><th className={cell}>Course Code</th>
+              {courses.map(([key, course]) => <th key={key} colSpan={2} className={`${cell} text-center`}>{course.crs_code}</th>)}
+              <th rowSpan={4} className={cell}>Overall %</th><th rowSpan={4} className={cell}>Student signature</th>
+            </tr>
+            <tr><th className={cell}>Section</th>{courses.map(([key, course]) => <td key={key} colSpan={2} className={`${cell} text-center`}>{course.section}</td>)}</tr>
+            <tr><th className={cell}>Total Class Held</th>{courses.map(([key, course]) => <td key={key} colSpan={2} className={`${cell} text-center`}>{course.total_classes}</td>)}</tr>
+            <tr><th className={cell}>Student Name</th>{courses.map(([key]) => <React.Fragment key={key}><th className={`${cell} text-center`}>Classes Attended</th><th className={`${cell} text-center`}>%</th></React.Fragment>)}</tr>
+          </thead>
+          <tbody>{Array.from(group.students.entries()).map(([studentKey, marks], index) => {
+            const entries = Array.from(marks.values());
+            const student = entries[0];
+            const overall = overallPercentage(entries);
+            return <tr key={studentKey}><td className={cell}>{index + 1}</td><td className={cell}>{student.usno}</td><td className={`${cell} whitespace-nowrap`}>{student.student_name}</td>
+              {courses.map(([key]) => {
+                const mark = marks.get(key);
+                return <React.Fragment key={key}>
+                  <td className={`${cell} text-center text-blue-700`} title={mark ? `${mark.absent} absent, ${mark.unmarked ?? 0} unmarked` : 'Not mapped to this course'}>{mark ? `${mark.present} / ${mark.total_classes}` : '—'}</td>
+                  <td className={`${cell} text-center ${mark ? percentageColor(mark.attendance_pct) : ''}`}>{mark ? `${mark.attendance_pct}%` : '—'}</td>
+                </React.Fragment>;
+              })}
+              <td className={`${cell} text-center ${percentageColor(overall)}`}>{overall.toFixed(2)}</td><td className={cell} />
+            </tr>;
+          })}</tbody>
+          <tfoot>
+            <tr><th colSpan={3} className={`${cell} text-center`}>Name of the Faculty</th>{courses.map(([key, course]) => <td key={key} colSpan={2} className={`${cell} text-center`}>{course.course_instructor || 'Not assigned'}</td>)}<td colSpan={2} rowSpan={2} className={cell} /></tr>
+            <tr><th colSpan={3} className={`${cell} text-center`}>Signature of the Faculty</th>{courses.map(([key]) => <td key={key} colSpan={2} className={`${cell} h-10`} />)}</tr>
+          </tfoot>
+        </table>
+      </div>
+      <div className="flex justify-center gap-5 mt-4 text-xs"><span className="text-red-600">■ &lt; 75%</span><span className="text-yellow-600">■ 75% to &lt; 85%</span><span className="text-green-700">■ ≥ 85%</span></div>
+    </section>;
+  })}</div>;
+};
+
+export const VerticalAttendanceReport: React.FC<{ rows: ReportRow[] }> = ({ rows }) => {
+  const groups = new Map<string, ReportRow[]>();
+  rows.forEach(row => {
+    const key = JSON.stringify([row.crs_id ?? row.crs_code, row.section_id ?? row.section]);
+    const group = groups.get(key) ?? [];
+    group.push(row);
+    groups.set(key, group);
+  });
+  const cell = 'border border-gray-300 px-3 py-2';
+  return <div className="space-y-10 p-4">
+    {Array.from(groups.entries()).map(([key, students]) => {
+      const course = students[0];
+      return <section key={key} aria-label={`${course.crs_code} - Section ${course.section}`}>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs border-collapse text-left">
+            <caption className="border border-b-0 border-gray-300 px-3 py-2 text-left text-blue-700">
+              Course-wise Section-wise student attendance report with percentage
+            </caption>
+            <thead>
+              <tr><th colSpan={5} className={cell}>Course</th><th className={`${cell} text-center`}>Students displayed</th></tr>
+              <tr><th colSpan={5} className={`${cell} font-normal`}>{course.crs_code} - {course.crs_title} - Section: {course.section}</th>
+                <th className={`${cell} text-center font-normal`}>{students.length}</th></tr>
+              <tr>
+                <th rowSpan={4} scope="col" className={`${cell} w-12`}>Sl. No.</th>
+                <th rowSpan={4} scope="col" className={cell}>USN</th>
+                <th className={cell}>Course Code</th><td colSpan={2} className={`${cell} text-center text-blue-700`}>{course.crs_code}</td>
+                <th rowSpan={4} scope="col" className={`${cell} text-center w-1/5`}>Student signature</th>
+              </tr>
+              <tr><th className={cell}>Section</th><td colSpan={2} className={`${cell} text-center text-blue-700`}>{course.section}</td></tr>
+              <tr><th className={cell}>Total Class Held</th><td colSpan={2} className={`${cell} text-center`}>{course.total_classes}</td></tr>
+              <tr><th scope="col" className={cell}>Student Name</th><th scope="col" className={`${cell} text-center`}>Classes Attended</th><th scope="col" className={`${cell} text-center`}>%</th></tr>
+            </thead>
+            <tbody>
+              {students.map((student, index) => <tr key={student.student_id ?? student.usno ?? index}>
+                <td className={cell}>{index + 1}</td><td className={cell}>{student.usno}</td>
+                <td className={cell}>{student.student_name}</td>
+                <td className={`${cell} text-center text-blue-700`} title={`${student.absent} absent, ${student.unmarked ?? 0} unmarked`}>
+                  {student.present} / {student.total_classes}
+                </td>
+                <td className={`${cell} text-center ${student.attendance_pct >= 85 ? 'text-green-700' : student.attendance_pct >= 75 ? 'text-yellow-600' : 'text-red-600'}`}>{student.attendance_pct}</td>
+                <td className={cell} />
+              </tr>)}
+            </tbody>
+            <tfoot>
+              <tr><th colSpan={3} className={`${cell} text-center`}>Name of the Faculty</th><td colSpan={2} className={`${cell} text-center text-blue-700`}>{course.course_instructor || 'Not assigned'}</td><td rowSpan={2} className={cell} /></tr>
+              <tr><th colSpan={3} className={`${cell} text-center`}>Signature of the Faculty</th><td colSpan={2} className={`${cell} h-10`} /></tr>
+            </tfoot>
+          </table>
+        </div>
+        <div className="flex justify-center gap-5 mt-4 text-xs" aria-label="Attendance percentage legend">
+          <span className="text-red-600">■ &lt; 75%</span><span className="text-yellow-600">■ 75% to &lt; 85%</span><span className="text-green-700">■ ≥ 85%</span>
+        </div>
+      </section>;
+    })}
+  </div>;
+};
 
 // ─── Component ───────────────────────────────────────────────────────────────
 const ConsolidatedAttendanceReportPage: React.FC = () => {
@@ -69,10 +198,12 @@ const ConsolidatedAttendanceReportPage: React.FC = () => {
 
   const [selectedCurriculum, setSelectedCurriculum] = useState('');
   const [selectedTerm, setSelectedTerm] = useState('');
-  const [selectedCourse, setSelectedCourse] = useState('');
+  const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
   const [selectedSection, setSelectedSection] = useState('');
   const [selectedRange, setSelectedRange] = useState('');
-  const [selectDate, setSelectDate] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const reportRequest = useRef(0);
   const [reportType, setReportType] = useState<'vertical' | 'horizontal'>('vertical');
 
   // ── Report state ──────────────────────────────────────────────────────────
@@ -82,107 +213,174 @@ const ConsolidatedAttendanceReportPage: React.FC = () => {
 
   // ── Load curriculums on mount ─────────────────────────────────────────────
   useEffect(() => {
+    let active = true;
     axiosInstance.get(`${BASE_API}/meta/curriculums`)
       .then((r: any) => {
+        if (!active) return;
         const items = r.data?.data?.items ?? r.data?.items ?? [];
         setCurriculums(items);
         if (items.length > 0) setSelectedCurriculum(String(items[0].academic_batch_id));
       })
-      .catch(() => {});
+      .catch(() => { if (active) toast.error('Failed to load report filters'); });
+    return () => { active = false; };
   }, []);
 
   // ── Load terms when curriculum changes ────────────────────────────────────
   useEffect(() => {
-    setSelectedTerm(''); setSelectedCourse(''); setSelectedSection('');
+    setSelectedTerm(''); setSelectedCourses([]); setSelectedSection('');
     setTerms([]); setCourses([]); setSections([]); setResult(null);
     if (!selectedCurriculum) return;
+    let active = true;
     axiosInstance.get(`${BASE_API}/meta/terms`, { params: { academic_batch_id: selectedCurriculum } })
       .then((r: any) => {
+        if (!active) return;
         const items = r.data?.data?.items ?? r.data?.items ?? [];
         setTerms(items);
       })
-      .catch(() => {});
+      .catch(() => { if (active) toast.error('Failed to load report filters'); });
+    return () => { active = false; };
   }, [selectedCurriculum]);
 
   // ── Load courses when term changes ────────────────────────────────────────
   useEffect(() => {
-    setSelectedCourse(''); setSelectedSection('');
+    setSelectedCourses([]); setSelectedSection('');
     setCourses([]); setSections([]); setResult(null);
     if (!selectedCurriculum || !selectedTerm) return;
-    const term = terms.find(t => String(t.semester_id) === selectedTerm || String(t.semester) === selectedTerm);
-    const semParam = term?.semester ?? selectedTerm;
+    let active = true;
     axiosInstance.get(`${BASE_API}/meta/courses`, {
-      params: { academic_batch_id: selectedCurriculum, semester: semParam }
+      params: { academic_batch_id: selectedCurriculum, semester_id: selectedTerm }
     })
       .then((r: any) => {
+        if (!active) return;
         const items = r.data?.data?.items ?? r.data?.items ?? [];
         setCourses(items);
       })
-      .catch(() => {});
+      .catch(() => { if (active) toast.error('Failed to load report filters'); });
+    return () => { active = false; };
   }, [selectedTerm, selectedCurriculum]);
 
   // ── Load sections when course changes ─────────────────────────────────────
   useEffect(() => {
     setSelectedSection('');
     setSections([]); setResult(null);
-    if (!selectedCurriculum || !selectedTerm || !selectedCourse) return;
-    const term = terms.find(t => String(t.semester_id) === selectedTerm || String(t.semester) === selectedTerm);
-    const semParam = term?.semester ?? selectedTerm;
+    if (!selectedCurriculum || !selectedTerm || !selectedCourses.length) return;
+    let active = true;
     axiosInstance.get(`${BASE_API}/meta/sections`, {
-      params: { academic_batch_id: selectedCurriculum, semester: semParam, crs_id: selectedCourse }
+      params: new URLSearchParams([['academic_batch_id', selectedCurriculum], ['semester_id', selectedTerm], ...selectedCourses.map(id => ['crs_ids', id])])
     })
       .then((r: any) => {
+        if (!active) return;
         const items = r.data?.data?.items ?? r.data?.items ?? [];
         setSections(items);
       })
-      .catch(() => {});
-  }, [selectedCourse, selectedTerm, selectedCurriculum]);
+      .catch(() => { if (active) toast.error('Failed to load report filters'); });
+    return () => { active = false; };
+  }, [selectedCourses, selectedTerm, selectedCurriculum]);
 
-  // ── Fetch report ──────────────────────────────────────────────────────────
+  // Discard reports from an earlier filter selection, including in-flight responses.
+  useEffect(() => {
+    reportRequest.current += 1;
+    setResult(null);
+    setHasFetched(false);
+    setLoading(false);
+  }, [selectedCurriculum, selectedTerm, selectedCourses, selectedSection, selectedRange, fromDate, toDate, reportType]);
+
   const fetchReport = useCallback(async () => {
-    if (!selectedCurriculum) { toast.warn('Please select a Curriculum'); return; }
+    if (!selectedCurriculum || !selectedTerm || !selectedCourses.length || !selectedRange || !fromDate || !toDate) {
+      toast.warn('Select curriculum, term, courses, percentage range, and both dates');
+      return;
+    }
+    if (fromDate > toDate) { toast.warn('From Date cannot be later than To Date'); return; }
+    const requestId = ++reportRequest.current;
     setLoading(true); setHasFetched(true); setResult(null);
     try {
-      const term = terms.find(t => String(t.semester_id) === selectedTerm || String(t.semester) === selectedTerm);
-      const semParam = term?.semester ?? selectedTerm;
-
-      const params: Record<string, any> = {
-        academic_batch_id: selectedCurriculum,
-        report_type: reportType,
-      };
-      if (selectedTerm) params.semester = semParam;
-      if (selectedCourse) params.crs_id = selectedCourse;
-      if (selectedSection) params.section_id = selectedSection;
-      if (selectDate) { params.from_date = selectDate; params.to_date = selectDate; }
-
-      // Parse range filter
-      if (selectedRange && selectedRange !== '' && selectedRange !== 'all') {
-        const [minStr, maxStr] = selectedRange.split('-');
-        if (minStr !== undefined) params.range_min = Number(minStr);
-        if (maxStr !== undefined) params.range_max = Number(maxStr);
+      const params = new URLSearchParams({
+        academic_batch_id: selectedCurriculum, semester_id: selectedTerm,
+        from_date: fromDate, to_date: toDate, report_type: reportType,
+      });
+      selectedCourses.forEach(id => params.append('crs_ids', id));
+      if (selectedSection) params.set('section_id', selectedSection);
+      if (selectedRange !== 'all' && reportType === 'vertical') {
+        const [min, max] = selectedRange.split('-');
+        params.set('range_min', min);
+        params.set('range_max', max);
+        params.set('range_max_inclusive', String(max === '100'));
       }
-
-      const r: any = await axiosInstance.get(`${BASE_API}/report`, { params });
-      const d = r.data?.data ?? r.data;
-      setResult(d);
+      const r = await axiosInstance.get<{ data: ReportResult } | ReportResult>(`${BASE_API}/report`, { params });
+      const data = 'data' in r.data ? r.data.data : r.data;
+      if (reportType === 'horizontal') {
+        const [min, max] = selectedRange === 'all' ? [0, 100] : selectedRange.split('-').map(Number);
+        const included: ReportRow[] = [];
+        const percentages: number[] = [];
+        horizontalGroups(data.rows).forEach(group => group.students.forEach(marks => {
+          const entries = Array.from(marks.values());
+          const pct = overallPercentage(entries);
+          if (pct >= min && (max === 100 ? pct <= max : pct < max)) {
+            included.push(...entries);
+            percentages.push(pct);
+          }
+        }));
+        data.rows = included;
+        data.total = included.length;
+        data.summary.total_students = new Set(included.map(row => row.student_id ?? row.usno)).size;
+        data.summary.average_attendance_pct = percentages.length
+          ? Number((percentages.reduce((sum, pct) => sum + pct, 0) / percentages.length).toFixed(2)) : 0;
+      }
+      if (reportRequest.current === requestId) setResult(data);
     } catch (err: any) {
-      toast.error(err?.response?.data?.detail || 'Failed to generate report');
+      if (reportRequest.current === requestId) {
+        const detail = err?.response?.data?.detail;
+        toast.error(typeof detail === 'string' ? detail : 'Failed to generate report');
+      }
     } finally {
-      setLoading(false);
+      if (reportRequest.current === requestId) setLoading(false);
     }
-  }, [selectedCurriculum, selectedTerm, selectedCourse, selectedSection, selectedRange, selectDate, reportType, terms]);
+  }, [selectedCurriculum, selectedTerm, selectedCourses, selectedSection, selectedRange, fromDate, toDate, reportType]);
 
   // ── Export CSV ────────────────────────────────────────────────────────────
+  const exportPDF = async () => {
+    if (!result?.rows.length) return;
+    try {
+      const { buildHorizontalAttendancePdf } = await import('./horizontalAttendancePdf');
+      const term = terms.find(item => String(item.semester_id) === selectedTerm);
+      const context = {
+        institution: LocalStorageHelper.getObject<{ label: string }>('auth_org_state')?.label,
+        curriculum: getSelectedCurriculumLabel(), semester: term?.semester_desc || String(term?.semester ?? ''),
+        from: result.date_range?.from || fromDate, to: result.date_range?.to || toDate,
+      };
+      const groups = horizontalGroups(result.rows);
+      const doc = reportType === 'horizontal' ? buildHorizontalAttendancePdf(groups, context)
+        : (await import('./verticalAttendancePdf')).buildVerticalAttendancePdf(
+            groups.flatMap(group => Array.from(group.courses.keys()).map(key =>
+              Array.from(group.students.values()).flatMap(marks => marks.has(key) ? [marks.get(key)!] : []))), context);
+      const filename = `${getSelectedCurriculumLabel()}_${term?.semester_desc || selectedTerm}_consolidated_attendance_report_${new Date().toISOString().slice(0, 10)}`;
+      doc.save(`${filename.replace(/[^a-zA-Z0-9_-]+/g, '_')}.pdf`);
+    } catch {
+      toast.error('Failed to export PDF');
+    }
+  };
+
   const exportCSV = () => {
     if (!result || !result.rows.length) return;
-    const headers = result.headers.map(h => h.label).join(',');
-    const rows = result.rows.map(row =>
-      result.headers.map(h => {
-        const val = row[h.key] ?? '';
-        return typeof val === 'string' && val.includes(',') ? `"${val}"` : val;
-      }).join(',')
-    );
-    const csv = [headers, ...rows].join('\n');
+    const cell = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const lines: unknown[][] = reportType === 'horizontal'
+      ? horizontalGroups(result.rows).flatMap(group => {
+          const courses = Array.from(group.courses.entries());
+          return [
+            ['Section', group.section],
+            ['Sl. No.', 'USN', 'Student Name', ...courses.flatMap(([, c]) => [`${c.crs_code} Classes Attended`, `${c.crs_code} %`]), 'Overall %', 'Student signature'],
+            ...Array.from(group.students.values()).map((marks, index) => {
+              const entries = Array.from(marks.values());
+              return [index + 1, entries[0].usno, entries[0].student_name,
+                ...courses.flatMap(([key]) => { const mark = marks.get(key); return mark ? [`${mark.present} / ${mark.total_classes}`, mark.attendance_pct] : ['—', '—']; }),
+                overallPercentage(entries).toFixed(2), ''];
+            }),
+            ['', '', 'Name of the Faculty', ...courses.flatMap(([, c]) => [c.course_instructor || 'Not assigned', '']), '', ''],
+            [],
+          ];
+        })
+      : [result.headers.map(h => h.label), ...result.rows.map(row => result.headers.map(h => row[h.key]))];
+    const csv = lines.map(line => line.map(cell).join(',')).join('\r\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -193,7 +391,7 @@ const ConsolidatedAttendanceReportPage: React.FC = () => {
   // ── Helpers ───────────────────────────────────────────────────────────────
   const getSelectedCurriculumLabel = () => {
     const c = curriculums.find(c => String(c.academic_batch_id) === selectedCurriculum);
-    return c ? `${c.academic_batch_desc} (${c.academic_batch_code})` : '';
+    return c ? `${c.academic_batch_desc ?? ''}${c.academic_batch_code ? ` (${c.academic_batch_code})` : ''}` : '';
   };
 
   const getPctColor = (pct: number) => {
@@ -212,7 +410,7 @@ const ConsolidatedAttendanceReportPage: React.FC = () => {
 
         <div className="p-4">
           {/* ── Filter Row 1 ─────────────────────────────────────────────── */}
-          <div className="grid grid-cols-5 gap-3 mb-3">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-3">
             {/* Curriculum */}
             <div>
               <label className="text-xs font-semibold text-gray-700">
@@ -255,15 +453,17 @@ const ConsolidatedAttendanceReportPage: React.FC = () => {
             {/* Course */}
             <div>
               <label className="text-xs font-semibold text-gray-700">
-                Course: <span className="text-red-500">*</span>
+                Courses: <span className="text-red-500">*</span>
               </label>
               <select
-                value={selectedCourse}
-                onChange={e => setSelectedCourse(e.target.value)}
+                multiple
+                aria-label="Courses"
+                value={selectedCourses}
+                onChange={e => setSelectedCourses(Array.from(e.target.selectedOptions, option => option.value))}
                 disabled={!selectedTerm}
                 className="w-full mt-1 border border-gray-300 rounded text-sm px-2 py-1.5 focus:outline-none focus:border-blue-500 disabled:bg-gray-100"
               >
-                <option value="">Select Course</option>
+
                 {courses.map(c => (
                   <option key={c.crs_id} value={String(c.crs_id)}>
                     {c.crs_code} - {c.crs_title}
@@ -275,15 +475,15 @@ const ConsolidatedAttendanceReportPage: React.FC = () => {
             {/* Section */}
             <div>
               <label className="text-xs font-semibold text-gray-700">
-                Section: <span className="text-red-500">*</span>
+                Section:
               </label>
               <select
                 value={selectedSection}
                 onChange={e => setSelectedSection(e.target.value)}
-                disabled={!selectedCourse}
+                disabled={!selectedCourses.length}
                 className="w-full mt-1 border border-gray-300 rounded text-sm px-2 py-1.5 focus:outline-none focus:border-blue-500 disabled:bg-gray-100"
               >
-                <option value="">Select Section</option>
+                <option value="">All mapped sections</option>
                 {sections.map((s, i) => (
                   <option key={i} value={String(s.section_id)}>
                     {s.section}
@@ -310,22 +510,16 @@ const ConsolidatedAttendanceReportPage: React.FC = () => {
           </div>
 
           {/* ── Filter Row 2 ─────────────────────────────────────────────── */}
-          <div className="flex items-end gap-8 mb-4">
-            {/* Select Date */}
+          <div className="flex flex-wrap items-end gap-8 mb-4">
             <div>
-              <label className="text-xs font-semibold text-gray-700 block mb-1">Select Date</label>
-              <div className="flex items-center border border-gray-300 rounded px-2 py-1.5 gap-2 w-48">
-                <span className="text-gray-400 text-sm">📅</span>
-                <input
-                  type="date"
-                  value={selectDate}
-                  onChange={e => setSelectDate(e.target.value)}
-                  className="text-sm focus:outline-none flex-1 bg-transparent"
-                />
-                {selectDate && (
-                  <button onClick={() => setSelectDate('')} className="text-gray-400 text-xs hover:text-red-500">✕</button>
-                )}
-              </div>
+              <label htmlFor="attendance-from" className="text-xs font-semibold text-gray-700 block mb-1">From Date *</label>
+              <input id="attendance-from" type="date" value={fromDate} max={toDate || undefined}
+                onChange={e => setFromDate(e.target.value)} className="border border-gray-300 rounded px-2 py-1.5 text-sm" />
+            </div>
+            <div>
+              <label htmlFor="attendance-to" className="text-xs font-semibold text-gray-700 block mb-1">To Date *</label>
+              <input id="attendance-to" type="date" value={toDate} min={fromDate || undefined}
+                onChange={e => setToDate(e.target.value)} className="border border-gray-300 rounded px-2 py-1.5 text-sm" />
             </div>
 
             {/* Report Type */}
@@ -368,23 +562,29 @@ const ConsolidatedAttendanceReportPage: React.FC = () => {
               </button>
               {result && result.rows.length > 0 && (
                 <>
-                  <button
+                  {reportType === 'horizontal' && <button
                     onClick={exportCSV}
                     className="bg-green-600 hover:bg-green-700 text-white text-xs px-4 py-2 rounded font-medium"
                   >
                     Export CSV
-                  </button>
+                  </button>}
                   <button
-                    onClick={() => window.print()}
+                    onClick={exportPDF}
                     className="bg-gray-600 hover:bg-gray-700 text-white text-xs px-4 py-2 rounded font-medium"
                   >
-                    Print / PDF
+                    Export PDF
                   </button>
                 </>
               )}
             </div>
           </div>
 
+          <p className="text-xs text-gray-600 mb-3">
+            {reportType === 'horizontal'
+              ? 'Each student appears once per section, with courses side by side. Overall % and the selected range use total present units divided by total held units across mapped courses. A dash means the student is not mapped to that course. '
+              : 'Each course and section has its own student table. Attendance % = present class units / total class units. '}
+            Missing marks contribute no present units. Hold Ctrl or Cmd to select multiple courses.
+          </p>
           {/* ── Summary bar ──────────────────────────────────────────────── */}
           {result && (
             <div className="flex gap-4 mb-3">
@@ -439,55 +639,16 @@ const ConsolidatedAttendanceReportPage: React.FC = () => {
             )}
 
             {!loading && result && result.rows.length > 0 && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-[#1f3a4f] text-white">
-                      {result.headers.map(h => (
-                        <th
-                          key={h.key}
-                          className="px-3 py-2 text-left font-semibold whitespace-nowrap border-r border-[#2d4f6a] last:border-r-0"
-                        >
-                          {h.label}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.rows.map((row, idx) => (
-                      <tr
-                        key={idx}
-                        className={idx % 2 === 0 ? 'bg-white hover:bg-blue-50' : 'bg-gray-50 hover:bg-blue-50'}
-                      >
-                        {result.headers.map(h => {
-                          const val = row[h.key];
-                          const isAttPct = h.key === 'attendance_pct';
-                          const isDayCol = h.key.match(/^\d{4}-\d{2}-\d{2}$/);
-
-                          return (
-                            <td
-                              key={h.key}
-                              className="px-3 py-2 border-b border-gray-100 whitespace-nowrap"
-                            >
-                              {isAttPct ? (
-                                <span className={`font-semibold ${getPctColor(Number(val))}`}>
-                                  {val}%
-                                </span>
-                              ) : isDayCol ? (
-                                <span className={`font-bold ${val === 'P' ? 'text-green-700' : val === 'A' ? 'text-red-600' : 'text-gray-400'}`}>
-                                  {val === 'P' ? '1P' : val === 'A' ? '1A' : '—'}
-                                </span>
-                              ) : (
-                                <span>{val ?? '—'}</span>
-                              )}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <>
+                <dl className="m-4 border border-gray-300 text-xs">
+                  <div className="flex border-b border-gray-300"><dt className="w-40 p-2 font-semibold">Curriculum:</dt><dd className="p-2">{getSelectedCurriculumLabel()}</dd></div>
+                  <div className="flex"><dt className="w-40 p-2 font-semibold">Semester:</dt><dd className="p-2">{terms.find(term => String(term.semester_id) === selectedTerm)?.semester_desc}</dd></div>
+                </dl>
+                {reportType === 'vertical' && <VerticalAttendanceReport rows={result.rows} />}
+              </>
+            )}
+            {!loading && result && result.rows.length > 0 && reportType === 'horizontal' && (
+              <HorizontalAttendanceReport rows={result.rows} />
             )}
           </div>
         </div>

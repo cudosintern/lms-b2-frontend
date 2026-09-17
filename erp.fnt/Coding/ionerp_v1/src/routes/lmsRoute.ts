@@ -29,7 +29,7 @@ import ManageAssignmentPage from "../pages/lms/manageAssignment/ManageAssignment
 // import MyAssignmentPage from "../pages/lms/my_assignment/MyAssignmentPage";
 // import MyQuizPage from "../pages/lms/myQuiz/MyQuizPage";
 import AttendanceManagementPage from "../pages/lms/AttendanceManagement/AttendanceManagementPage";
-import CourseRegistrationPage from "../pages/lms/Registration_setup/CourseRegistrationPage";
+import CourseRegistrationPage from "../pages/lms/course_registration_configuration";
 import StudentAssignmentReport from "../pages/lms/studentAssignmentReport/StudentAssignmentReport";
 import AttendanceStatusReportPage from "../pages/lms/attendanceStatusReport/AttendanceStatusReportPage";
 import StudentRecordPage from "../pages/lms/studentRecord/StudentRecordPage";

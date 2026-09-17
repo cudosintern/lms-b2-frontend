@@ -36,6 +36,18 @@ interface SharedQuiz {
 interface QuizOption { qq_option_id: number; option_value: string; option_explanation?: string; }
 interface QuizQuestion { qq_id: number; question: string; question_type: number; marks: number | null; options: QuizOption[]; selected_option_id: number | null; }
 
+interface QuizEnrollment {
+  academic_batch_id: number; semester_id: number; crs_id: number;
+  crs_code: string; crs_title: string; section_id: number; section_name: string | null;
+}
+interface QuizDropdowns {
+  batches: { academic_batch_id: number; academic_batch_desc: string }[];
+  semesters: { semester_id: number; semester: number; academic_batch_id: number }[];
+  enrollments: QuizEnrollment[];
+}
+type QuizApiResponse<T> = Partial<T> & { status?: boolean; data?: T };
+const EMPTY_DROPDOWNS: QuizDropdowns = { batches: [], semesters: [], enrollments: [] };
+
 const STUDENT_QUIZ_API = '/api/v1/student-quiz';
 
 const fmtDate = (d: string | null) => {
@@ -56,10 +68,18 @@ const getStatusInfo = (q: SharedQuiz): { label: string; color: string; bg: strin
 // ─── Main Component ───────────────────────────────────────────────────────────
 const MyQuizPage: React.FC = () => {
   const authState = LocalStorageHelper.getObject<loginData>('auth_state');
-  // Student's iems_students.student_id
-  const studentId: number = (authState as any)?.student_id ?? (authState as any)?.id ?? 1;
-  // student_usn is NOT in auth_state login response — we get it per-quiz from the mapping row
-  // so we don't set a global studentUsn here
+  const session = authState as (loginData & { student_id?: number; id?: number }) | null;
+  const studentId = Number(session?.student_id ?? session?.user_id ?? session?.id);
+  const hasStudent = Number.isInteger(studentId) && studentId > 0;
+  const [dropdowns, setDropdowns] = useState<QuizDropdowns>(EMPTY_DROPDOWNS);
+  const [metadataLoading, setMetadataLoading] = useState(false);
+  const [metadataError, setMetadataError] = useState('');
+  const [batchId, setBatchId] = useState('');
+  const [semesterId, setSemesterId] = useState('');
+  const [courseId, setCourseId] = useState('');
+  const [sectionId, setSectionId] = useState('');
+  const quizRequest = useRef(0);
+  const filtersReady = hasStudent && !!batchId && !!semesterId && !!courseId && !!sectionId;
 
   const [quizzes, setQuizzes] = useState<SharedQuiz[]>([]);
   const [loading, setLoading] = useState(false);
@@ -67,8 +87,6 @@ const MyQuizPage: React.FC = () => {
   const [showEntries, setShowEntries] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Course filter derived from loaded quizzes — no extra API call
-  const [courseFilter, setCourseFilter] = useState('');
 
   const [detailModal, setDetailModal] = useState<SharedQuiz | null>(null);
 
@@ -83,22 +101,67 @@ const MyQuizPage: React.FC = () => {
   const answersRef = useRef<Record<number, number>>({});
   const [confirmSubmitPrompt, setConfirmSubmitPrompt] = useState(false);
 
-  // ── Auto-load on mount — just student_id, no dropdowns ──
+  useEffect(() => {
+    let active = true;
+    setDropdowns(EMPTY_DROPDOWNS);
+    setBatchId(''); setSemesterId(''); setCourseId(''); setSectionId('');
+    setMetadataError('');
+    if (!hasStudent) { setMetadataLoading(false); return; }
+    setMetadataLoading(true);
+    const loadDropdowns = async () => {
+      try {
+        const r = await axiosInstance.get<QuizApiResponse<QuizDropdowns>>(
+          `${STUDENT_QUIZ_API}/dropdowns`, { params: { student_id: studentId } });
+        if (!active) return;
+        if (r.data?.status === false) throw new Error('Failed to load enrollment');
+        const body = r.data?.data ?? r.data;
+        const data: QuizDropdowns = {
+          batches: body.batches ?? [],
+          semesters: body.semesters ?? [],
+          enrollments: body.enrollments ?? [],
+        };
+        setDropdowns(data);
+        setBatchId(String(data.batches[0]?.academic_batch_id ?? ''));
+      } catch {
+        if (active) setMetadataError('Failed to load your academic details. Please reload the page.');
+      } finally {
+        if (active) setMetadataLoading(false);
+      }
+    };
+    void loadDropdowns();
+    return () => { active = false; };
+  }, [studentId, hasStudent]);
+
   const fetchQuizzes = useCallback(async () => {
+    const request = ++quizRequest.current;
+    setQuizzes([]); setCurrentPage(1);
+    if (!filtersReady) { setLoading(false); return; }
     setLoading(true);
     try {
-      const r: any = await axiosInstance.get(`${STUDENT_QUIZ_API}/my-quizzes`, {
-        params: { student_id: studentId },
+      const r = await axiosInstance.get<QuizApiResponse<{ items: SharedQuiz[] }>>(`${STUDENT_QUIZ_API}/my-quizzes`, {
+        params: { student_id: studentId, academic_batch_id: Number(batchId),
+          semester_id: Number(semesterId), crs_id: Number(courseId), section_id: Number(sectionId) },
       });
-      const items = r.data?.data?.items ?? r.data?.items ?? r.data;
+      if (request !== quizRequest.current) return;
+      if (r.data?.status === false) throw new Error('Failed to load quizzes');
+      const items = r.data?.data?.items ?? r.data?.items;
       setQuizzes(Array.isArray(items) ? items : []);
     } catch {
-      toast.error('Failed to load quizzes');
-      setQuizzes([]);
-    } finally { setLoading(false); }
-  }, [studentId]);
+      if (request === quizRequest.current) toast.error('Failed to load quizzes');
+    } finally { if (request === quizRequest.current) setLoading(false); }
+  }, [studentId, batchId, semesterId, courseId, sectionId, filtersReady]);
 
-  useEffect(() => { fetchQuizzes(); }, [fetchQuizzes]);
+  useEffect(() => {
+    fetchQuizzes();
+    return () => { quizRequest.current += 1; };
+  }, [fetchQuizzes]);
+
+  const semesters = dropdowns.semesters.filter(s => String(s.academic_batch_id) === batchId);
+  const enrollment = dropdowns.enrollments.filter(e =>
+    String(e.academic_batch_id) === batchId && String(e.semester_id) === semesterId);
+  const courses = Array.from(new Map(enrollment.map(e => [e.crs_id, e])).values());
+  const sections = Array.from(new Map(enrollment.filter(e => String(e.crs_id) === courseId && e.section_id)
+    .map(e => [e.section_id, e])).values());
 
   // ── Timer ──
   const stopTimer = () => { if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; } };
@@ -171,17 +234,11 @@ const MyQuizPage: React.FC = () => {
     } finally { setSubmitting(false); }
   };
 
-  // ── Derive course filter chips from loaded data ──
-  const uniqueCourses = Array.from(
-    new Map(quizzes.map(q => [q.crs_code, { crs_code: q.crs_code, crs_title: q.crs_title }])).values()
-  ).filter(c => c.crs_code);
-
   const filtered = quizzes.filter(q => {
-    const matchesCourse = !courseFilter || q.crs_code === courseFilter;
     const matchesSearch =
       q.quiz_title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (q.crs_title || '').toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesCourse && matchesSearch;
+    return matchesSearch;
   });
   const totalPages = Math.max(1, Math.ceil(filtered.length / showEntries));
   const pageData = filtered.slice((currentPage - 1) * showEntries, currentPage * showEntries);
@@ -308,7 +365,7 @@ const MyQuizPage: React.FC = () => {
         {/* Header */}
         <div className="bg-[#1f3a4f] text-white px-4 py-2.5 flex justify-between items-center">
           <h1 className="text-sm font-semibold">My Quizzes</h1>
-          <button onClick={fetchQuizzes} disabled={loading}
+          <button onClick={fetchQuizzes} disabled={loading || !filtersReady}
             className="flex items-center gap-1 text-xs bg-white/10 hover:bg-white/20 px-2 py-1 rounded">
             ↻ Refresh
           </button>
@@ -316,29 +373,38 @@ const MyQuizPage: React.FC = () => {
 
         <div className="p-4">
 
-          {/* Summary + course filter chips */}
-          {!loading && quizzes.length > 0 && (
-            <div className="mb-3 flex items-center gap-3 flex-wrap">
-              <span className="text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded-full font-semibold border border-blue-200">
-                📝 {quizzes.length} quiz{quizzes.length !== 1 ? 'zes' : ''} shared with you
-              </span>
-              {uniqueCourses.length > 1 && (
-                <>
-                  <span className="text-xs text-gray-400">Filter by course:</span>
-                  <button
-                    onClick={() => { setCourseFilter(''); setCurrentPage(1); }}
-                    className={`text-xs px-2 py-0.5 rounded-full border transition ${!courseFilter ? 'bg-[#1f3a4f] text-white border-[#1f3a4f]' : 'bg-white text-gray-600 border-gray-300 hover:border-[#1f3a4f]'}`}
-                  >All</button>
-                  {uniqueCourses.map(c => (
-                    <button key={c.crs_code}
-                      onClick={() => { setCourseFilter(c.crs_code); setCurrentPage(1); }}
-                      className={`text-xs px-2 py-0.5 rounded-full border transition ${courseFilter === c.crs_code ? 'bg-[#1f3a4f] text-white border-[#1f3a4f]' : 'bg-white text-gray-600 border-gray-300 hover:border-[#1f3a4f]'}`}
-                    >{c.crs_code}</button>
-                  ))}
-                </>
-              )}
-            </div>
-          )}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+            {[
+              { label: 'Academic Batch', value: batchId, disabled: metadataLoading || !dropdowns.batches.length,
+                options: dropdowns.batches.map(b => ({ value: String(b.academic_batch_id), label: b.academic_batch_desc })),
+                change: (v: string) => { setBatchId(v); setSemesterId(''); setCourseId(''); setSectionId(''); } },
+              { label: 'Semester', value: semesterId, disabled: !batchId || !semesters.length,
+                options: semesters.map(s => ({ value: String(s.semester_id), label: `Semester ${s.semester}` })),
+                change: (v: string) => { setSemesterId(v); setCourseId(''); setSectionId(''); } },
+              { label: 'Course', value: courseId, disabled: !semesterId || !courses.length,
+                options: courses.map(c => ({ value: String(c.crs_id), label: `${c.crs_code} — ${c.crs_title}` })),
+                change: (v: string) => { setCourseId(v); setSectionId(''); } },
+              { label: 'Section', value: sectionId, disabled: !courseId || !sections.length,
+                options: sections.map(s => ({ value: String(s.section_id), label: s.section_name || `Section ${s.section_id}` })),
+                change: setSectionId },
+            ].map(field => (
+              <label key={field.label} className="text-sm text-gray-700">
+                <span className="block mb-1 font-medium">{field.label}</span>
+                <select className="border border-gray-300 rounded px-2 py-2 w-full disabled:bg-gray-100"
+                  value={field.value} disabled={field.disabled} onChange={e => field.change(e.target.value)}>
+                  <option value="">Select {field.label}</option>
+                  {field.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </label>
+            ))}
+          </div>
+          <p className="text-sm text-gray-600 mb-3" role="status">
+            {!hasStudent ? 'Student identity is missing. Please log in again.' : metadataLoading ? 'Loading academic details...' :
+              metadataError || (!dropdowns.batches.length ? 'No academic batch is linked to your student profile.' :
+              semesterId && !courses.length ? 'No enrolled courses found for this semester.' :
+              courseId && !sections.length ? 'No enrolled sections found for this course.' :
+              !filtersReady ? 'Select semester, course, and section to view your assigned quizzes.' : '')}
+          </p>
 
           {/* Table controls */}
           <div className="flex justify-between items-center mb-3">
@@ -430,7 +496,7 @@ const MyQuizPage: React.FC = () => {
                   );
                 }) : (
                   <tr><td colSpan={9} className="px-4 py-10 text-center text-gray-400 text-sm">
-                    {quizzes.length === 0 ? 'No quizzes have been shared with you yet.' : 'No quizzes match the current filter.'}
+                    {!filtersReady ? 'Select your academic details above.' : quizzes.length === 0 ? 'No quizzes are assigned to you for the selected academic details.' : 'No quizzes match your search.'}
                   </td></tr>
                 )}
               </tbody>

@@ -128,7 +128,7 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({
         loadAttendance(); // Refresh summary
       }
     } catch (err: any) {
-      const errorMsg = err.response?.data?.message || 'Failed to mark attendance';
+      const errorMsg = err.response?.data?.message || err.message || 'Failed to mark attendance';
       toast.error(errorMsg);
       console.error('Attendance marking error:', err);
     }
@@ -181,7 +181,7 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({
         loadAttendance();
       }
     } catch (err: any) {
-      const errorMsg = err.response?.data?.message || 'Failed to mark bulk attendance';
+      const errorMsg = err.response?.data?.message || err.message || 'Failed to mark bulk attendance';
       toast.error(errorMsg);
       console.error('Bulk attendance error:', err);
     } finally {

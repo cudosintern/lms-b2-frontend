@@ -1,0 +1,55 @@
+.attendance-management .attendance-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+}
+
+.attendance-management .attendance-filter-grid > div {
+  min-width: 0;
+}
+
+/* Other pages load a global 250px select minimum; keep attendance fields within their columns. */
+.attendance-management select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (min-width: 640px) {
+  .attendance-management .attendance-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .attendance-management .attendance-filter-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.attendance-management .attendance-summary {
+  width: 400px;
+  max-width: 100%;
+  border: 1px solid #d9d9d9;
+  background: #fafafa;
+  color: #102a43;
+  font-size: 13px;
+}
+.attendance-management .attendance-summary h3 {
+  margin: 0;
+  padding: 8px 10px;
+  border-left: 16px solid #389532;
+  color: #a00000;
+  font-size: 13px;
+  font-weight: 600;
+}
+.attendance-management .attendance-summary dl { margin: 0; }
+.attendance-management .attendance-summary dl > div {
+  display: flex;
+  gap: 16px;
+  padding: 8px;
+  border-top: 1px solid #d9d9d9;
+}
+.attendance-management .attendance-summary dt { min-width: 92px; font-weight: 500; }
+.attendance-management .attendance-summary dd { margin: 0; }

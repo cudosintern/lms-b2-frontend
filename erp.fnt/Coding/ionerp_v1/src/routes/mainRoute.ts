@@ -21,16 +21,19 @@ import TimetableCalendarPage from "../pages/lms/timetableCalendar/TimetableCalen
 // import SendAnnouncementPage from "../pages/lms/sendAnnouncement/SendAnnouncementPage";
 import AnnouncementPage from "../pages/lms/announcement/AnnouncementPage";
 import ManageAssignmentPage from "../pages/lms/manageAssignment/ManageAssignmentPage";
-import CourseRegistrationPage from "../pages/lms/Registration_setup/CourseRegistrationPage";
+import CourseRegistrationConfiguration from "../pages/lms/course_registration_configuration/CourseRegistrationConfiguration";
 import AttendanceManagementPage from "../pages/lms/AttendanceManagement/AttendanceManagementPage";
 
 import student_DCTRReport from "../pages/lms/reports/student_DCTRReport";
 import student_sharedmaterial from "../pages/lms/reports/student_sharedmaterial";
-import AttendanceReportPage from "../pages/lms/reports/AttendanceReportPage";
+// import AttendanceReportPage from "../pages/lms/reports/AttendanceReportPage";
+import ConsolidatedAttendanceReportPage from "../pages/lms/consolidated_attendance/ConsolidatedAttendanceReportPage";
 import studentRecordPage from "../pages/lms/studentRecord/StudentRecordPage";
 import StudentAttendanceReport from "../pages/lms/studentAttendanceReport/StudentAttendanceReport";
+import AttendanceStatusReportPage from "../pages/lms/attendanceStatusReport/AttendanceStatusReportPage";
 import StudentQuiz from "../pages/lms/reports/student_StudentQuiz";
-// import ConsolidatedStudentMarksReport from "../../pages/lms/consolidatedStudentMarksReport/ConsolidatedStudentMarksReport";
+// import ConsolidatedStudentMarksReport from "../../pages/lms/ConsolidatedStudentMarksReport/ConsolidatedStudentMarksReport";
+import consolidatedAbsenteesReport from "../pages/lms/consolidatedAbsenteesReport/ConsolidatedAbsenteesReport";
 
 import MyAssignmentPage from "../pages/lms_student/my_assignment/MyAssignmentPage";
 import MyClass from "../pages/lms_student/student_myClass/MyClass";
@@ -126,10 +129,10 @@ export const MAINROUTE = [
       // hidden: true,
     },
     {
-        name: "Registration Setup",
-        href: "course-registration-setup",
+        name: "Registration Configuration",
+        href: "course-registration-configuration",
         roles: ["faculty"],
-        element: CourseRegistrationPage,
+        element: CourseRegistrationConfiguration,
         subItems: [],
       },
       {
@@ -170,9 +173,9 @@ export const MAINROUTE = [
         subItems: [],
       },
       {
-        name: "Attendance Report",
-        href: "attendance-report",
-        element: AttendanceReportPage,
+        name: "Consolidated Attendance Report",
+        href: "consolidated-attendance-report",
+        element: ConsolidatedAttendanceReportPage,
         roles: [],
         subItems: [],
       },
@@ -197,13 +200,29 @@ export const MAINROUTE = [
         roles: [],
         subItems: [],
       },
+      {
+        name: "Consolidated Absentees Report",
+        href: "consolidated-absentees-report",
+        element: consolidatedAbsenteesReport,
+        roles: [],
+        subItems: [],
+      },
       // {
       //   name: "Consolidated Student Marks Report",
       //   href: "consolidated-student-marks-report",
-      //   element: consolidatedStudentMarksReport,
+      //   element: ConsolidatedStudentMarksReport,
       //   roles: [],
       //   subItems: [],
       // },
+      {
+        name: "Attendance Status Report",
+        href: "attendance-status-report",
+        element: AttendanceStatusReportPage,
+        roles: [],
+        subItems: [],
+      },
+
+      
     ]
   },
   {

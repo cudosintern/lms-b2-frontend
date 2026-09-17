@@ -1,41 +1,48 @@
 import { useState, useEffect } from "react";
 import ReactHookFormModal from "./ReactHookFormModal";
-import { courseTypes, courses, sections, topics, scheduledClasses as mockScheduledClasses } from "./mockData";
 import { scheduleClassApi } from "../scheduleClassApi";
 import "bootstrap/dist/css/bootstrap.min.css";
 
+interface ScheduledClass {
+  id: number;
+  courseTypeName?: string;
+  courseName?: string;
+  sectionName?: string;
+  topicName?: string;
+  classDate?: string;
+  startTime?: string;
+  endTime?: string;
+  location?: string;
+  [key: string]: unknown;
+}
+
 function BootstrapScheduleApp() {
   const [open, setOpen] = useState(false);
-  const [scheduledClasses, setScheduledClasses] = useState<any[]>([]);
+  const [scheduledClasses, setScheduledClasses] = useState<ScheduledClass[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const transformData = (data: any[]) => {
-    return data.map((cls: any) => ({
+  const transformData = (data: ScheduledClass[]) => {
+    return data.map((cls) => ({
       ...cls,
-      courseTypeName: courseTypes.find((ct) => ct.id === parseInt(cls.courseTypeId))?.name || cls.courseTypeName,
-      courseName: courses.find((c) => c.id === parseInt(cls.courseId))?.name || cls.courseName,
-      sectionName: sections.find((s) => s.id === parseInt(cls.sectionId))?.name || cls.sectionName,
-      topicName: topics.find((t) => t.id === parseInt(cls.topicId))?.name || cls.topicName,
+      courseTypeName: cls.courseTypeName || "-",
+      courseName: cls.courseName || "-",
+      sectionName: cls.sectionName || "-",
+      topicName: cls.topicName || "-",
     }));
   };
 
   const refreshData = async () => {
     try {
       setLoading(true);
-      // Try to get data from localStorage first
       const response = await scheduleClassApi.getAll();
       const localData = response.data;
 
-      if (localData && localData.length > 0) {
-        setScheduledClasses(transformData(localData));
-      } else {
-        // Fall back to mock data from mockData.ts
-        setScheduledClasses(transformData(mockScheduledClasses));
-      }
+      setScheduledClasses(
+        Array.isArray(localData) ? transformData(localData) : []
+      );
     } catch (error) {
       console.error("Error fetching data:", error);
-      // Fall back to mock data on error
-      setScheduledClasses(transformData(mockScheduledClasses));
+      setScheduledClasses([]);
     } finally {
       setLoading(false);
     }
@@ -59,36 +66,11 @@ function BootstrapScheduleApp() {
     }
   };
 
-  const handleSaveClass = (data: any) => {
-    // Add new class to list (mock - in real app, API call)
-    const newClass = {
-      id: scheduledClasses.length + 1,
-      ...data,
-      courseTypeName: courseTypes.find((ct) => ct.id === parseInt(data.courseTypeId))?.name,
-      courseName: courses.find((c) => c.id === parseInt(data.courseId))?.name,
-      sectionName: sections.find((s) => s.id === parseInt(data.sectionId))?.name,
-      topicName: topics.find((t) => t.id === parseInt(data.topicId))?.name,
-    };
-    setScheduledClasses([...scheduledClasses, newClass]);
-    refreshData();
-  };
-
   return (
     <div className="container py-4">
       <div className="d-flex justify-content-between align-items-center mb-4">
         <h1 className="h3">Schedule Class Management</h1>
         <div>
-          <button
-            className="btn btn-outline-secondary me-2"
-            onClick={() => {
-              if (window.confirm("Reset all scheduled classes to mock data?")) {
-                localStorage.removeItem("scheduled_classes");
-                refreshData();
-              }
-            }}
-          >
-            Reset to Mock Data
-          </button>
           <button
             className="btn btn-primary"
             onClick={() => setOpen(true)}

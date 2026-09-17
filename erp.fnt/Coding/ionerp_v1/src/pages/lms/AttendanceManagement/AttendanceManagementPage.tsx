@@ -7,6 +7,7 @@ import {
   ChevronLeft, ChevronRight, BarChart3
 } from 'lucide-react';
 import { toast } from 'react-toastify';
+import ModalContainer from '../../../components/Modal/ModalContainer';
 import Tabs from '../../../components/Tabs/Tabs';
 import DataTable from '../../../components/Table/DataTable';
 
@@ -17,16 +18,13 @@ import {
 } from "./attendanceInterface";
 
 import {
-    mockBatches,
-    mockSemesters,
-    mockCourses,
-    MOCK_TIMETABLE_SCHEDULE,
     initialStudents,
 } from "./attendanceConstants";
 
 import { attendanceApi } from "./attendanceApi";
 
 import { timetableApi } from "./timetableApi";
+import './attendanceManagement.css';
 
 
 
@@ -59,16 +57,24 @@ const AttendanceManagementPage: React.FC = () => {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [showCalendar, setShowCalendar] = useState(false);
   const [viewDate, setViewDate] = useState(new Date());
+  const [scheduledDates, setScheduledDates] = useState<string[]>([]);
+  const [sectionClasses, setSectionClasses] = useState<any[]>([]);
+  const [datesLoading, setDatesLoading] = useState(false);
+  const [datesError, setDatesError] = useState('');
+  const [datesRetry, setDatesRetry] = useState(0);
+  const studentRequest = React.useRef(0);
+  const [classAttendanceState, setClassAttendanceState] = useState('');
+  const [classAttendanceMessage, setClassAttendanceMessage] = useState('');
+  const classLocked = classAttendanceState === 'finalized';
+  const [showEnableConfirmation, setShowEnableConfirmation] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
-  const [savedDrafts, setSavedDrafts] = useState<any[]>([]);
-  const [showDrafts, setShowDrafts] = useState(false);
-  const isDraftLoadingRef = React.useRef(false);
 
   // Dynamic Metadata State
   const [curriculums, setCurriculums] = useState<any[]>([]);
   const [terms, setTerms] = useState<any[]>([]);
   const [sections, setSections] = useState<any[]>([]);
-  const [availableCourses, setAvailableCourses] = useState<Course[]>(mockCourses); // Fallback to mockCourses initially
+  const [availableCourses, setAvailableCourses] = useState<Course[]>([]);
+  const [coursesLoading, setCoursesLoading] = useState(false);
 
   // Initial Data Fetch
   useEffect(() => {
@@ -81,25 +87,27 @@ const AttendanceManagementPage: React.FC = () => {
         const data = Array.isArray(res) ? res : (res.data || []);
         
         if (data.length > 0) {
-          setCurriculums(data);
+          setCurriculums(data.map((curriculum: any) => ({
+            ...curriculum,
+            curriculum_id: curriculum.academic_batch_id ?? curriculum.curriculum_id,
+            curriculum_name: curriculum.curriculum_name ?? curriculum.academic_batch_desc,
+          })));
         } else {
-          // Fallback to mock data if API is empty
-          setCurriculums(mockBatches.map((name, i) => ({ curriculum_id: i + 1, curriculum_name: name })));
+          setCurriculums([]);
         }
       } catch (e) {
         console.error("Failed to fetch curriculums", e);
-        setCurriculums(mockBatches.map((name, i) => ({ curriculum_id: i + 1, curriculum_name: name })));
+        setCurriculums([]);
       }
     };
     fetchCurriculums();
 
-    // Load saved drafts from localStorage
-    const drafts = JSON.parse(localStorage.getItem('attendanceDrafts') || '[]');
-    setSavedDrafts(drafts);
   }, []);
 
   // Fetch Terms when curriculum changes
   useEffect(() => {
+    let cancelled = false;
+    setTerms([]);
     if (filters.batch) {
       const fetchTerms = async () => {
         try {
@@ -109,33 +117,70 @@ const AttendanceManagementPage: React.FC = () => {
             console.log("Attendance: Terms fetched:", res);
             const data = Array.isArray(res) ? res : (res.data || []);
             
-            if (data.length > 0) {
-              setTerms(data);
-            } else {
-              setTerms(mockSemesters.map((name, i) => ({ term_id: i + 1, term_name: name })));
-            }
+            if (!cancelled) setTerms(data);
           }
         } catch (e) {
-          setTerms(mockSemesters.map((name, i) => ({ term_id: i + 1, term_name: name })));
+          if (!cancelled) setTerms([]);
         }
       };
       fetchTerms();
     } else {
       setTerms([]);
     }
+    return () => { cancelled = true; };
   }, [filters.batch, curriculums]);
+
+  // Fetch courses for the selected curriculum and term.
+  useEffect(() => {
+    let cancelled = false;
+    setAvailableCourses([]);
+    setCoursesLoading(false);
+    const curriculum = curriculums.find(c => c.curriculum_name === filters.batch);
+    const selectedTerm = terms.find(t => t.term_name === filters.semester || String(t.term_id) === filters.semester);
+    if (curriculum && selectedTerm) {
+      setCoursesLoading(true);
+      attendanceApi.getAttendanceCourses({
+        academic_batch_id: Number(curriculum.curriculum_id),
+        semester_id: Number(selectedTerm.semester_id ?? selectedTerm.term_id),
+      }).then(response => {
+        if (cancelled) return;
+        if (!response.success || !Array.isArray(response.data)) {
+          throw new Error('Unable to load courses for the selected term');
+        }
+        const courses: Course[] = response.data.map((course: any): Course => ({
+          id: String(course.crs_id ?? course.course_id ?? course.id ?? ''),
+          code: String(course.crs_code ?? course.course_code ?? course.code ?? ''),
+          name: String(course.crs_title ?? course.crs_name ?? course.course_name ?? course.name ?? ''),
+          type: course.type === 'Lab' ? 'Lab' : 'Theory',
+        })).filter((course: Course) => course.id && course.name);
+        setAvailableCourses(courses);
+        setFilters(previous => previous.course && !courses.some(course => course.id === previous.course)
+          ? { ...previous, course: '', session: '' } : previous);
+      }).catch(error => {
+        if (!cancelled) toast.error(error.message || 'Failed to load courses');
+      }).finally(() => {
+        if (!cancelled) setCoursesLoading(false);
+      });
+    }
+    return () => { cancelled = true; };
+  }, [filters.batch, filters.semester, curriculums, terms]);
 
   // Fetch Sections when term changes
   useEffect(() => {
+    let cancelled = false;
+    setSections([]);
     if (filters.batch && filters.semester) {
       const fetchSections = async () => {
         try {
           const curr = curriculums.find(c => c.curriculum_name === filters.batch);
-          if (curr) {
-            const res: any = await timetableApi.getSectionsByCurriculumTerm(curr.curriculum_id, filters.semester);
+          const selectedTerm = terms.find(t => t.term_name === filters.semester || String(t.term_id) === filters.semester);
+          if (curr && selectedTerm) {
+            const academicBatchId = Number(curr.curriculum_id);
+            const semesterId = Number(selectedTerm.term_id);
+            const res: any = await timetableApi.getSectionsByCurriculumTerm(academicBatchId, semesterId);
             console.log("Attendance: Sections fetched:", res);
             const data = Array.isArray(res) ? res : (res.data || []);
-            setSections(data);
+            if (!cancelled) setSections(data);
           }
         } catch (e) {
           console.error("Failed to fetch sections", e);
@@ -145,7 +190,41 @@ const AttendanceManagementPage: React.FC = () => {
     } else {
       setSections([]);
     }
-  }, [filters.batch, filters.semester, curriculums]);
+    return () => { cancelled = true; };
+  }, [filters.batch, filters.semester, curriculums, terms]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setScheduledDates([]);
+    setSectionClasses([]);
+    setDatesError('');
+    setShowCalendar(false);
+    setDatesLoading(false);
+    const curriculum = curriculums.find(c => c.curriculum_name === filters.batch);
+    const term = terms.find(t => t.term_name === filters.semester || String(t.term_id) === filters.semester);
+    const section = sections.find(s => s.section_name === filters.section || String(s.section_id) === filters.section);
+    if (curriculum && term && section && filters.course) {
+      setDatesLoading(true);
+      attendanceApi.getScheduledDates({
+        academic_batch_id: Number(curriculum.curriculum_id),
+        semester_id: Number(term.term_id),
+        crs_id: Number(filters.course),
+        section_id: Number(section.section_id),
+      }).then(result => {
+        if (cancelled) return;
+        setScheduledDates(result.dates);
+        setSectionClasses(result.classes);
+        setFilters(previous => result.dates.includes(previous.date) ? previous : { ...previous, date: '', session: '' });
+        if (result.dates.length) {
+          const [year, month, day] = result.dates[0].split('-').map(Number);
+          setViewDate(new Date(year, month - 1, day));
+        }
+      }).catch(error => {
+        if (!cancelled) setDatesError(error.response?.data?.detail || error.message || 'Failed to load scheduled dates');
+      }).finally(() => { if (!cancelled) setDatesLoading(false); });
+    }
+    return () => { cancelled = true; };
+  }, [filters.batch, filters.semester, filters.course, filters.section, curriculums, terms, sections, datesRetry]);
 
   // Timezone-safe date string formatter (YYYY-MM-DD)
   const formatDateISO = (d: Date) => {
@@ -156,11 +235,7 @@ const AttendanceManagementPage: React.FC = () => {
   };
 
   const hasSessionOnDate = (date: Date) => {
-    if (!filters.course) return false;
-    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-    const dayName = days[date.getDay()];
-    const daySchedule = MOCK_TIMETABLE_SCHEDULE[dayName as keyof typeof MOCK_TIMETABLE_SCHEDULE] || [];
-    return daySchedule.some((s: any) => s.courseId === filters.course);
+    return scheduledDates.includes(formatDateISO(date));
   };
 
   // Statistics
@@ -174,210 +249,129 @@ const AttendanceManagementPage: React.FC = () => {
     return { total, present, absent, late, percentage };
   }, [students]);
 
-  // Load sessions and students based on filters
+  // A date populates classes; students load only after an explicit class selection.
   useEffect(() => {
-    if (filters.course && filters.date && !isDraftLoadingRef.current) {
-      // Validate if current date actually has a session for this course
-      const d = new Date(filters.date);
-      if (!hasSessionOnDate(d) && filters.course) {
-        // If date is invalid (no session), find next available date or clear it
-        // For simplicity, we just clear date selection to guide the user
-        // setFilters(f => ({ ...f, date: '' })); 
-      }
-      handleFetchStudents();
-    } else if (!isDraftLoadingRef.current) {
-      setStudents([]);
-      setIsClassScheduled(false);
-      setAvailableSessions([]);
-      setSelectedTimetableSession(null);
-    }
-  }, [filters.course, filters.section, filters.batch, filters.semester, filters.date]);
+    const sessions = !datesLoading && scheduledDates.includes(filters.date)
+      ? sectionClasses.filter(sc => sc.class_date === filters.date).map(sc => ({
+          ...sc, startTime: sc.start_time, endTime: sc.end_time,
+          sessionId: String(sc.lls_id ? `lesson:${sc.lls_id}` : sc.tt_day_map_id ? `slot:${sc.tt_day_map_id}` : `${sc.class_date}:${sc.start_time}:${sc.end_time}`),
+          sessionName: sc.batch_name || 'Regular Session',
+        })) : [];
+    setAvailableSessions(sessions);
+    setIsClassScheduled(sessions.length > 0);
+  }, [filters.course, filters.section, filters.batch, filters.semester, filters.date, sectionClasses, scheduledDates, datesLoading]);
 
   // When session selection changes
   useEffect(() => {
-    if (availableSessions.length > 0 && filters.session) {
-      const found = availableSessions.find(s => `${s.startTime} - ${s.endTime}` === filters.session);
-      if (found) setSelectedTimetableSession(found);
-    }
-  }, [filters.session, availableSessions]);
+    const selected = availableSessions.find(s => s.sessionId === filters.session);
+    setSelectedTimetableSession(selected || null);
+    setStudents([]);
+    setClassAttendanceState('');
+    setClassAttendanceMessage('');
+    setIsLoading(false);
+    if (selected && filters.date) handleFetchStudents(selected);
+    return () => { studentRequest.current++; };
+  }, [filters.session, filters.date, availableSessions]);
 
-  const handleFetchStudents = async () => {
-    if (!filters.course || !filters.section || !filters.date) return;
+  const handleFetchStudents = async (selected = selectedTimetableSession) => {
+    if (!selected || !filters.session || !filters.course || !filters.section || !scheduledDates.includes(filters.date)) return;
+    const curriculum = curriculums.find(c => c.curriculum_name === filters.batch);
+    const term = terms.find(t => t.term_name === filters.semester || String(t.term_id) === filters.semester);
+    const section = sections.find(s => s.section_name === filters.section || String(s.section_id) === filters.section);
+    if (!curriculum || !term || !section) return;
+    const requestId = ++studentRequest.current;
+    setStudents([]);
     
     setIsLoading(true);
     try {
-      const response = await attendanceApi.getStudentsForCourse(filters.course, filters.section);
-      
-      if (response.success && response.data) {
+      const response = await attendanceApi.getClassStudents({
+        academic_batch_id: Number(curriculum.curriculum_id), semester_id: Number(term.term_id),
+        crs_id: Number(filters.course), section_id: Number(section.section_id), class_date: filters.date,
+        start_time: selected.startTime, end_time: selected.endTime,
+        lls_id: selected.lls_id ? Number(selected.lls_id) : undefined,
+        tt_day_map_id: selected.tt_day_map_id ? Number(selected.tt_day_map_id) : undefined,
+        tt_detail_id: selected.tt_detail_id ? Number(selected.tt_detail_id) : undefined,
+        time_table_id: selected.time_table_id ? Number(selected.time_table_id) : undefined,
+      });
+      if (requestId !== studentRequest.current) return;
+      setClassAttendanceState(response.state);
+      setClassAttendanceMessage(response.message || '');
+      {
         // Map backend student format to UI format
-        const studentList = (response.data as any[]).map((s: any) => ({
+        const studentList = response.students.map((s: any) => ({
           id: s.student_id?.toString() || s.id?.toString() || '1',
           rollNumber: s.roll_number || s.usno || s.rollNumber || `STU${s.student_id || s.id}`,
           name: s.name || `${s.first_name || ''} ${s.last_name || ''}`.trim() || 'Unknown Student',
           email: s.email || `student${s.student_id || s.id}@example.com`,
           section: s.section || filters.section,
-          status: 'present' as const // Default to present for marking
+          status: s.status as Student['status'],
+          absentReason: s.remarks || '',
         }));
 
         setStudents(studentList);
         
-        // Handle session matching based on REAL timetable from backend
-        const classDate = filters.date || new Date().toISOString().split('T')[0];
-        const scResponse = await timetableApi.getScheduledClasses(filters.course, classDate, filters.section);
-        const scheduledClasses: any[] = scResponse.data || [];
-
-        if (scheduledClasses && scheduledClasses.length > 0) {
-          // Map backend format (start_time, end_time) to session selector
-          const sessions = scheduledClasses.map((sc: any) => ({
-            ...sc,
-            startTime: sc.start_time,
-            endTime: sc.end_time,
-            sessionName: sc.batch_name || "Regular Session"
-          }));
-          
-          setAvailableSessions(sessions);
-          setIsClassScheduled(true);
-          
-          const initialSession = queryParams.get('session') || `${sessions[0].startTime} - ${sessions[0].endTime}`;
-          setFilters(f => ({ ...f, session: initialSession }));
-        } else {
-          setAvailableSessions([]);
-          setIsClassScheduled(false);
-          setSelectedTimetableSession(null);
-        }
       }
     } catch (error) {
       console.error("Fetch students error:", error);
-      toast.error("Failed to load students from server");
+      if (requestId === studentRequest.current) {
+        setClassAttendanceMessage((error as any).response?.data?.detail || (error as any).message || 'Failed to load class attendance');
+        toast.error('Failed to load class attendance');
+      }
     } finally {
-      setIsLoading(false);
+      if (requestId === studentRequest.current) setIsLoading(false);
     }
   };
 
   const handleMarkStatus = (studentId: string, status: 'present' | 'absent' | 'late') => {
+    if (classLocked || isLoading) return;
     setStudents(prev => prev.map(s => 
       s.id === studentId ? { ...s, status, absentReason: status !== 'absent' ? '' : s.absentReason } : s
     ));
   };
 
   const handleMarkAllPresent = () => {
+    if (classLocked || isLoading) return;
     setStudents(prev => prev.map(s => ({ ...s, status: 'present' })));
     toast.info("All students marked as present");
   };
 
-  const handleSaveDraft = () => {
-    if (!filters.course || !filters.date) {
-      toast.error("Please select a course and date");
-      return;
-    }
+  const handleSaveDraft = () => handleSaveAttendance('draft');
 
-    const draftData = {
-      courseId: filters.course,
-      date: filters.date,
-      section: filters.section,
-      session: filters.session,
-      curriculum: filters.batch,
-      term: filters.semester,
-      // Store complete session data for preservation
-      sessionStartTime: selectedTimetableSession?.startTime || '',
-      sessionEndTime: selectedTimetableSession?.endTime || '',
-      sessionName: selectedTimetableSession?.sessionName || '',
-      // Store complete student data for perfect preservation
-      students: students.map(s => ({
-        studentId: s.id,
-        rollNumber: s.rollNumber,
-        usn: s.rollNumber, // Alternative field
-        name: s.name,
-        email: s.email,
-        section: s.section,
-        status: s.status,
-        absentReason: s.absentReason || ''
-      })),
-      // Store additional state for preservation
-      isClassScheduled: isClassScheduled,
-      availableSessions: availableSessions,
-      // Store statistics for quick display
-      stats: {
-        total: students.length,
-        present: students.filter(s => s.status === 'present').length,
-        absent: students.filter(s => s.status === 'absent').length
-      },
-      attendance_status: 2 // 2 = Draft save
+  const getSelectedClassPayload = () => {
+    const curriculum = curriculums.find(c => c.curriculum_name === filters.batch);
+    const term = terms.find(t => t.term_name === filters.semester || String(t.term_id) === filters.semester);
+    const section = sections.find(s => s.section_name === filters.section || String(s.section_id) === filters.section);
+    const selected = selectedTimetableSession;
+    if (!curriculum || !term || !section || !selected) throw new Error("Select a scheduled class");
+    return {
+      academic_batch_id: Number(curriculum.curriculum_id), semester_id: Number(term.term_id),
+      crs_id: Number(filters.course), section_id: Number(section.section_id), class_date: filters.date,
+      start_time: selected.startTime, end_time: selected.endTime,
+      lls_id: selected.lls_id ? Number(selected.lls_id) : undefined,
+      tt_day_map_id: selected.tt_day_map_id ? Number(selected.tt_day_map_id) : undefined,
+      tt_detail_id: selected.tt_detail_id ? Number(selected.tt_detail_id) : undefined,
+      time_table_id: selected.time_table_id ? Number(selected.time_table_id) : undefined,
     };
-
-    // Save to localStorage as draft
-    const existingDrafts = JSON.parse(localStorage.getItem('attendanceDrafts') || '[]');
-    existingDrafts.push({
-      ...draftData,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString()
-    });
-    localStorage.setItem('attendanceDrafts', JSON.stringify(existingDrafts));
-    setSavedDrafts(existingDrafts);
-
-    toast.success(`Attendance saved as draft! ${students.length} students preserved exactly.`);
   };
 
-  const handleLoadDraft = (draft: any) => {
-    // Set flag to prevent API calls from overriding draft data
-    isDraftLoadingRef.current = true;
-    
-    // Close drafts modal first
-    setShowDrafts(false);
-    
-    // Set filters from draft - preserve exactly as saved
-    const newFilters = {
-      batch: draft.curriculum || '',
-      semester: draft.term || '',
-      course: draft.courseId || '',
-      section: draft.section || '',
-      date: draft.date || '',
-      session: draft.session || ''
-    };
-    
-    // Set students from draft - preserve ALL original data exactly
-    const draftStudents = draft.students.map((s: any) => ({
-      id: s.studentId || s.id,
-      rollNumber: s.rollNumber || s.usn,
-      name: s.name,
-      email: s.email || `${s.name.toLowerCase().replace(/\s+/g, '.')}@example.com`,
-      section: s.section || draft.section,
-      status: s.status,
-      absentReason: s.absentReason || ''
-    }));
-
-    // Update all state in a single batch to prevent API overrides
-    setFilters(newFilters);
-    setStudents(draftStudents);
-    setIsClassScheduled(draft.isClassScheduled !== false);
-    setAvailableSessions(draft.availableSessions || []);
-    
-    // Preserve session data if available
-    if (draft.session && draft.session !== '') {
-      setSelectedTimetableSession({
-        sessionName: draft.sessionName || draft.session,
-        startTime: draft.sessionStartTime || '',
-        endTime: draft.sessionEndTime || ''
-      });
+  const handleEnableAttendance = async () => {
+    if (!showEnableConfirmation || !classLocked || isLoading) return;
+    setIsLoading(true);
+    try {
+      await attendanceApi.enableClassAttendance(getSelectedClassPayload());
+      setShowEnableConfirmation(false);
+      setClassAttendanceState('draft');
+      setClassAttendanceMessage('');
+      toast.success('Attendance enabled for editing');
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || 'Unable to enable attendance');
+    } finally {
+      setIsLoading(false);
     }
-    
-    // Reset flag after state updates
-    setTimeout(() => {
-      isDraftLoadingRef.current = false;
-    }, 500);
-    
-    toast.success(`Draft loaded successfully! ${draft.stats?.present || 0} present, ${draft.stats?.absent || 0} absent - All data frozen and preserved.`);
   };
 
-  const handleDeleteDraft = (draftId: string) => {
-    const existingDrafts = JSON.parse(localStorage.getItem('attendanceDrafts') || '[]');
-    const updatedDrafts = existingDrafts.filter((d: any) => d.id !== draftId);
-    localStorage.setItem('attendanceDrafts', JSON.stringify(updatedDrafts));
-    setSavedDrafts(updatedDrafts);
-    toast.success("Draft deleted successfully!");
-  };
-
-  const handleSaveAttendance = async () => {
+  const handleSaveAttendance = async (state: 'draft' | 'finalized' = 'finalized') => {
+    if (!selectedTimetableSession || !students.length || classLocked || isLoading) return;
     if (!filters.course || !filters.date) {
       toast.error("Please select a course and date");
       return;
@@ -386,38 +380,17 @@ const AttendanceManagementPage: React.FC = () => {
     setIsLoading(true);
     
     try {
-      console.log("Saving attendance to database...");
-      
-      // Call the real API to save attendance
-      // const response = await attendanceApi.markAttendance({
-      //   courseId: filters.course,
-      //   date: filters.date,
-      //   section: filters.section,
-      //   session: filters.session,
-      //   curriculum: filters.batch,
-      //   term: filters.semester,
-      //   students: students.map(s => ({
-      //     studentId: s.id,
-      //     present: s.status === 'present',
-      //     late: false, // No late option in current implementation
-      //     absentReason: s.absentReason
-      //   }))
-      // });
-
-      const attendanceData = students.map(s => ({
-    studentId: s.id,
-    courseId: filters.course,
-    date: filters.date,
-    status: s.status,
-    checkInTime: s.status === "present"
-        ? new Date().toTimeString().slice(0, 5)
-        : undefined,
-    markedBy: "current_user",
-    notes: s.absentReason
-}));
-const response = await attendanceApi.markAttendance(attendanceData);
-      
+      const response = await attendanceApi.markClassAttendance({
+        ...getSelectedClassPayload(), state,
+        students: students.map(s => ({ student_id: Number(s.id), status: s.status, remarks: s.absentReason || '' })),
+      });
       if (response.success) {
+        setClassAttendanceState(state);
+        setClassAttendanceMessage('');
+        if (state === 'draft') {
+          toast.success('Attendance draft saved');
+          return;
+        }
         // Create frozen copy of attendance data for local storage
         const finalizedData = {
           courseId: filters.course,
@@ -448,7 +421,7 @@ const response = await attendanceApi.markAttendance(attendanceData);
           },
           finalizedAt: new Date().toISOString(),
           type: 'finalized',
-          attendance_status: 1 // 1 = Finalize
+          attendance_status: 2 // 2 = Finalize
         };
 
         // Save to finalized attendance storage
@@ -503,12 +476,12 @@ const response = await attendanceApi.markAttendance(attendanceData);
       </div>
 
       <div className="bg-white rounded-b-xl shadow-sm border border-slate-200 p-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-6">
+        <div className="attendance-filter-grid mb-6">
           {/* Curriculum */}
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-slate-700">Curriculum: *</label>
+            <label className="text-sm font-semibold text-slate-700">Curriculum: <span className="text-red-600">*</span></label>
             <select className="w-full border border-slate-300 rounded px-3 py-2 text-sm" value={filters.batch} 
-              onChange={(e) => setFilters(f => ({ ...f, batch: e.target.value, semester: '', section: '', course: '' }))}>
+              onChange={(e) => setFilters(f => ({ ...f, batch: e.target.value, semester: '', section: '', course: '', date: '', session: '' }))}>
               <option value="">Select Curriculum</option>
               {curriculums.map(c => <option key={c.curriculum_id} value={c.curriculum_name}>{c.curriculum_name}</option>)}
             </select>
@@ -516,9 +489,9 @@ const response = await attendanceApi.markAttendance(attendanceData);
           
           {/* Term */}
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-slate-700">Term: *</label>
+            <label className="text-sm font-semibold text-slate-700">Term: <span className="text-red-600">*</span></label>
             <select className="w-full border border-slate-300 rounded px-3 py-2 text-sm" value={filters.semester} 
-              onChange={(e) => setFilters(f => ({ ...f, semester: e.target.value, section: '', course: '' }))}
+              onChange={(e) => setFilters(f => ({ ...f, semester: e.target.value, section: '', course: '', date: '', session: '' }))}
               disabled={!filters.batch}>
               <option value="">Select Term</option>
               {terms.map(t => <option key={t.term_id} value={t.term_name}>{t.term_name}</option>)}
@@ -527,20 +500,20 @@ const response = await attendanceApi.markAttendance(attendanceData);
           
           {/* Course */}
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-slate-700">Course: *</label>
+            <label className="text-sm font-semibold text-slate-700">Course: <span className="text-red-600">*</span></label>
             <select className="w-full border border-slate-300 rounded px-3 py-2 text-sm" value={filters.course} 
-              onChange={(e) => setFilters(f => ({ ...f, course: e.target.value }))}
-              disabled={!filters.semester}>
-              <option value="">Select Course</option>
-              {availableCourses.map(c => <option key={c.id} value={c.id}>{c.id} - {c.name}</option>)}
+              onChange={(e) => setFilters(f => ({ ...f, course: e.target.value, date: '', session: '' }))}
+              disabled={!filters.semester || coursesLoading || !availableCourses.length}>
+              <option value="">{coursesLoading ? 'Loading courses...' : filters.semester && !availableCourses.length ? 'No courses available' : 'Select Course'}</option>
+              {availableCourses.map(c => <option key={c.id} value={c.id}>{c.code ? `${c.code} - ` : ''}{c.name}</option>)}
             </select>
           </div>
           
           {/* Section */}
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-slate-700">Section: *</label>
+            <label className="text-sm font-semibold text-slate-700">Section: <span className="text-red-600">*</span></label>
             <select className="w-full border border-slate-300 rounded px-3 py-2 text-sm" value={filters.section} 
-              onChange={(e) => setFilters(f => ({ ...f, section: e.target.value }))}
+              onChange={(e) => setFilters(f => ({ ...f, section: e.target.value, date: '', session: '' }))}
               disabled={!filters.semester}>
               <option value="">Select Section</option>
               {sections.length > 0 ? (
@@ -551,30 +524,32 @@ const response = await attendanceApi.markAttendance(attendanceData);
             </select>
           </div>
           <div className="space-y-2 lg:col-span-2">
-            <label className="text-sm font-semibold text-slate-700 flex items-center gap-1">Date & Session: *</label>
+            <label className="text-sm font-semibold text-slate-700 flex items-center gap-1">Date: <span className="text-red-600">*</span></label>
             <div className="flex flex-col gap-2">
+              {datesError && <p role="alert" className="text-sm text-red-700">{datesError} <button type="button" className="underline" onClick={() => setDatesRetry(value => value + 1)}>Retry</button></p>}
               <div className="relative">
-                <div 
-                  className="flex items-center justify-between border border-slate-300 rounded px-3 py-2 text-sm bg-white cursor-pointer hover:border-blue-400 transition-colors"
-                  onClick={() => setShowCalendar(!showCalendar)}
+                <button type="button" aria-label="Scheduled class date" aria-expanded={showCalendar}
+                  disabled={!filters.section || datesLoading || !scheduledDates.length}
+                  className="w-full flex items-center justify-between border border-slate-300 rounded px-3 py-2 text-sm bg-white cursor-pointer hover:border-blue-400 transition-colors"
+                  onClick={() => { if (!datesLoading && scheduledDates.length) { const day = filters.date || scheduledDates[0]; setViewDate(new Date(day + "T00:00:00")); setShowCalendar(!showCalendar); } }}
                 >
                   <span className={filters.date ? "text-slate-900" : "text-slate-400"}>
                     {filters.date ? new Date(filters.date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'DD-MM-YYYY'}
                   </span>
                   <Calendar className="w-4 h-4 text-slate-400" />
-                </div>
+                </button>
 
                 {showCalendar && (
-                  <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/10 backdrop-blur-[1px]" onClick={() => setShowCalendar(false)}>
+                  <div className="absolute left-0 top-full mt-1 z-[90]" onKeyDown={e => { if (e.key === "Escape") setShowCalendar(false); }}>
                     <div className="bg-white shadow-2xl border border-slate-200 rounded-xl p-4 w-72 animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-between mb-4">
-                        <button onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1))} className="p-1 hover:bg-slate-100 rounded">
+                        <button aria-label="Previous month" onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1))} className="p-1 hover:bg-slate-100 rounded">
                           <ChevronLeft className="w-4 h-4 text-slate-600" />
                         </button>
                         <h3 className="font-bold text-slate-800">
                           {viewDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
                         </h3>
-                        <button onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1))} className="p-1 hover:bg-slate-100 rounded">
+                        <button aria-label="Next month" onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1))} className="p-1 hover:bg-slate-100 rounded">
                           <ChevronRight className="w-4 h-4 text-slate-600" />
                         </button>
                       </div>
@@ -595,17 +570,19 @@ const response = await attendanceApi.markAttendance(attendanceData);
                           return (
                             <button
                               key={i}
-                              disabled={Boolean(!isCurrentMonth || !filters.course || !hasSession)}
+                              aria-label={dateStr}
+                              aria-pressed={isSelected}
+                              disabled={Boolean(!filters.course || !hasSession)}
                               onClick={() => {
-                                setFilters(f => ({ ...f, date: dateStr }));
+                                setFilters(f => ({ ...f, date: dateStr, session: '' }));
                                 setShowCalendar(false);
                               }}
                               className={`
                                 h-8 w-8 flex items-center justify-center rounded-lg text-xs transition-all
-                                ${!isCurrentMonth ? 'text-transparent pointer-events-none' : ''}
-                                ${isSelected ? 'bg-blue-600 text-white font-bold shadow-md ring-2 ring-blue-400 ring-offset-1' : ''}
-                                ${isCurrentMonth && !isSelected && hasSession && filters.course ? 'bg-amber-100 text-amber-900 font-bold border border-amber-200 shadow-sm' : ''}
-                                ${Boolean(isCurrentMonth && (!filters.course || !hasSession)) ? 'text-slate-200 blur-[0.5px] pointer-events-none opacity-30' : ''}
+                                
+                                ${isSelected ? 'underline underline-offset-4' : ''}
+                                ${hasSession && filters.course ? 'text-green-700 font-bold' : ''}
+                                ${Boolean(!filters.course || !hasSession) ? 'text-slate-300' : ''}
                               `}
                             >
                               {date.getDate()}
@@ -618,27 +595,29 @@ const response = await attendanceApi.markAttendance(attendanceData);
                 )}
               </div>
 
-              {availableSessions.length > 0 && (
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700">Class: <span className="text-red-600">*</span></label>
                 <div className="animate-in slide-in-from-top-2 duration-300">
-                  <select 
+                  <select aria-label="Class" disabled={!filters.date || !availableSessions.length || datesLoading}
                     className="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm bg-blue-50 text-blue-800 font-medium focus:outline-none focus:ring-2 focus:ring-blue-400"
                     value={filters.session}
                     onChange={(e) => setFilters(f => ({ ...f, session: e.target.value }))}
                   >
+                    <option value="">Select Class</option>
                     {availableSessions.map((s, idx) => (
-                      <option key={idx} value={`${s.startTime} - ${s.endTime}`}>
+                      <option key={s.sessionId || idx} value={s.sessionId}>
                         {s.startTime} - {s.endTime} ({s.sessionName})
                       </option>
                     ))}
                   </select>
                 </div>
-              )}
-            </div>
           </div>
         </div>
         
-        <div className="flex items-center justify-between mt-2">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-wrap gap-3 items-center justify-between mt-2">
+          <div className="flex flex-wrap items-center gap-3">
             <input 
               type="file" 
               ref={fileInputRef} 
@@ -654,16 +633,16 @@ const response = await attendanceApi.markAttendance(attendanceData);
             </button>
             <button 
               onClick={handleSaveDraft}
+              disabled={!selectedTimetableSession || !students.length || classLocked || isLoading}
               className="px-4 py-2 bg-orange-500 text-white rounded text-sm font-medium hover:bg-orange-600 transition-colors shadow-sm flex items-center gap-2"
             >
               <Save className="w-4 h-4" /> Save Draft
             </button>
-            <button 
-              onClick={() => setShowDrafts(!showDrafts)}
-              className="px-4 py-2 bg-purple-500 text-white rounded text-sm font-medium hover:bg-purple-600 transition-colors shadow-sm flex items-center gap-2"
-            >
-              <ClipboardList className="w-4 h-4" /> View Drafts ({savedDrafts.length})
+            {classLocked && <button onClick={() => setShowEnableConfirmation(true)} disabled={isLoading} className="px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded disabled:opacity-50">Enable Attendance</button>}
+            <button onClick={() => handleSaveAttendance('finalized')} disabled={isLoading || classLocked || !students.length || !selectedTimetableSession} className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 shadow-md shadow-blue-500/20 disabled:bg-slate-300 transition-all flex items-center gap-1.5">
+              <Save className="w-3.5 h-3.5" /> Finalize Attendance
             </button>
+
           </div>
 
           {isClassScheduled && selectedTimetableSession && (
@@ -677,15 +656,14 @@ const response = await attendanceApi.markAttendance(attendanceData);
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col min-h-[500px]">
+      {filters.date && filters.session && selectedTimetableSession && <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col min-h-[500px]">
+        <p role="status" className="p-4">{classAttendanceMessage || (classAttendanceState === 'finalized' ? 'Attendance finalized' : classAttendanceState === 'draft' ? 'Draft saved / In progress' : classAttendanceState === 'not_taken' ? 'Attendance not yet taken — students default to present' : '')}</p>
         <div className="p-4 border-b border-slate-100 flex flex-wrap gap-4 items-center justify-between">
           <div className="flex items-center gap-2">
-            <button onClick={handleMarkAllPresent} className="px-3 py-1.5 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg hover:bg-emerald-100 border border-emerald-200 flex items-center gap-1.5">
+            <button onClick={handleMarkAllPresent} disabled={classLocked || isLoading || !students.length} className="px-3 py-1.5 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg hover:bg-emerald-100 border border-emerald-200 flex items-center gap-1.5">
               <CheckCircle className="w-3.5 h-3.5" /> Mark All Present
             </button>
-            <button onClick={handleSaveAttendance} disabled={isLoading || !filters.course} className="px-4 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 shadow-md shadow-blue-500/20 disabled:bg-slate-300 transition-all flex items-center gap-1.5">
-              <Save className="w-3.5 h-3.5" /> Finalize Attendance
-            </button>
+
           </div>
           <div className="relative flex-grow max-w-sm flex items-center gap-2">
             <span className="text-sm font-medium text-slate-500">Search:</span>
@@ -712,11 +690,12 @@ const response = await attendanceApi.markAttendance(attendanceData);
                 <div className="col-span-2 text-slate-600 font-medium">{student.rollNumber}</div>
                 <div className="col-span-3 text-slate-800">{student.name}</div>
                 <div className="col-span-4 flex items-center justify-center gap-1">
-                  <button onClick={() => handleMarkStatus(student.id, 'present')} className={`px-3 py-1 rounded text-[11px] font-bold border transition-all ${student.status === 'present' ? 'bg-emerald-500 text-white border-emerald-600' : 'bg-white text-slate-500 border-slate-200 hover:border-emerald-300'}`}>Present</button>
-                  <button onClick={() => handleMarkStatus(student.id, 'absent')} className={`px-3 py-1 rounded text-[11px] font-bold border transition-all ${student.status === 'absent' ? 'bg-rose-500 text-white border-rose-600' : 'bg-white text-slate-500 border-slate-200 hover:border-rose-300'}`}>Absent</button>
+                  <span className="text-xs mr-2" aria-label={`Attendance for ${student.name}`}>{student.status === 'late' ? 'Late' : student.status === 'absent' ? 'Absent' : 'Present'}</span>
+                  <button disabled={classLocked || isLoading} onClick={() => handleMarkStatus(student.id, 'present')} className={`px-3 py-1 rounded text-[11px] font-bold border transition-all ${student.status === 'present' ? 'bg-emerald-500 text-white border-emerald-600' : 'bg-white text-slate-500 border-slate-200 hover:border-emerald-300'}`}>Present</button>
+                  <button disabled={classLocked || isLoading} onClick={() => handleMarkStatus(student.id, 'absent')} className={`px-3 py-1 rounded text-[11px] font-bold border transition-all ${student.status === 'absent' ? 'bg-rose-500 text-white border-rose-600' : 'bg-white text-slate-500 border-slate-200 hover:border-rose-300'}`}>Absent</button>
                 </div>
                 <div className="col-span-2 px-2">
-                  <input type="text" placeholder="Add remark..." className="w-full text-[11px] px-2 py-1 bg-white border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-300" value={student.absentReason || ''} onChange={(e) => {
+                  <input type="text" disabled={classLocked || isLoading} placeholder="Add remark..." className="w-full text-[11px] px-2 py-1 bg-white border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-300" value={student.absentReason || ''} onChange={(e) => {
                     const val = e.target.value;
                     setStudents(prev => prev.map(s => s.id === student.id ? { ...s, absentReason: val } : s));
                   }} />
@@ -740,83 +719,23 @@ const response = await attendanceApi.markAttendance(attendanceData);
         </div>
       </div>
 
-      {/* Drafts List */}
-      {showDrafts && (
-        <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[80vh] overflow-hidden">
-            {/* Drafts Header */}
-            <div className="bg-slate-800 text-white px-6 py-4 rounded-t-xl flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Saved Attendance Drafts</h3>
-              <button 
-                onClick={() => setShowDrafts(false)}
-                className="text-white/80 hover:text-white transition-colors"
-              >
-                <XCircle className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Drafts Body */}
-            <div className="p-6 overflow-y-auto max-h-[60vh]">
-              {savedDrafts.length === 0 ? (
-                <div className="text-center py-12">
-                  <ClipboardList className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-                  <p className="text-slate-500">No saved drafts found</p>
-                  <p className="text-sm text-slate-400">Save attendance drafts to see them here</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {savedDrafts.slice().reverse().map((draft: any) => (
-                    <div key={draft.id} className="border border-slate-200 rounded-lg p-4 hover:bg-slate-50 transition-colors">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-4 mb-2">
-                            <h4 className="font-semibold text-slate-900">
-                              {draft.courseId} - {draft.section} - {draft.date}
-                            </h4>
-                            <span className="text-xs text-slate-500">
-                              {new Date(draft.createdAt).toLocaleString()}
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-4 text-sm">
-                            <div>
-                              <span className="font-medium text-slate-700">Students:</span> {draft.students.length}
-                            </div>
-                            <div>
-                              <span className="font-medium text-slate-700">Present:</span> {draft.students.filter((s: any) => s.status === 'present').length}
-                            </div>
-                            <div>
-                              <span className="font-medium text-slate-700">Absent:</span> {draft.students.filter((s: any) => s.status === 'absent').length}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 ml-4">
-                          <button 
-                            onClick={() => handleLoadDraft(draft)}
-                            className="px-3 py-2 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 transition-colors flex items-center gap-1"
-                          >
-                            <CheckCircle className="w-4 h-4" /> Load
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteDraft(draft.id)}
-                            className="px-3 py-2 bg-red-500 text-white text-sm rounded hover:bg-red-600 transition-colors flex items-center gap-1"
-                          >
-                            <XCircle className="w-4 h-4" /> Delete
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+      }
+      {filters.date && filters.session && selectedTimetableSession && !isLoading && students.length > 0 && (
+        <section className="attendance-summary" aria-labelledby="attendance-summary-title">
+          <h3 id="attendance-summary-title">Attendance Summary</h3>
+          <dl>
+            <div><dt>Total Students:</dt><dd>{stats.total}</dd></div>
+            <div><dt>Overall Present:</dt><dd>{stats.present + stats.late}</dd></div>
+            <div><dt>Overall Absent:</dt><dd>{stats.absent}</dd></div>
+          </dl>
+        </section>
       )}
+
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-slate-50/50 p-6 space-y-6 lg:p-10">
+    <div className="attendance-management min-h-screen bg-slate-50/50 p-6 space-y-6 lg:p-10">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2 uppercase tracking-tighter">
@@ -835,6 +754,20 @@ const response = await attendanceApi.markAttendance(attendanceData);
       <div className="mt-8">
         {renderMarkAttendance()}
       </div>
+
+      <ModalContainer
+        isOpen={showEnableConfirmation}
+        onClose={() => { if (!isLoading) setShowEnableConfirmation(false); }}
+        title="Enable Attendance"
+        size="md"
+      >
+        <p className="text-sm text-slate-700">Are you sure you want to enable attendance?</p>
+        <p className="mt-2 text-sm text-slate-600">Enabling attendance will allow you to modify attendance.</p>
+        <div className="mt-6 flex justify-end gap-3">
+          <button onClick={() => setShowEnableConfirmation(false)} disabled={isLoading} className="px-4 py-2 rounded-lg border border-slate-300 text-sm disabled:opacity-50">Cancel</button>
+          <button onClick={handleEnableAttendance} disabled={isLoading} className="px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-semibold disabled:opacity-50">{isLoading ? 'Enabling...' : 'Yes, Enable Attendance'}</button>
+        </div>
+      </ModalContainer>
 
       {/* Import Attendance Modal */}
       {showImportModal && (
@@ -903,7 +836,7 @@ const response = await attendanceApi.markAttendance(attendanceData);
                     disabled
                   >
                     <option value="">{filters.course || "Select Course"}</option>
-                    {availableCourses.map(c => <option key={c.id} value={c.id}>{c.id} - {c.name}</option>)}
+                    {availableCourses.map(c => <option key={c.id} value={c.id}>{c.code ? `${c.code} - ` : ''}{c.name}</option>)}
                   </select>
                 </div>
                 

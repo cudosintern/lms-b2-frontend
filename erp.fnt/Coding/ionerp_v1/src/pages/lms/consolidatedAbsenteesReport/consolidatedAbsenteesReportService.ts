@@ -91,14 +91,22 @@ export const getSectionList = async (semesterId: number): Promise<DropdownOption
 
 // ── Date Info ──────────────────────────────────────────────────────────────────
 
-export const getDateInfo = async (): Promise<{
+export const getDateInfo = async (filters: Partial<ReportRequest> = {}): Promise<{
   latest_attendance_date: string | null;
   scheduled_dates: string[];
 }> => {
   const res = await axios.get<{
     latest_attendance_date: string | null;
     scheduled_dates: string[];
-  }>(api(ApiEndpoint.consolidatedAbsenteesReport.dateInfo));
+  }>(api(ApiEndpoint.consolidatedAbsenteesReport.dateInfo), {
+    params: Object.fromEntries(Object.entries(filters).filter(([, value]) => Array.isArray(value))),
+    paramsSerializer: (params) => {
+      const query = new URLSearchParams();
+      Object.entries(params).forEach(([key, values]) =>
+        (values as number[]).forEach(value => query.append(key, String(value))));
+      return query.toString();
+    },
+  });
   return res.data;
 };
 

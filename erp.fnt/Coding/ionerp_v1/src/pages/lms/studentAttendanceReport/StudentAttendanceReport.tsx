@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  getReportDates,
   AttendanceOption,
   AttendanceSummaryRow,
   fetchAttendanceCourses,
   fetchAttendanceCurriculums,
-  fetchAttendanceLessonDates,
   fetchAttendanceSections,
   fetchAttendanceSummary,
   fetchAttendanceTerms,
@@ -25,7 +25,6 @@ interface LoadingState {
   terms: boolean;
   courses: boolean;
   sections: boolean;
-  lessonDates: boolean;
   summary: boolean;
 }
 
@@ -36,49 +35,57 @@ const initialFilters: FiltersState = {
   section: "",
   fromDate: "",
   toDate: "",
-  onlyPresent: false,
+  onlyPresent: true,
 };
 
 const StudentAttendanceReport: React.FC = () => {
+  const requestVersion = useRef(0);
   const [filters, setFilters] = useState<FiltersState>(initialFilters);
   const [curriculumOptions, setCurriculumOptions] = useState<AttendanceOption[]>([]);
   const [termOptions, setTermOptions] = useState<AttendanceOption[]>([]);
   const [courseOptions, setCourseOptions] = useState<AttendanceOption[]>([]);
   const [sectionOptions, setSectionOptions] = useState<AttendanceOption[]>([]);
-  const [lessonDates, setLessonDates] = useState<string[]>([]);
   const [rows, setRows] = useState<AttendanceSummaryRow[]>([]);
   const [loading, setLoading] = useState<LoadingState>({
     curriculums: false,
     terms: false,
     courses: false,
     sections: false,
-    lessonDates: false,
     summary: false,
   });
   const [errorMessage, setErrorMessage] = useState("");
   const [hasSearched, setHasSearched] = useState(false);
+  const [search, setSearch] = useState("");
+  const visibleRows = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return rows.filter(row => `${row.usn} ${row.name}`.toLowerCase().includes(query));
+  }, [rows, search]);
 
   useEffect(() => {
+    let active = true;
     const loadCurriculums = async () => {
       setLoading((prev) => ({ ...prev, curriculums: true }));
       setErrorMessage("");
 
       try {
         const options = await fetchAttendanceCurriculums();
-        setCurriculumOptions(options);
+        if (active) setCurriculumOptions(options);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to load curriculums";
-        setErrorMessage(message);
+        if (active) setErrorMessage(message);
       } finally {
-        setLoading((prev) => ({ ...prev, curriculums: false }));
+        if (active) setLoading((prev) => ({ ...prev, curriculums: false }));
       }
     };
 
     loadCurriculums();
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {
+    let active = true;
     if (!filters.curriculum) {
+      setLoading(prev => ({ ...prev, terms: false }));
       return;
     }
 
@@ -88,81 +95,42 @@ const StudentAttendanceReport: React.FC = () => {
 
       try {
         const options = await fetchAttendanceTerms(filters.curriculum);
-        setTermOptions(options);
+        if (active) setTermOptions(options);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to load terms";
-        setErrorMessage(message);
+        if (active) setErrorMessage(message);
       } finally {
-        setLoading((prev) => ({ ...prev, terms: false }));
+        if (active) setLoading((prev) => ({ ...prev, terms: false }));
       }
     };
 
     loadTerms();
+    return () => { active = false; };
   }, [filters.curriculum]);
 
   useEffect(() => {
-    if (!filters.curriculum || !filters.term) {
-      return;
-    }
-
-    const loadTermDependencies = async () => {
-      setLoading((prev) => ({ ...prev, courses: true, sections: true }));
-      setErrorMessage("");
-
-      try {
-        const [sections, courses] = await Promise.all([
-          fetchAttendanceSections(filters.curriculum, filters.term),
-          fetchAttendanceCourses(filters.curriculum, filters.term),
-        ]);
-
-        setSectionOptions(sections);
-        setCourseOptions(courses);
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Failed to load courses and sections";
-        setErrorMessage(message);
-      } finally {
-        setLoading((prev) => ({ ...prev, courses: false, sections: false }));
-      }
-    };
-
-    loadTermDependencies();
+    let active = true;
+    setLoading(prev => ({ ...prev, courses: Boolean(filters.term) }));
+    if (!filters.curriculum || !filters.term) return;
+    fetchAttendanceCourses(filters.curriculum, filters.term)
+      .then(options => { if (active) setCourseOptions(options); })
+      .catch(error => { if (active) setErrorMessage(error.message); })
+      .finally(() => { if (active) setLoading(prev => ({ ...prev, courses: false })); });
+    return () => { active = false; };
   }, [filters.curriculum, filters.term]);
 
   useEffect(() => {
-    if (!filters.curriculum || !filters.term || !filters.course || !filters.section) {
-      return;
-    }
+    let active = true;
+    setLoading(prev => ({ ...prev, sections: Boolean(filters.course) }));
+    if (!filters.curriculum || !filters.term || !filters.course) return;
+    fetchAttendanceSections(filters.curriculum, filters.term, filters.course)
+      .then(options => { if (active) setSectionOptions(options); })
+      .catch(error => { if (active) setErrorMessage(error.message); })
+      .finally(() => { if (active) setLoading(prev => ({ ...prev, sections: false })); });
+    return () => { active = false; };
+  }, [filters.curriculum, filters.term, filters.course]);
 
-    const lessonDatePayload = {
-      academic_batch_id: filters.curriculum,
-      semester_id: filters.term,
-      course_id: filters.course,
-      section_id: filters.section,
-    };
-
-    console.log("[StudentAttendanceReport] Selected IDs", lessonDatePayload);
-
-    const loadLessonDates = async () => {
-      setLoading((prev) => ({ ...prev, lessonDates: true }));
-      setErrorMessage("");
-
-      try {
-        const dates = await fetchAttendanceLessonDates(lessonDatePayload);
-        setLessonDates(dates);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Failed to load lesson dates";
-        setErrorMessage(message);
-        setLessonDates([]);
-      } finally {
-        setLoading((prev) => ({ ...prev, lessonDates: false }));
-      }
-    };
-
-    loadLessonDates();
-  }, [filters.curriculum, filters.term, filters.course, filters.section]);
-
-  const lessonDateSet = useMemo(() => new Set(lessonDates), [lessonDates]);
+  const reportDates = useMemo(() => getReportDates(filters.fromDate, filters.toDate, filters.onlyPresent, rows), [filters.fromDate, filters.toDate, filters.onlyPresent, rows]);
   const canSearch = Boolean(
     filters.curriculum &&
       filters.term &&
@@ -172,22 +140,16 @@ const StudentAttendanceReport: React.FC = () => {
       filters.toDate
   );
 
-  const lessonDateRangeText = useMemo(() => {
-    if (!lessonDates.length) {
-      return "";
-    }
-
-    return `Available lesson dates: ${lessonDates[0]} to ${lessonDates[lessonDates.length - 1]}`;
-  }, [lessonDates]);
-
   const resetReportState = () => {
+    requestVersion.current++;
+    setLoading(prev => ({ ...prev, summary: false }));
     setRows([]);
     setHasSearched(false);
+    setSearch("");
     setErrorMessage("");
   };
 
   const handleCurriculumChange = (value: string) => {
-    console.log("[StudentAttendanceReport] Curriculum changed", { curriculumId: value });
     setFilters({
       ...initialFilters,
       curriculum: value,
@@ -195,15 +157,10 @@ const StudentAttendanceReport: React.FC = () => {
     setTermOptions([]);
     setCourseOptions([]);
     setSectionOptions([]);
-    setLessonDates([]);
     resetReportState();
   };
 
   const handleTermChange = (value: string) => {
-    console.log("[StudentAttendanceReport] Term changed", {
-      curriculumId: filters.curriculum,
-      termId: value,
-    });
     setFilters((prev) => ({
       ...prev,
       term: value,
@@ -214,31 +171,28 @@ const StudentAttendanceReport: React.FC = () => {
     }));
     setCourseOptions([]);
     setSectionOptions([]);
-    setLessonDates([]);
     resetReportState();
   };
 
   const handleCourseChange = (value: string) => {
-    console.log("[StudentAttendanceReport] Course changed", { courseId: value });
+    setSectionOptions([]);
     setFilters((prev) => ({
       ...prev,
       course: value,
+      section: "",
       fromDate: "",
       toDate: "",
     }));
-    setLessonDates([]);
     resetReportState();
   };
 
   const handleSectionChange = (value: string) => {
-    console.log("[StudentAttendanceReport] Section changed", { sectionId: value });
     setFilters((prev) => ({
       ...prev,
       section: value,
       fromDate: "",
       toDate: "",
     }));
-    setLessonDates([]);
     resetReportState();
   };
 
@@ -250,60 +204,35 @@ const StudentAttendanceReport: React.FC = () => {
     resetReportState();
   };
 
-  const validateDates = () => {
+  const [reload, setReload] = useState(0);
+  useEffect(() => {
+    const version = ++requestVersion.current;
+    if (!canSearch) return;
     if (filters.fromDate > filters.toDate) {
-      return "From Date cannot be later than To Date.";
-    }
-
-    if (lessonDates.length > 0) {
-      if (!lessonDateSet.has(filters.fromDate)) {
-        return "From Date must be one of the available lesson dates.";
-      }
-
-      if (!lessonDateSet.has(filters.toDate)) {
-        return "To Date must be one of the available lesson dates.";
-      }
-    }
-
-    return "";
-  };
-
-  const handleSearch = async () => {
-    const validationMessage = validateDates();
-    if (validationMessage) {
-      setErrorMessage(validationMessage);
+      setErrorMessage("From Date cannot be later than To Date.");
       setRows([]);
       setHasSearched(false);
       return;
     }
-
-    const payload = {
-      academic_batch_id: filters.curriculum,
-      semester_id: filters.term,
-      course_id: filters.course,
-      section_id: filters.section,
-      from_date: filters.fromDate,
-      to_date: filters.toDate,
-      only_present: filters.onlyPresent,
-    };
-
-    console.log("[StudentAttendanceReport] Search payload", payload);
-
-    setLoading((prev) => ({ ...prev, summary: true }));
+    setLoading(prev => ({ ...prev, summary: true }));
     setErrorMessage("");
     setHasSearched(true);
-
-    try {
-      const summaryRows = await fetchAttendanceSummary(payload);
-      setRows(summaryRows);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to load attendance summary";
-      setErrorMessage(message);
-      setRows([]);
-    } finally {
-      setLoading((prev) => ({ ...prev, summary: false }));
-    }
-  };
+    fetchAttendanceSummary({
+      academic_batch_id: filters.curriculum, semester_id: filters.term,
+      course_id: filters.course, section_id: filters.section,
+      from_date: filters.fromDate, to_date: filters.toDate, only_present: false,
+    }).then(result => {
+      if (version === requestVersion.current) setRows(result);
+    }).catch(error => {
+      if (version === requestVersion.current) {
+        setErrorMessage(error instanceof Error ? error.message : "Failed to load attendance");
+        setRows([]);
+      }
+    }).finally(() => {
+      if (version === requestVersion.current) setLoading(prev => ({ ...prev, summary: false }));
+    });
+    return () => { requestVersion.current++; };
+  }, [canSearch, filters.curriculum, filters.term, filters.course, filters.section, filters.fromDate, filters.toDate, reload]);
 
   const renderOptions = (options: AttendanceOption[]) =>
     options.map((option) => (
@@ -375,7 +304,7 @@ const StudentAttendanceReport: React.FC = () => {
               style={styles.input}
               value={filters.section}
               onChange={(event) => handleSectionChange(event.target.value)}
-              disabled={!filters.term || loading.sections}
+              disabled={!filters.course || loading.sections}
             >
               <option value="">
                 {loading.sections ? "Loading sections..." : "Select section"}
@@ -392,10 +321,8 @@ const StudentAttendanceReport: React.FC = () => {
               type="date"
               style={styles.input}
               value={filters.fromDate}
-              min={lessonDates[0]}
-              max={lessonDates[lessonDates.length - 1]}
               onChange={(event) => handleDateChange("fromDate", event.target.value)}
-              disabled={!filters.section || loading.lessonDates}
+              disabled={!filters.section}
             />
           </div>
 
@@ -407,10 +334,8 @@ const StudentAttendanceReport: React.FC = () => {
               type="date"
               style={styles.input}
               value={filters.toDate}
-              min={lessonDates[0]}
-              max={lessonDates[lessonDates.length - 1]}
               onChange={(event) => handleDateChange("toDate", event.target.value)}
-              disabled={!filters.section || loading.lessonDates}
+              disabled={!filters.section}
             />
           </div>
         </div>
@@ -435,24 +360,24 @@ const StudentAttendanceReport: React.FC = () => {
               ...styles.generateBtn,
               ...(canSearch && !loading.summary ? {} : styles.generateBtnDisabled),
             }}
-            onClick={handleSearch}
+            onClick={() => setReload(value => value + 1)}
             disabled={!canSearch || loading.summary}
           >
-            {loading.summary ? "Generating..." : "Search / Generate"}
+            {loading.summary ? "Generating..." : "Refresh"}
           </button>
         </div>
 
-        {loading.lessonDates ? (
-          <div style={styles.helperText}>Loading available lesson dates...</div>
-        ) : lessonDateRangeText ? (
-          <div style={styles.helperText}>{lessonDateRangeText}</div>
-        ) : null}
-
-        {errorMessage ? <div style={styles.errorBox}>{errorMessage}</div> : null}
+        {errorMessage ? <div role="alert" style={styles.errorBox}>{errorMessage}</div> : null}
       </div>
 
       <div style={styles.tableCard}>
-        <div style={styles.tableHeader}>Results</div>
+        <div style={{ ...styles.tableHeader, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span>Results</span>
+          {rows.length > 0 && !loading.summary && <label style={styles.checkboxLabel}>
+            Search:
+            <input type="search" aria-label="Search students" style={styles.input} value={search} onChange={event => setSearch(event.target.value)} />
+          </label>}
+        </div>
         {loading.summary ? (
           <div style={styles.stateBox}>Loading attendance summary...</div>
         ) : rows.length > 0 ? (
@@ -462,19 +387,22 @@ const StudentAttendanceReport: React.FC = () => {
                 <tr>
                   <th style={styles.tableHeadCell}>USN</th>
                   <th style={styles.tableHeadCell}>Student Name</th>
-                  <th style={styles.tableHeadCell}>Present</th>
-                  <th style={styles.tableHeadCell}>Absent</th>
+                  <th style={styles.tableHeadCell}>Total Present (P)</th>
+                  <th style={styles.tableHeadCell}>Total Absent (A)</th>
+                  {reportDates.map(date => <th key={date} title={date} style={styles.tableHeadCell}>{date.slice(8)}/{date.slice(5, 7)}</th>)}
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
-                  <tr key={`${row.usn}-${row.name}`}>
+                {visibleRows.map((row) => (
+                  <tr key={row.id}>
                     <td style={styles.tableCell}>{row.usn}</td>
                     <td style={styles.tableCell}>{row.name}</td>
-                    <td style={styles.tableCell}>{row.present}</td>
-                    <td style={styles.tableCell}>{row.absent}</td>
+                    <td style={{ ...styles.tableCell, textAlign: "center" }}>{row.present ? `${row.present}P` : "-"}</td>
+                    <td style={{ ...styles.tableCell, textAlign: "center" }}>{row.absent ? `${row.absent}A` : "-"}</td>
+                    {reportDates.map(date => <td key={date} style={{ ...styles.tableCell, whiteSpace: "nowrap" }}>{row.dates[date] || ""}</td>)}
                   </tr>
                 ))}
+                {visibleRows.length === 0 && <tr><td colSpan={4 + reportDates.length} style={styles.stateBox}>No matching students</td></tr>}
               </tbody>
             </table>
           </div>
@@ -482,7 +410,7 @@ const StudentAttendanceReport: React.FC = () => {
           <div style={styles.stateBox}>No data found</div>
         ) : (
           <div style={styles.stateBox}>
-            Select the required filters and click Search / Generate.
+            Select the required filters and date range to load attendance.
           </div>
         )}
       </div>
@@ -614,13 +542,13 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: "left",
     padding: "12px 16px",
     background: "#f1f3f5",
-    borderBottom: "1px solid #dee2e6",
+    border: "1px solid #dee2e6",
     color: "#1f2937",
     fontWeight: 700,
   },
   tableCell: {
     padding: "12px 16px",
-    borderBottom: "1px solid #e9ecef",
+    border: "1px solid #dee2e6",
     color: "#374151",
   },
   stateBox: {

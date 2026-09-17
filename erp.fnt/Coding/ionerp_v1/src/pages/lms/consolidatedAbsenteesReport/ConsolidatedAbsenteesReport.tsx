@@ -1,5 +1,6 @@
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import moment from "moment";
+import CheckboxDropdown, { Option as Opt } from "./CheckboxDropdown";
 import CustomDataTable from "./CustomDataTable";
 import { toast } from "react-toastify";
 
@@ -24,7 +25,28 @@ import {
 const toOpts = (list: DropdownOption[]) =>
   list.map((d) => ({ value: d.id, label: d.name }));
 
-type Opt = { value: number; label: string };
+// Each cascade ignores obsolete responses and explicitly selects all new options.
+function useOptions(key: string, enabled: boolean, fetchOptions: () => Promise<Opt[]>) {
+  const [options, setOptions] = useState<Opt[]>([]);
+  const [selected, setSelected] = useState<number[]>([]);
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    setOptions([]); setSelected([]); setLoadedKey(null);
+    if (enabled) fetchOptions().then(items => {
+      if (!active) return;
+      setOptions(items);
+      setSelected(Array.from(new Set(items.flatMap(o => o.ids ?? [o.value]))));
+      setLoadedKey(key);
+    }).catch(() => { if (active) toast.error("Unable to load report filters."); });
+    return () => { active = false; };
+    // The key describes all inputs to the loader.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, enabled]);
+  return { options, selected, setSelected, ready: enabled && loadedKey === key };
+}
+const mergeOptions = (lists: Opt[][]) => Array.from(new Map(lists.flat().map(o => [o.value, o])).values());
+
 
 // ─── DateRangePicker ──────────────────────────────────────────────────────────
 // A self-contained date range picker that mirrors Image 5:
@@ -303,19 +325,36 @@ const DrilldownModal: React.FC<{
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 const ConsolidatedAbsenteesReport: React.FC = () => {
-  // dropdowns
-  const [deptOpts,    setDeptOpts]    = useState<Opt[]>([]);
-  const [progOpts,    setProgOpts]    = useState<Opt[]>([]);
-  const [currOpts,    setCurrOpts]    = useState<Opt[]>([]);
-  const [termOpts,    setTermOpts]    = useState<Opt[]>([]);
-  const [sectionOpts, setSectionOpts] = useState<Opt[]>([]);
-
-  // selected values (arrays of IDs, empty = "All")
-  const [selDepts,    setSelDepts]    = useState<number[]>([]);
-  const [selProgs,    setSelProgs]    = useState<number[]>([]);
-  const [selCurrs,    setSelCurrs]    = useState<number[]>([]);
-  const [selTerms,    setSelTerms]    = useState<number[]>([]);
-  const [selSections, setSelSections] = useState<number[]>([]);
+  const departments = useOptions("departments", true, async () => toOpts(await getDepartments()));
+  const { options: deptOpts, selected: selDepts, setSelected: setSelDepts } = departments;
+  const programs = useOptions(JSON.stringify(selDepts), departments.ready && !!selDepts.length,
+    async () => mergeOptions(await Promise.all(selDepts.map(async id => toOpts(await getPrograms(id)).map(o => ({ ...o, group: deptOpts.find(d => d.value === id)?.label }))))));
+  const { options: progOpts, selected: selProgs, setSelected: setSelProgs } = programs;
+  const curricula = useOptions(JSON.stringify(selProgs), programs.ready && !!selProgs.length,
+    async () => mergeOptions(await Promise.all(selProgs.map(async id => toOpts(await getCurriculumList(id)).map(o => ({ ...o, group: progOpts.find(p => p.value === id)?.label }))))));
+  const { options: currOpts, selected: selCurrs, setSelected: setSelCurrs } = curricula;
+  const terms = useOptions(JSON.stringify(selCurrs), curricula.ready && !!selCurrs.length,
+    async () => mergeOptions(await Promise.all(selCurrs.map(async id =>
+      toOpts(await getTermList(id)).map(o => ({ ...o, group: currOpts.find(c => c.value === id)?.label }))))));
+  const { options: termOpts, selected: selTerms, setSelected: setSelTerms } = terms;
+  const sections = useOptions(JSON.stringify(selTerms), terms.ready && !!selTerms.length, async () => {
+    const options = mergeOptions(await Promise.all(selTerms.map(async id => toOpts(await getSectionList(id)))));
+    const grouped = new Map<string, Opt>();
+    options.forEach(o => {
+      const key = o.label.trim().toLowerCase();
+      const existing = grouped.get(key);
+      if (existing) existing.ids!.push(o.value);
+      else grouped.set(key, { ...o, ids: [o.value] });
+    });
+    return Array.from(grouped.values()).sort((a, b) => a.label.localeCompare(b.label));
+  });
+  const { options: sectionOpts, selected: selSections, setSelected: setSelSections } = sections;
+  const filtersReady = departments.ready && programs.ready && curricula.ready && terms.ready && sections.ready
+    && !!selDepts.length && !!selProgs.length && !!selCurrs.length && !!selTerms.length && !!selSections.length;
+  const filterKey = JSON.stringify([selDepts, selProgs, selCurrs, selTerms, selSections]);
+  const [dateKey, setDateKey] = useState<string | null>(null);
+  const reportVersion = useRef(0);
+  const initialLoadPending = useRef(true);
 
   // dates
   const [startDate,      setStartDate]      = useState("");
@@ -348,32 +387,26 @@ const ConsolidatedAbsenteesReport: React.FC = () => {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // ── 1. On mount: load departments + date info, then auto-generate ──
   useEffect(() => {
-    const init = async () => {
-      const [depts, dateInfo] = await Promise.all([
-        getDepartments().catch(() => [] as DropdownOption[]),
-        getDateInfo().catch(() => ({ latest_attendance_date: null, scheduled_dates: [] })),
-      ]);
-
-      setDeptOpts(toOpts(depts));
-      setScheduledDates(dateInfo.scheduled_dates);
-
-   let ed = dateInfo.latest_attendance_date
-  ? moment(dateInfo.latest_attendance_date).format("YYYY-MM-DD")
-  : moment().format("YYYY-MM-DD");
-
-let sd = moment("2026-01-01").format("YYYY-MM-DD");
-
-setStartDate(sd);
-setEndDate(ed);
-
-// 🔥 AUTO LOAD
-autoGenerate(sd, ed, [], [], [], [], []);
-    };
-    init();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    let active = true;
+    reportVersion.current++;
+    setReportLoading(false);
+    setReportData([]); setLastPayload(null); setDrillOpen(false);
+    setStartDate(""); setEndDate(""); setScheduledDates([]); setDateKey(null);
+    if (filtersReady) getDateInfo({ department_ids: selDepts, program_ids: selProgs,
+      curriculum_ids: selCurrs, semester_ids: selTerms, section_ids: selSections }).then(info => {
+        if (!active) return;
+        const latest = info.latest_attendance_date ?? "";
+        setStartDate(latest); setEndDate(latest); setScheduledDates(info.scheduled_dates);
+        setDateKey(filterKey);
+        if (initialLoadPending.current) {
+          initialLoadPending.current = false;
+          if (latest) autoGenerate(latest, latest, selDepts, selProgs, selCurrs, selTerms, selSections);
+        }
+      }).catch(() => { if (active) toast.error("Unable to load attendance dates."); });
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterKey, filtersReady]);
 
   const autoGenerate = async (
   sd: string,
@@ -395,57 +428,22 @@ autoGenerate(sd, ed, [], [], [], [], []);
     section_ids: secIds.length ? secIds : null,
   };
 
-  setLastPayload(payload);
-
-  const data = await generateReport(payload);
-
-  // ✅ USE YOUR STATE
-  setReportData(data);
-};
-
-  // ── cascade: dept → program ────────────────────────────────────────
-  useEffect(() => {
-    setProgOpts([]); setSelProgs([]);
-    setCurrOpts([]); setSelCurrs([]);
-    setTermOpts([]); setSelTerms([]);
-    setSectionOpts([]); setSelSections([]);
-    if (selDepts.length === 1) {
-      getPrograms(selDepts[0]).then((d) => setProgOpts(toOpts(d))).catch(console.error);
-    }
-  }, [selDepts]);
-
-  useEffect(() => {
-    setCurrOpts([]); setSelCurrs([]);
-    setTermOpts([]); setSelTerms([]);
-    setSectionOpts([]); setSelSections([]);
-    if (selProgs.length === 1) {
-      getCurriculumList(selProgs[0]).then((d) => setCurrOpts(toOpts(d))).catch(console.error);
-    }
-  }, [selProgs]);
-
-  useEffect(() => {
-    setTermOpts([]); setSelTerms([]);
-    setSectionOpts([]); setSelSections([]);
-    if (selCurrs.length === 1) {
-      getTermList(selCurrs[0]).then((d) => setTermOpts(toOpts(d))).catch(console.error);
-    }
-  }, [selCurrs]);
-
-  useEffect(() => {
-  setSectionOpts([]);
-  setSelSections([]);
-
-  if (selTerms.length > 0) {
-    // take first selected term (since dropdown is single select now)
-    getSectionList(selTerms[0])
-      .then((d) => setSectionOpts(toOpts(d)))
-      .catch(console.error);
+  const version = ++reportVersion.current;
+  setReportLoading(true);
+  try {
+    const data = await generateReport(payload);
+    if (version !== reportVersion.current) return;
+    setLastPayload(payload); setReportData(data);
+  } catch {
+    if (version === reportVersion.current) toast.error("Unable to generate report.");
+  } finally {
+    if (version === reportVersion.current) setReportLoading(false);
   }
-}, [selTerms]);
+};
 
   // ── Generate Report ───────────────────────────────────────────────
   const handleGenerate = () => {
-    if (!startDate || !endDate) { toast("Please select a date range."); return; }
+    if (!filtersReady || dateKey !== filterKey || !startDate || !endDate) { toast("Please select a date range."); return; }
     autoGenerate(startDate, endDate, selDepts, selProgs, selCurrs, selTerms, selSections);
   };
 
@@ -512,51 +510,10 @@ autoGenerate(sd, ed, [], [], [], [], []);
     setDrillOpen(true);
   };
 
-  // ── Multi-select dropdown helper (native <select multiple> style) ─
-  // We use a simple custom single-select with an "All" option at the top.
-  // Selecting "All" (value 0) clears the array; selecting an item sets it.
-const renderDropdown = (
-  label: string,
-  required: boolean,
-  opts: Opt[],
-  selected: number[],
-  onChange: (ids: number[]) => void,
-  disabled = false
-) => (
-  <div style={S.filterItem}>
-    <label style={S.label}>
-      {label}{required && <span style={{ color: "red" }}> *</span>}
-    </label>
-
-    <select
-      disabled={disabled}
-      value={selected.length ? selected[0] : 0}
-      onChange={(e) => {
-        const val = Number(e.target.value);
-
-        if (val === 0) {
-          // Select All → empty array (backend treats as ALL)
-          onChange([]);
-        } else {
-          onChange([val]);
-        }
-      }}
-      style={{
-        ...S.multiSelect,
-        background: disabled ? "#f5f5f5" : "#fff",
-        cursor: disabled ? "not-allowed" : "pointer",
-      }}
-    >
-      <option value={0}>Select All</option>
-
-      {opts.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
-  </div>
-);
+  const renderDropdown = (label: string, required: boolean, opts: Opt[], selected: number[],
+    onChange: (ids: number[]) => void, disabled = false) => (
+      <CheckboxDropdown label={label} required={required} options={opts} selected={selected} onChange={ids => { initialLoadPending.current = false; onChange(ids); }} disabled={disabled} />
+    );
 
   // ── Table columns ─────────────────────────────────────────────────
   const columns = [
@@ -623,7 +580,7 @@ const renderDropdown = (
           <button
             style={{ ...S.generateBtn, opacity: reportLoading ? 0.7 : 1 }}
             onClick={handleGenerate}
-            disabled={reportLoading}
+            disabled={reportLoading || !filtersReady || dateKey !== filterKey || !startDate}
           >
             {reportLoading ? "Generating..." : "Generate Report"}
           </button>
@@ -689,9 +646,7 @@ const renderDropdown = (
           customStyles={tableStyles}
           noDataComponent={
             <div style={{ padding: 24, color: "#888" }}>
-              reportLoading
-  ? "Loading..."
-  : "No data available"
+              {!filtersReady ? "Select report filters." : dateKey !== filterKey ? "Loading attendance dates..." : !startDate ? "No attendance found for the selected filters." : lastPayload ? "No records found for the selected filters and dates." : "Generate a report for the selected filters."}
             </div>
           }
         />
@@ -701,8 +656,8 @@ const renderDropdown = (
       <DrilldownModal
         open={drillOpen}
         meta={drillMeta}
-        startDate={startDate}
-        endDate={endDate}
+        startDate={lastPayload?.start_date ?? startDate}
+        endDate={lastPayload?.end_date ?? endDate}
         onClose={() => setDrillOpen(false)}
       />
     </div>

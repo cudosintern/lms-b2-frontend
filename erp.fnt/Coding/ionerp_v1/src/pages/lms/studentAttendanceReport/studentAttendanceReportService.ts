@@ -1,243 +1,60 @@
 import axiosInstance from "../../../utils/api";
 import { ApiEndpoint } from "../../../utils/ApiEndpoint/lmsApiEndpoint";
 
-export interface AttendanceOption {
-  value: string;
-  label: string;
-}
-
+export interface AttendanceOption { value: string; label: string }
 export interface AttendanceLessonDatesParams {
-  academic_batch_id: string;
-  semester_id: string;
-  course_id: string;
-  section_id: string;
+  academic_batch_id: string; semester_id: string; course_id: string; section_id: string;
 }
-
 export interface AttendanceSummaryParams extends AttendanceLessonDatesParams {
-  from_date: string;
-  to_date: string;
-  only_present: boolean;
+  from_date: string; to_date: string; only_present: boolean;
 }
-
 export interface AttendanceSummaryRow {
-  usn: string;
-  name: string;
-  present: number;
-  absent: number;
+  id: string; usn: string; name: string; present: number; absent: number;
+  dates: Record<string, string>;
+}
+async function post<T>(url: string, payload: object): Promise<T> {
+  const response = await axiosInstance.post(url, payload);
+  const body = response.data as { success?: boolean; status?: boolean | string; message?: string; data?: T } | null;
+  if (body == null || body.success === false || body.status === false || body.status === "error") {
+    throw new Error(body?.message || "Unable to load attendance data");
+  }
+  return (body.data ?? body) as T;
+}
+async function options(url: string, payload: object): Promise<AttendanceOption[]> {
+  const rows = await post<AttendanceOption[]>(url, payload);
+  if (!Array.isArray(rows)) throw new Error("Invalid dropdown response");
+  return rows.map(row => ({ value: String(row.value), label: row.label }));
+}
+export const fetchAttendanceCurriculums = () => options(ApiEndpoint.topic.curriculumList, {});
+export const fetchAttendanceTerms = (batch: string) => options("/api/v1/student_attendance_report/terms", { academic_batch_id: Number(batch) });
+export async function fetchAttendanceCourses(batch: string, term: string): Promise<AttendanceOption[]> {
+  const rows = await post<{ crs_id: number; crs_code: string; crs_title: string }[]>("/api/v1/attendance/courses", {
+    academic_batch_id: Number(batch), semester_id: Number(term),
+  });
+  if (!Array.isArray(rows)) throw new Error("Invalid courses response");
+  return rows.map(row => ({ value: String(row.crs_id), label: `${row.crs_code} - ${row.crs_title}` }));
+}
+export const fetchAttendanceSections = (batch: string, term: string, course: string) => options(ApiEndpoint.topic.sectionList, {
+  academic_batch_id: Number(batch), semester_id: Number(term), course_id: Number(course),
+});
+export async function fetchAttendanceSummary(params: AttendanceSummaryParams): Promise<AttendanceSummaryRow[]> {
+  const rows = await post<AttendanceSummaryRow[]>("/api/v1/student_attendance_report/summary", {
+    academic_batch_id: Number(params.academic_batch_id), semester_id: Number(params.semester_id),
+    course_id: Number(params.course_id), section_id: Number(params.section_id),
+    from_date: params.from_date, to_date: params.to_date,
+  });
+  if (!Array.isArray(rows) || rows.some(row => !row.dates || typeof row.dates !== "object")) {
+    throw new Error("Invalid student attendance response");
+  }
+  return rows;
 }
 
-interface AttendanceApiError {
-  message?: string;
-  error?: string;
+export function getReportDates(from: string, to: string, onlyPresent: boolean, rows: AttendanceSummaryRow[]): string[] {
+  if (!from || !to || from > to) return [];
+  if (onlyPresent) return Array.from(new Set(rows.flatMap(row => Object.keys(row.dates)))).filter(date => date >= from && date <= to).sort();
+  const dates: string[] = [];
+  const day = new Date(`${from}T00:00:00Z`);
+  const end = new Date(`${to}T00:00:00Z`);
+  while (day <= end) { dates.push(day.toISOString().slice(0, 10)); day.setUTCDate(day.getUTCDate() + 1); }
+  return dates;
 }
-
-const extractBody = <T,>(response: { data: T }) => {
-  const body = response.data as T & { data?: unknown };
-  if (body && typeof body === "object" && "data" in body && body.data !== undefined) {
-    return body.data;
-  }
-  return body;
-};
-
-const ensureArray = <T,>(value: unknown): T[] => {
-  if (Array.isArray(value)) {
-    return value as T[];
-  }
-
-  if (value && typeof value === "object") {
-    const data = value as Record<string, unknown>;
-    if (Array.isArray(data.data)) {
-      return data.data as T[];
-    }
-    if (Array.isArray(data.results)) {
-      return data.results as T[];
-    }
-    if (Array.isArray(data.items)) {
-      return data.items as T[];
-    }
-  }
-
-  return [];
-};
-
-const buildErrorMessage = (error: unknown, fallback: string) => {
-  if (typeof error === "object" && error !== null && "response" in error) {
-    const axiosError = error as {
-      message?: string;
-      response?: {
-        data?: AttendanceApiError | string;
-      };
-    };
-    const data = axiosError.response?.data;
-    if (typeof data === "string" && data.trim()) {
-      return data;
-    }
-    if (data && typeof data === "object") {
-      return data.message || data.error || fallback;
-    }
-    return axiosError.message || fallback;
-  }
-
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
-  return fallback;
-};
-
-const normalizeCurriculumOptions = (items: Record<string, unknown>[]): AttendanceOption[] =>
-  items.map((item) => ({
-    value: String(item.crclm_id ?? item.academic_batch_id ?? item.id ?? item.value ?? ""),
-    label: String(
-      item.curriculum_name ??
-        item.crclm_name ??
-        item.academic_batch_name ??
-        item.academic_batch_desc ??
-        item.label ??
-        item.name ??
-        "Curriculum"
-    ),
-  }));
-
-const normalizeTermOptions = (items: Record<string, unknown>[]): AttendanceOption[] =>
-  items.map((item) => ({
-    value: String(item.crclm_term_id ?? item.semester_id ?? item.id ?? item.value ?? ""),
-    label: String(
-      item.term_name ??
-        item.crclm_term ??
-        item.semester_name ??
-        item.semester_desc ??
-        item.label ??
-        item.name ??
-        "Term"
-    ),
-  }));
-
-const normalizeCourseOptions = (items: Record<string, unknown>[]): AttendanceOption[] =>
-  items
-    .map((item) => {
-      const value = String(item.crs_id ?? item.course_id ?? item.id ?? item.value ?? "");
-      const labelValue =
-        item.course_name ??
-        item.course_title ??
-        item.crs_name ??
-        item.subject_name ??
-        item.crs_title ??
-        item.crs_code ??
-        item.course_code ??
-        item.label;
-
-      return {
-        value,
-        label: typeof labelValue === "string" ? labelValue.trim() : "",
-      };
-    })
-    .filter((item) => Boolean(item.value) && Boolean(item.label));
-
-const normalizeSectionOptions = (items: Record<string, unknown>[]): AttendanceOption[] =>
-  items.map((item) => ({
-    value: String(item.section_id ?? item.id ?? item.value ?? item.section ?? item.section_name ?? ""),
-    label: String(item.section ?? item.section_name ?? item.label ?? item.name ?? "Section"),
-  }));
-
-const normalizeSummaryRows = (items: Record<string, unknown>[]): AttendanceSummaryRow[] =>
-  items.map((item) => ({
-    usn: String(item.usn ?? item.student_usn ?? ""),
-    name: String(item.name ?? item.student_name ?? ""),
-    present: Number(item.present ?? 0),
-    absent: Number(item.absent ?? 0),
-  }));
-
-export const fetchAttendanceCurriculums = async (): Promise<AttendanceOption[]> => {
-  try {
-    console.log("[StudentAttendanceReport] GET curriculums");
-    const response = await axiosInstance.get(ApiEndpoint.studentAttendanceReport.curriculums);
-    return normalizeCurriculumOptions(ensureArray<Record<string, unknown>>(extractBody(response)));
-  } catch (error) {
-    throw new Error(buildErrorMessage(error, "Failed to load curriculums"));
-  }
-};
-
-export const fetchAttendanceTerms = async (curriculumId: string): Promise<AttendanceOption[]> => {
-  try {
-    console.log("[StudentAttendanceReport] GET terms", { curriculumId });
-    const response = await axiosInstance.get(ApiEndpoint.studentAttendanceReport.terms(curriculumId));
-    return normalizeTermOptions(ensureArray<Record<string, unknown>>(extractBody(response)));
-  } catch (error) {
-    throw new Error(buildErrorMessage(error, "Failed to load terms"));
-  }
-};
-
-export const fetchAttendanceCourses = async (
-  curriculumId: string,
-  termId: string
-): Promise<AttendanceOption[]> => {
-  const payload = {
-    academic_batch_id: curriculumId,
-    semester_id: termId,
-    course_type_id: 1,
-  };
-
-  try {
-    console.log("[StudentAttendanceReport] POST courses", payload);
-    const response = await axiosInstance.post(ApiEndpoint.studentAttendanceReport.courses, payload);
-    console.log("COURSES API RESPONSE:", response.data);
-    return normalizeCourseOptions(ensureArray<Record<string, unknown>>(extractBody(response)));
-  } catch (error) {
-    throw new Error(buildErrorMessage(error, "Failed to load courses"));
-  }
-};
-
-export const fetchAttendanceSections = async (
-  curriculumId: string,
-  termId: string
-): Promise<AttendanceOption[]> => {
-  try {
-    console.log("[StudentAttendanceReport] GET sections", { curriculumId, termId });
-    const response = await axiosInstance.get(
-      ApiEndpoint.studentAttendanceReport.sections(curriculumId, termId)
-    );
-    return normalizeSectionOptions(ensureArray<Record<string, unknown>>(extractBody(response)));
-  } catch (error) {
-    throw new Error(buildErrorMessage(error, "Failed to load sections"));
-  }
-};
-
-export const fetchAttendanceLessonDates = async (
-  params: AttendanceLessonDatesParams
-): Promise<string[]> => {
-  try {
-    console.log("[StudentAttendanceReport] GET lesson dates", params);
-    const response = await axiosInstance.get(ApiEndpoint.studentAttendanceReport.lessonDates, {
-      params,
-    });
-    const body = extractBody(response);
-    const rows = ensureArray<string | Record<string, unknown>>(body);
-
-    return rows
-      .map((row) => {
-        if (typeof row === "string") {
-          return row;
-        }
-        return String(row.lesson_date ?? row.date ?? row.attendance_date ?? "");
-      })
-      .filter((date) => Boolean(date))
-      .sort();
-  } catch (error) {
-    throw new Error(buildErrorMessage(error, "Failed to load lesson dates"));
-  }
-};
-
-export const fetchAttendanceSummary = async (
-  params: AttendanceSummaryParams
-): Promise<AttendanceSummaryRow[]> => {
-  try {
-    console.log("[StudentAttendanceReport] GET summary", params);
-    const response = await axiosInstance.get(ApiEndpoint.studentAttendanceReport.summary, {
-      params,
-    });
-    return normalizeSummaryRows(ensureArray<Record<string, unknown>>(extractBody(response)));
-  } catch (error) {
-    throw new Error(buildErrorMessage(error, "Failed to load attendance summary"));
-  }
-};

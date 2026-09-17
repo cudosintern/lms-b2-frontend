@@ -2,9 +2,17 @@ import { useState, useEffect } from "react";
 import { useForm, FieldError, Merge, FieldErrorsImpl } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { scheduleClassSchema } from "../scheduleClassSchema";
-import { courseTypes, courses, sections, topicsByCourse } from "./mockData";
 import { scheduleClassApi } from "../scheduleClassApi";
 import "bootstrap/dist/css/bootstrap.min.css";
+
+type SelectOption = { id: number; name: string };
+
+// This standalone screen does not supply catalogue endpoints. Keep the lists
+// empty rather than displaying fabricated courses, sections, or topics.
+const courseTypes: SelectOption[] = [];
+const courses: SelectOption[] = [];
+const sections: SelectOption[] = [];
+const topicsByCourse: Record<string, SelectOption[]> = {};
 
 // Helper function to get error message
 const getErrorMessage = (error: FieldError | Merge<FieldError, FieldErrorsImpl<any>> | undefined): string => {

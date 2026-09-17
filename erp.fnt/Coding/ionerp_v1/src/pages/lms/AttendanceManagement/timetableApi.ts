@@ -206,32 +206,47 @@ export const timetableApi = {
   // Get terms by curriculum
   getTermsByCurriculum: async (crclmId: number): Promise<any> => {
     try {
-      const response = await axiosInstance.get(`/api/v1/timetable/curriculums/${crclmId}/terms`);
-      return response.data;
+      const response = await axiosInstance.post('/api/v1/timetable/fetch_term_design', {
+        academic_batch_id: Number(crclmId),
+      });
+      const body: any = response.data;
+      if (body?.status === false || body?.success === false) throw new Error(body.message || 'Failed to load terms');
+      const rows = Array.isArray(body) ? body : body?.data;
+      if (!Array.isArray(rows)) throw new Error('Invalid term response');
+      return { data: rows.map((term: any) => ({
+        ...term,
+        term_id: term.semester_id ?? term.term_id ?? term.crclm_term_id,
+        term_name: term.term_name ?? String(term.semester ?? ''),
+      })) };
     } catch (error: any) {
       const errorMessage = error?.response?.data?.message || error?.message || "Failed to load terms";
       toast.error(errorMessage);
-      const STORAGE_KEY = "curriculum_terms";
-      const existingData = localStorage.getItem(STORAGE_KEY);
-      const terms = existingData ? JSON.parse(existingData) : [];
-      toast.warning(`${errorMessage} - Using offline data instead!`);
-      return { data: terms };
+      return { success: false, data: [] };
     }
   },
 
   // Get sections by curriculum and term
-  getSectionsByCurriculumTerm: async (crclmId: number, termName: string): Promise<any> => {
+  getSectionsByCurriculumTerm: async (crclmId: number | string, semesterId: number | string): Promise<any> => {
     try {
-      const response = await axiosInstance.get(`/api/v1/timetable/curriculums/${crclmId}/terms/${termName}/sections`);
-      return response.data;
+      const academicBatchId = Number(crclmId);
+      const selectedSemesterId = Number(semesterId);
+      if (!Number.isInteger(academicBatchId) || academicBatchId <= 0 ||
+          !Number.isInteger(selectedSemesterId) || selectedSemesterId <= 0) {
+        throw new Error('Select a valid curriculum and term before loading sections');
+      }
+      const response = await axiosInstance.post('/api/v1/timetable/get_section_details', {
+        academic_batch_id: academicBatchId,
+        semester_id: selectedSemesterId,
+      });
+      const body: any = response.data;
+      if (body?.status === false || body?.success === false) throw new Error(body.message || 'Failed to load sections');
+      const rows = Array.isArray(body) ? body : body?.data;
+      if (!Array.isArray(rows)) throw new Error('Invalid section response');
+      return { data: rows };
     } catch (error: any) {
       const errorMessage = error?.response?.data?.message || error?.message || "Failed to load sections";
       toast.error(errorMessage);
-      const STORAGE_KEY = "curriculum_term_sections";
-      const existingData = localStorage.getItem(STORAGE_KEY);
-      const sections = existingData ? JSON.parse(existingData) : [];
-      toast.warning(`${errorMessage} - Using offline data instead!`);
-      return { data: sections };
+      return { success: false, data: [] };
     }
   },
 

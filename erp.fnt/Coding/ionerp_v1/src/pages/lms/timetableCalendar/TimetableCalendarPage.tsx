@@ -11,7 +11,7 @@ interface Section { section_id: number | string; section: string; }
 interface ScheduledClass {
   lls_id?: number; crs_id?: number; plan_date?: string; start_time?: string; end_time?: string;
   section_id?: number; academic_batch_id?: number; semester_id?: number;
-  id?: number; crs_code?: string; course?: string; date?: string; status?: string; batch_name?: string;
+  id?: number; crs_code?: string; course?: string; date?: string; status?: string | number; batch_name?: string;
   crs_title?: string; faculty_name?: string; section?: string; week_day_name?: string;
   topic_id?: number; topic_code?: string; topic_title?: string; portion_ref?: string;
   portion_per_hour?: string; video_link?: string;
@@ -70,6 +70,13 @@ const formatCalendarTime = (value?: string) => {
   return `${hour % 12 || 12}:${minute}${suffix}`;
 };
 
+const lessonStatus = (value?: string | number) => {
+  const normalized = String(value ?? "").trim().toLowerCase().replace(/[\s_-]/g, "");
+  if (normalized === "2" || normalized === "completed" || normalized === "complete") return "completed";
+  if (normalized === "1" || normalized === "inprogress") return "inprogress";
+  return "pending";
+};
+
 const dateInputValue = (value = new Date()) =>
   `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
 
@@ -122,14 +129,16 @@ const TimetableCalendarPage: React.FC = () => {
   const [loadingClassDetails, setLoadingClassDetails] = useState(false);
   const [lessonTab, setLessonTab] = useState<"details" | "students">("details");
   const [topics, setTopics] = useState<any[]>([]);
+  const [topicPortions, setTopicPortions] = useState<any[]>([]);
   const [bloomLevels, setBloomLevels] = useState<any[]>([]);
   const [classStudents, setClassStudents] = useState<any[]>([]);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [savingLesson, setSavingLesson] = useState(false);
   const [showExtraClass, setShowExtraClass] = useState(false);
   const [savingExtraClass, setSavingExtraClass] = useState(false);
   const [extraClassForm, setExtraClassForm] = useState({ date: dateInputValue(), startTime: "", endTime: "" });
   const [lessonForm, setLessonForm] = useState({
-    allotClass: false, topicId: "", portionRef: "", deliveryMethod: "",
+    allotClass: false, topicIds: [] as string[], portionIds: [] as string[], deliveryMethod: "",
     bloomLevel: "", videoLink: "", status: "0",
   });
 
@@ -245,7 +254,7 @@ const TimetableCalendarPage: React.FC = () => {
       // Lesson schedules are optional enrichment and may not exist yet.
       const [timetableResponse, lessonResponse] = await Promise.all([
         axiosInstance.get("/api/v1/schedule-class/schedule-class/meta/batches-sections", {
-          params: { crs_id: Number(selectedCourse) },
+          params,
         }) as Promise<any>,
         (axiosInstance.get("/api/v1/schedule-class/schedule-class/list", { params }) as Promise<any>)
           .catch(() => null),
@@ -282,6 +291,10 @@ const TimetableCalendarPage: React.FC = () => {
             ...timetableClass,
             ...(lessonDetails || {}),
             plan_date: normalizeDate(lessonDetails?.plan_date) || timetableClass.plan_date,
+            // The occurrence row is authoritative for timetable mapping IDs.
+            tt_day_map_id: timetableClass.tt_day_map_id,
+            time_table_id: timetableClass.time_table_id,
+            tt_detail_id: timetableClass.tt_detail_id,
           };
         })
         .sort((a, b) => `${a.plan_date} ${a.start_time}`.localeCompare(`${b.plan_date} ${b.start_time}`));
@@ -367,25 +380,20 @@ const TimetableCalendarPage: React.FC = () => {
   const openClassDetails = async (scheduledClass: ScheduledClass) => {
     setSelectedClass(scheduledClass);
     setLessonTab("details");
+    setTopics([]);
+    setTopicPortions([]);
+    setClassStudents([]);
+    setSelectedStudentIds([]);
     setLessonForm({
       allotClass: false,
-      topicId: scheduledClass.topic_id ? String(scheduledClass.topic_id) : "",
-      portionRef: scheduledClass.portion_ref || scheduledClass.portion_per_hour || "",
+      topicIds: scheduledClass.topic_id ? [String(scheduledClass.topic_id)] : [],
+      portionIds: [],
       deliveryMethod: "",
       bloomLevel: "",
       videoLink: scheduledClass.video_link || "",
       status: String(scheduledClass.status ?? 0),
     });
 
-    const metaParams = {
-      academic_batch_id: Number(selectedBatch), semester_id: Number(selectedTerm), crs_id: Number(selectedCourse),
-    };
-    axiosInstance.get("/api/v1/manage-assignment/assignment/meta/students", {
-      params: { ...metaParams, section: scheduledClass.section },
-    }).then((studentResponse: any) => {
-      const studentData = studentResponse?.data?.data ?? studentResponse?.data;
-      setClassStudents(Array.isArray(studentData?.items) ? studentData.items : Array.isArray(studentData) ? studentData : []);
-    }).catch(() => setClassStudents([]));
     setLoadingClassDetails(true);
     try {
       const response: any = await axiosInstance.post(ApiEndpoint.timetableCalendar.lessonScheduleDetails, {
@@ -398,18 +406,37 @@ const TimetableCalendarPage: React.FC = () => {
         end_time: scheduledClass.end_time || null,
         lls_id: scheduledClass.lls_id || null,
         tt_day_map_id: scheduledClass.tt_day_map_id || null,
-        topic_id: scheduledClass.topic_id || null,
+        // Fetch portions for every returned topic; the dropdown filters them by topic_id.
+        topic_id: null,
       });
       const details = response.data?.data ?? response.data;
       if (details && !Array.isArray(details)) {
         const lesson = details.lesson_schedule || {};
-        setSelectedClass({ ...scheduledClass, ...lesson });
+        setSelectedClass({
+          ...scheduledClass,
+          ...lesson,
+          // Do not let null mapping values from an older lesson overwrite the clicked slot.
+          tt_day_map_id: scheduledClass.tt_day_map_id ?? lesson.tt_day_map_id,
+          time_table_id: scheduledClass.time_table_id ?? lesson.time_table_id,
+          tt_detail_id: scheduledClass.tt_detail_id ?? lesson.tt_detail_id,
+        });
         setTopics(Array.isArray(details.topic_list) ? details.topic_list : []);
+        setTopicPortions(Array.isArray(details.portion_list) ? details.portion_list : []);
         setBloomLevels(Array.isArray(details.bloom_level_list) ? details.bloom_level_list : []);
+        setClassStudents(Array.isArray(details.student_list) ? details.student_list : []);
+        setSelectedStudentIds((details.student_list || []).filter((student: any) => Boolean(student.is_selected)).map((student: any) => String(student.student_id)));
         setLessonForm(form => ({
           ...form,
-          topicId: String(lesson.topic_id ?? scheduledClass.topic_id ?? form.topicId),
-          portionRef: lesson.portion_ref || scheduledClass.portion_ref || form.portionRef,
+          topicIds: Array.from(new Set([
+            ...((details.topic_list || []).filter((topic: any) => Boolean(topic.is_selected)).map((topic: any) => String(topic.topic_id))),
+            ...((details.portion_list || [])
+              .filter((portion: any) => Boolean(portion.is_selected))
+              .map((portion: any) => String(portion.topic_id))),
+            ...(lesson.topic_id || scheduledClass.topic_id ? [String(lesson.topic_id ?? scheduledClass.topic_id)] : []),
+          ])) as string[],
+          portionIds: (details.portion_list || [])
+            .filter((portion: any) => Boolean(portion.is_selected))
+            .map((portion: any) => String(portion.portion_id)),
           videoLink: details.video_link || lesson.video_link || form.videoLink,
           status: String(details.status ?? lesson.status ?? form.status),
         }));
@@ -422,20 +449,28 @@ const TimetableCalendarPage: React.FC = () => {
   };
 
   const saveLessonSchedule = async () => {
-    if (!selectedClass || (!lessonForm.allotClass && (!lessonForm.topicId || !lessonForm.portionRef || !lessonForm.status))) {
+    if (!selectedClass || (!lessonForm.allotClass && (!lessonForm.topicIds.length || !lessonForm.portionIds.length || !lessonForm.status))) {
       window.alert("Please select Topic, Topic Portion and Status.");
       return;
     }
 
     setSavingLesson(true);
     try {
+      const selectedPortions = topicPortions.filter(portion => lessonForm.portionIds.includes(String(portion.portion_id)));
       const payload = {
         academic_batch_id: Number(selectedBatch), semester_id: Number(selectedTerm),
         crs_id: Number(selectedCourse), section_id: Number(selectedSection),
-        topic_id: lessonForm.topicId ? Number(lessonForm.topicId) : null,
+        topic_id: lessonForm.topicIds.length ? Number(lessonForm.topicIds[0]) : null,
+        topic_ids: lessonForm.topicIds.map(Number),
+        portion_ids: lessonForm.portionIds.map(Number),
+        student_ids: selectedStudentIds.map(Number),
+        tt_day_map_id: selectedClass.tt_day_map_id || null,
+        time_table_id: selectedClass.time_table_id || null,
+        tt_detail_id: selectedClass.tt_detail_id || null,
         plan_date: normalizeDate(selectedClass.plan_date || selectedClass.class_date),
         start_time: selectedClass.start_time || "", end_time: selectedClass.end_time || "",
-        portion_ref: lessonForm.portionRef || null, portion_per_hour: lessonForm.portionRef || null,
+        portion_ref: selectedPortions.map(portion => portion.portion_ref).filter(Boolean).join(", ") || null,
+        portion_per_hour: selectedPortions.map(portion => portion.portion_per_hour).filter(Boolean).join(", ") || null,
         video_link: lessonForm.videoLink || null, status: Number(lessonForm.status),
       };
       const classId = selectedClass.lls_id ?? selectedClass.id;
@@ -608,13 +643,20 @@ const TimetableCalendarPage: React.FC = () => {
                                 );
                               }
                               const timeStr = formatCalendarTime(cls.start_time);
+                              const isLessonMapped = Boolean(cls.lls_id);
+                              const status = lessonStatus(cls.status);
+                              const statusClass = !isLessonMapped
+                                ? "border-transparent bg-transparent text-gray-500"
+                                : status === "completed"
+                                  ? "border-transparent border-b-green-600 bg-transparent text-green-700"
+                                  : "border-transparent border-b-orange-500 bg-transparent text-orange-600";
                               return (
                                 <button
                                   type="button"
                                   key={cls.lls_id || cls.id || ci}
                                   onClick={() => openClassDetails(cls)}
-                                  className="mb-1 block w-full truncate rounded border border-amber-300 bg-amber-200 px-1 py-1 text-left text-[11px] font-semibold text-green-800 hover:bg-amber-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                                  title={`${timeStr} ${cls.crs_code || ""} ${cls.crs_title || ""}`}
+                                  className={`mb-1 block w-full truncate rounded border px-1 py-1 text-left text-[11px] font-semibold hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${statusClass} ${isLessonMapped ? "border-b-[3px]" : ""}`}
+                                  title={`${timeStr} ${cls.crs_code || ""} ${cls.crs_title || ""}${isLessonMapped ? ` — ${status === "inprogress" ? "In Progress" : status[0].toUpperCase() + status.slice(1)}` : ""}`}
                                 >
                                   {timeStr} {cls.crs_code || `Course ${cls.crs_id || ""}`} {cls.crs_title || cls.course || ""}
                                 </button>
@@ -737,13 +779,36 @@ const TimetableCalendarPage: React.FC = () => {
                 <>
                   <div className="mt-4 grid gap-5 md:grid-cols-2">
                     <label className="text-sm font-medium text-gray-700">Topic: <span className="text-red-500">*</span>
-                      <select value={lessonForm.topicId} onChange={e => setLessonForm(form => ({ ...form, topicId: e.target.value }))} className="mt-1 w-full rounded border border-gray-300 bg-white px-3 py-2">
-                        <option value="">Select Topic</option>
-                        {topics.map(topic => <option key={topic.topic_id} value={topic.topic_id}>{topic.topic_code ? `${topic.topic_code} - ` : ""}{topic.topic_title}</option>)}
-                      </select>
+                      <details className="relative mt-1 rounded border border-gray-300 bg-white">
+                        <summary className="cursor-pointer px-3 py-2">{lessonForm.topicIds.length ? `${lessonForm.topicIds.length} topic(s) selected` : "Select Topics"}</summary>
+                        <div className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded border border-gray-300 bg-white p-2 shadow-lg">
+                          {topics.map(topic => {
+                            const value = String(topic.topic_id);
+                            return <label key={topic.topic_id} className="flex cursor-pointer gap-2 px-2 py-1.5 hover:bg-gray-50">
+                              <input type="checkbox" checked={lessonForm.topicIds.includes(value)} onChange={() => setLessonForm(form => {
+                                const topicIds = form.topicIds.includes(value) ? form.topicIds.filter(id => id !== value) : [...form.topicIds, value];
+                                const portionIds = form.portionIds.filter(id => topicPortions.some(portion => String(portion.portion_id) === id && topicIds.includes(String(portion.topic_id))));
+                                return { ...form, topicIds, portionIds };
+                              })} />
+                              <span>{topic.topic_code ? `${topic.topic_code} - ` : ""}{topic.topic_title}</span>
+                            </label>;
+                          })}
+                        </div>
+                      </details>
                     </label>
                     <label className="text-sm font-medium text-gray-700">Topic Portion: <span className="text-red-500">*</span>
-                      <input value={lessonForm.portionRef} onChange={e => setLessonForm(form => ({ ...form, portionRef: e.target.value }))} placeholder="Enter topic portion" className="mt-1 w-full rounded border border-gray-300 px-3 py-2" />
+                      <details className={`relative mt-1 rounded border border-gray-300 ${lessonForm.topicIds.length ? "bg-white" : "pointer-events-none bg-gray-100"}`}>
+                        <summary className="cursor-pointer px-3 py-2">{lessonForm.portionIds.length ? `${lessonForm.portionIds.length} portion(s) selected` : "Select Topic Portions"}</summary>
+                        <div className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded border border-gray-300 bg-white p-2 shadow-lg">
+                          {topicPortions.filter(portion => lessonForm.topicIds.includes(String(portion.topic_id))).map(portion => {
+                            const value = String(portion.portion_id);
+                            return <label key={portion.portion_id} className="flex cursor-pointer gap-2 px-2 py-1.5 hover:bg-gray-50">
+                              <input type="checkbox" checked={lessonForm.portionIds.includes(value)} onChange={() => setLessonForm(form => ({ ...form, portionIds: form.portionIds.includes(value) ? form.portionIds.filter(id => id !== value) : [...form.portionIds, value] }))} />
+                              <span>{portion.portion_ref ? `${portion.portion_ref}. ` : ""}{portion.portion_per_hour || ""}</span>
+                            </label>;
+                          })}
+                        </div>
+                      </details>
                     </label>
                   </div>
                   <p className="mt-4 text-sm text-gray-600">Note: Lesson schedule should be completed to select Topic Portion list</p>
@@ -771,14 +836,34 @@ const TimetableCalendarPage: React.FC = () => {
                   </label>
                   <label className="grid items-center gap-3 text-sm font-medium text-gray-700 md:grid-cols-[200px_1fr]">Status: <span className="sr-only">required</span>
                     <select value={lessonForm.status} onChange={e => setLessonForm(form => ({ ...form, status: e.target.value }))} className="rounded border border-gray-300 bg-white px-3 py-2 font-normal">
-                      <option value="0">Pending</option><option value="1">Complete</option>
+                      <option value="0">Pending</option><option value="1">In Progress</option><option value="2">Completed</option>
                     </select>
                   </label>
                 </div>
               ) : (
                 <div className="max-h-56 overflow-y-auto pt-4">
                   {classStudents.length === 0 ? <p className="py-6 text-center text-sm text-gray-500">No students found for this class.</p> : (
-                    <table className="w-full text-left text-sm"><thead><tr className="border-b bg-gray-50"><th className="px-3 py-2">USN</th><th className="px-3 py-2">Student Name</th></tr></thead><tbody>{classStudents.map(student => <tr key={student.student_id} className="border-b"><td className="px-3 py-2">{student.usno || "—"}</td><td className="px-3 py-2">{student.name || `${student.first_name || ""} ${student.last_name || ""}`}</td></tr>)}</tbody></table>
+                    <table className="w-full text-left text-sm">
+                      <thead><tr className="border-b bg-gray-50">
+                        <th className="w-12 px-3 py-2">
+                          <input
+                            type="checkbox"
+                            aria-label="Select all students"
+                            checked={classStudents.length > 0 && selectedStudentIds.length === classStudents.length}
+                            onChange={event => setSelectedStudentIds(event.target.checked ? classStudents.map(student => String(student.student_id)) : [])}
+                          />
+                        </th>
+                        <th className="px-3 py-2">USN</th><th className="px-3 py-2">Student Name</th>
+                      </tr></thead>
+                      <tbody>{classStudents.map(student => {
+                        const studentId = String(student.student_id);
+                        return <tr key={student.student_id} className="border-b hover:bg-gray-50">
+                          <td className="px-3 py-2"><input type="checkbox" checked={selectedStudentIds.includes(studentId)} onChange={() => setSelectedStudentIds(ids => ids.includes(studentId) ? ids.filter(id => id !== studentId) : [...ids, studentId])} /></td>
+                          <td className="px-3 py-2">{student.usno || "—"}</td>
+                          <td className="px-3 py-2">{student.student_name || student.name || `${student.first_name || ""} ${student.last_name || ""}`}</td>
+                        </tr>;
+                      })}</tbody>
+                    </table>
                   )}
                 </div>
               )}

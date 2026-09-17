@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 
 interface Column<T> {
@@ -38,6 +38,8 @@ const CustomDataTable = <T,>({
   const [currentPage, setCurrentPage] = useState(1);
   const [search, setSearch] = useState('');
 
+  useEffect(() => { setCurrentPage(1); }, [data, paginationPerPage, search]);
+
   if (progressPending) {
     return (
       <div style={{
@@ -53,7 +55,7 @@ const CustomDataTable = <T,>({
 
   const filteredData = data.filter((row) =>
     columns.some((col) => {
-      const value = col.selector(row);
+      const value = col.selector?.(row);
       return value?.toString().toLowerCase().includes(search.toLowerCase());
     })
   );
@@ -85,7 +87,7 @@ const CustomDataTable = <T,>({
     const ws = XLSX.utils.json_to_sheet(data.map((row, i) => ({
       'Sl.No': i + 1,
       ...Object.fromEntries(
-        columns.map(col => [col.name, col.selector(row)])
+        columns.map(col => [col.name, col.selector?.(row)])
       )
     })));
     const wb = XLSX.utils.book_new();

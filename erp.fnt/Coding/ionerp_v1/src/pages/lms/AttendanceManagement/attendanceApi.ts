@@ -80,39 +80,40 @@ const getMockAttendance = (): AttendanceRecord[] => [
   },
 ];
 
+export interface AttendanceClassPayload {
+    academic_batch_id: number;
+    semester_id: number;
+    crs_id: number;
+    section_id: number;
+    class_date: string;
+    start_time: string;
+    end_time: string;
+    lls_id?: number;
+    tt_day_map_id?: number;
+    tt_detail_id?: number;
+    time_table_id?: number;
+}
+
 export const attendanceApi = {
   // Mark attendance for multiple students
+  markClassAttendance: async (attendanceData: AttendanceClassPayload & {
+    state?: "draft" | "finalized";
+    students: { student_id: number; status: string; remarks: string }[];
+  }): Promise<{ success: boolean; data: any }> => {
+    const response = await axiosInstance.post("/api/v1/attendance/mark", attendanceData);
+    return { success: true, data: response.data };
+  },
+
+  enableClassAttendance: async (payload: AttendanceClassPayload) => {
+    const response = await axiosInstance.post('/api/v1/attendance/enable', payload);
+    return response.data;
+  },
+
+  // Legacy callers lack the timetable identifiers required by the class API.
   markAttendance: async (
-    attendanceData: Omit<AttendanceRecord, "id" | "markedAt">[],
-  ) => {
-    try {
-      const response = await axiosInstance.post(
-        "/api/v1/attendance/mark",
-        attendanceData,
-      );
-      toast.success("Attendance marked successfully!");
-      return { success: true, data: response.data };
-    } catch (error: any) {
-      console.error("Error marking attendance:", error);
-
-      // Fallback to localStorage
-      const existingData = localStorage.getItem(STORAGE_KEY);
-      const attendanceRecords = existingData
-        ? JSON.parse(existingData)
-        : getMockAttendance();
-
-      const newRecords = attendanceData.map((record) => ({
-        ...record,
-        id: generateId(),
-        markedAt: new Date().toISOString(),
-      }));
-
-      const updatedData = [...attendanceRecords, ...newRecords];
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedData));
-
-      toast.success("Attendance saved locally (Offline)");
-      return { success: true, data: newRecords, isOffline: true };
-    }
+    _records: Omit<AttendanceRecord, "id" | "markedAt">[],
+  ): Promise<{ success: boolean; data: any }> => {
+    throw new Error("Select a scheduled class in Attendance Management before saving attendance.");
   },
 
   // markAttendance: async (
@@ -240,15 +241,42 @@ export const attendanceApi = {
     }
   },
 
+  getClassStudents: async (payload: AttendanceClassPayload) => {
+    const response = await axiosInstance.post('/api/v1/attendance/class-students', payload);
+    const body = response.data;
+    if (body?.status === false || body?.success === false || !Array.isArray(body?.data?.students)) {
+      throw new Error(body?.message || 'Unable to load class attendance');
+    }
+    return body.data as { students: any[]; state: string; message?: string };
+  },
+
+  getScheduledDates: async (payload: {
+    academic_batch_id: number;
+    semester_id: number;
+    crs_id: number;
+    section_id: number;
+  }) => {
+    const response = await axiosInstance.post('/api/v1/attendance/scheduled-dates', payload);
+    const body = response.data;
+    if (body?.status === false || body?.success === false ||
+        !Array.isArray(body?.data?.dates) || !Array.isArray(body?.data?.classes)) {
+      throw new Error(body?.message || 'Unable to load scheduled dates');
+    }
+    return body.data as { dates: string[]; classes: any[] };
+  },
+
   getAttendanceCourses: async (payload: {
     academic_batch_id: number;
-    crclm_term_id: number | string;
+    semester_id: number;
   }) => {
     try {
       const response = await axiosInstance.post(
-        "/api/v1/comman_function/courses",
+        "/api/v1/attendance/courses",
         payload,
       );
+      if (response.data?.status === false || response.data?.success === false) {
+        return { success: false, data: [] as any[] };
+      }
       return {
         success: true,
         data: response.data?.data ?? response.data ?? [],

@@ -47,6 +47,10 @@ axiosInstance.interceptors.response.use(
     return response;
   },
   (error) => {
+    // Aborting obsolete requests is normal; it is not a server outage.
+    if (error?.__CANCEL__ === true || error?.code === "ERR_CANCELED") {
+      return Promise.reject(error);
+    }
     if (error.response) {
       if (error.response.status === 404) {
         toast.error(error.response.data?.message || "Resource not found");
