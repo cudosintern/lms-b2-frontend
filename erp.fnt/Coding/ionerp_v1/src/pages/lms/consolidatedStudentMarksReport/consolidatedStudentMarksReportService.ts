@@ -1,7 +1,6 @@
 import axiosInstance from "../../../utils/api";
 import { ApiEndpoint } from "../../../utils/ApiEndpoint/lmsApiEndpoint";
 import {
-  ConsolidatedStudentMarksExportData,
   ConsolidatedStudentMarksGraphData,
   ConsolidatedStudentMarksReportData,
   ConsolidatedStudentMarksRequest,
@@ -32,6 +31,9 @@ const uniqueBy = <T,>(items: T[], getKey: (item: T) => string | number) => {
 
 const extractData = <T,>(response: { data: ApiEnvelope<T> | T }): T => {
   const body = response.data;
+  if (body && typeof body === "object" && "status" in body && body.status === false) {
+    throw new Error((body as ApiEnvelope<T>).message || "Request failed");
+  }
   if (body && typeof body === "object" && "data" in (body as ApiEnvelope<T>)) {
     return (body as ApiEnvelope<T>).data;
   }
@@ -43,7 +45,7 @@ const buildErrorMessage = (error: unknown, fallback: string) => {
     const axiosError = error as {
       message?: string;
       response?: {
-        data?: { message?: string; error?: string } | string;
+        data?: { message?: string; error?: string; detail?: string | { msg: string }[] } | string;
       };
     };
     const responseData = axiosError.response?.data;
@@ -51,7 +53,9 @@ const buildErrorMessage = (error: unknown, fallback: string) => {
       return responseData;
     }
     if (responseData && typeof responseData === "object") {
-      return responseData.message || responseData.error || fallback;
+      const detail = responseData.detail;
+      return responseData.message || responseData.error ||
+        (typeof detail === "string" ? detail : detail?.map((item) => item.msg).join("; ")) || fallback;
     }
     return axiosError.message || fallback;
   }
@@ -120,6 +124,7 @@ export const fetchMarksSections = async (params: {
 
 export const fetchMarksCourses = async (params: {
   academic_batch_id: number;
+  section_id: number;
   semester_id?: number | null;
   crclm_term_id?: number | null;
 }): Promise<MarksCourseOption[]> => {
@@ -163,18 +168,22 @@ export const fetchConsolidatedStudentMarksGraph = async (
 };
 
 export const exportConsolidatedStudentMarks = async (
-  payload: ConsolidatedStudentMarksRequest & { format?: "excel" | "pdf" | "csv" },
-): Promise<ConsolidatedStudentMarksExportData> => {
+  payload: ConsolidatedStudentMarksRequest & { format: "excel" | "pdf" | "csv" },
+): Promise<Blob> => {
   try {
-    const response = await axiosInstance.post<ApiEnvelope<ConsolidatedStudentMarksExportData>>(
-      ApiEndpoint.consolidatedStudentMarksReport.export,
-      {
-        format: payload.format ?? "excel",
-        ...payload,
-      },
+    const response = await axiosInstance.post<Blob>(
+      ApiEndpoint.consolidatedStudentMarksReport.export, payload, { responseType: "blob" },
     );
-    return extractData(response);
+    return response.data;
   } catch (error) {
+    const responseData = (error as { response?: { data?: unknown } }).response?.data;
+    if (responseData instanceof Blob) {
+      const message = await responseData.text();
+      let detail: unknown;
+      try { detail = JSON.parse(message).detail; } catch { /* Fall back to the HTTP error. */ }
+      if (typeof detail === "string") throw new Error(detail);
+      if (Array.isArray(detail)) throw new Error(detail.map((item) => item.msg).join("; "));
+    }
     throw new Error(buildErrorMessage(error, "Failed to export consolidated student marks"));
   }
 };

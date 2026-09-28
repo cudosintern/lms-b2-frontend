@@ -31,6 +31,7 @@ export interface MarksCourseOption {
 }
 
 export interface MarksResolvedFilters {
+  marks_source: "ems" | "lms";
   department_id?: number | null;
   academic_batch_id: number;
   academic_batch_name?: string | null;
@@ -43,11 +44,14 @@ export interface MarksResolvedFilters {
   section_name?: string | null;
   selected_course_ids: number[];
   include_total_marks: boolean;
-  from_date?: string | null;
-  to_date?: string | null;
+  start_range?: number | null;
+  end_range?: number | null;
+  include_absents?: boolean;
 }
 
 export interface MarksCourseComponent {
+  component_id: string;
+  status?: "marked" | "absent" | "missing" | "filtered";
   occasion_name: string;
   max_marks?: number | null;
   marks?: number | null;
@@ -81,23 +85,35 @@ export interface ConsolidatedStudentMarksRequest {
   section_id?: number | null;
   course_ids?: number[] | null;
   include_total_marks?: boolean;
-  from_date?: string | null;
-  to_date?: string | null;
+  start_range?: number | null;
+  end_range?: number | null;
+  include_absents?: boolean;
 }
 
 export interface ConsolidatedStudentMarksReportData {
   filters: MarksResolvedFilters;
   rows: MarksReportStudentRow[];
+  courses?: MarksStudentCourse[];
+}
+
+export interface MarksGraphAssessment {
+  component_id: string;
+  occasion_name: string;
+  max_marks: number | null;
+  student_count: number;
+  absent_count: number;
+  average_marks: number | null;
 }
 
 export interface MarksGraphCourseSummary {
+  assessments: MarksGraphAssessment[];
   course_id: number;
   course_code: string;
   course_title: string;
   student_count: number;
-  average_marks: number;
-  highest_marks: number;
-  lowest_marks: number;
+  average_marks: number | null;
+  highest_marks: number | null;
+  lowest_marks: number | null;
   min_passing_marks?: number | null;
   pass_count?: number | null;
   fail_count?: number | null;
@@ -106,13 +122,6 @@ export interface MarksGraphCourseSummary {
 export interface ConsolidatedStudentMarksGraphData {
   filters: MarksResolvedFilters;
   courses: MarksGraphCourseSummary[];
-}
-
-export interface ConsolidatedStudentMarksExportData {
-  format: string;
-  filters: MarksResolvedFilters;
-  export_ready: boolean;
-  message: string;
 }
 
 export interface MarksSelectOption {
@@ -125,6 +134,7 @@ export interface MarksTableCourseHeader {
   courseCode: string;
   courseTitle: string;
   componentKeys: string[];
+  componentLabels: Record<string, string>;
 }
 
 export interface MarksTableRow {
@@ -138,6 +148,7 @@ export interface MarksTableRow {
   componentMarks: Record<string, string>;
   courseDataAvailability: Record<number, boolean>;
   grandTotal: string;
+  courseTotals: Record<number, string>;
 }
 
 export interface MarksTransformedTable {

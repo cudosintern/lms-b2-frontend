@@ -1,0 +1,61 @@
+.consolidated-marks-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px 30px;
+  align-items: start;
+}
+
+.consolidated-marks-filters select {
+  width: 100%;
+  height: 38px;
+  box-sizing: border-box;
+}
+
+.consolidated-marks-filters .marks-required {
+  color: #dc2626;
+}
+
+@media (max-width: 900px) {
+  .consolidated-marks-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+}
+
+@media (max-width: 540px) {
+  .consolidated-marks-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.marks-range-dialog { width: min(600px, calc(100vw - 32px)); max-height: calc(100vh - 48px); margin: 15vh auto auto; padding: 0; border: 0; border-radius: 6px; background: white; color: #333; box-shadow: 0 5px 15px #0008; font-family: inherit; }
+.marks-range-dialog::backdrop { background: rgb(0 0 0 / 50%); }
+.marks-range-header { display: flex; align-items: center; justify-content: space-between; padding: 15px; border-bottom: 1px solid #e5e5e5; }
+.marks-range-header h2 { margin: 0; font-size: 18px; font-weight: 400; }
+.marks-range-close { border: 0; background: transparent; color: #888; font-size: 23px; cursor: pointer; }
+.marks-range-fields { display: grid; grid-template-columns: 120px minmax(0, 240px); align-items: center; gap: 15px 10px; padding: 15px; }
+.marks-range-fields label { font-size: 12px; font-weight: 600; }
+.marks-range-fields label span { color: #dc2626; }
+.marks-range-fields input { width: 100%; height: 34px; padding: 6px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; box-sizing: border-box; }
+.marks-range-footer { display: flex; gap: 10px; align-items: center; padding: 0 30px 30px 15px; margin-top: 0; }
+.marks-range-footer label { margin-right: auto; font-size: 12px; font-weight: 600; }
+.marks-range-footer button { border: 0; border-radius: 4px; color: white; padding: 8px 14px; font-size: 12px; cursor: pointer; }
+.marks-range-submit { background: #337ab7; }
+.marks-range-cancel { background: #d9534f; }
+.marks-range-error { margin: 0 15px 15px; color: #b91c1c; font-size: 12px; }
+@media (max-width: 480px) {
+  .marks-range-fields { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .marks-range-footer { flex-wrap: wrap; padding-right: 15px; }
+  .marks-range-footer label { flex-basis: 100%; }
+}
+
+.marks-course-select { position: relative; width: 100%; font-size: 13px; }
+.marks-course-select summary { display: flex; align-items: center; justify-content: space-between; height: 38px; padding: 8px 10px; border: 1px solid #ced4da; border-radius: 4px; background: white; cursor: pointer; box-sizing: border-box; list-style: none; }
+.marks-course-select summary::-webkit-details-marker { display: none; }
+.marks-course-select summary[aria-disabled="true"] { background: #f3f4f6; color: #777; cursor: default; }
+.marks-course-options { position: absolute; top: calc(100% + 4px); left: 0; width: 100%; min-width: 250px; max-height: 280px; overflow-y: auto; background: white; border: 1px solid #ced4da; border-radius: 4px; box-shadow: 0 3px 10px #0002; z-index: 30; }
+.marks-course-options label { display: flex; align-items: flex-start; gap: 8px; padding: 9px 10px; cursor: pointer; overflow-wrap: anywhere; }
+.marks-course-options label:hover { background: #eff6ff; }
+.marks-course-options input { flex-shrink: 0; margin-top: 3px; accent-color: #2563eb; }
+.marks-course-all { border-bottom: 1px solid #e5e7eb; font-weight: 600; }
+.marks-course-empty { padding: 10px; color: #666; }
