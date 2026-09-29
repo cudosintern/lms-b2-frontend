@@ -324,14 +324,14 @@ export const ApiEndpoint = {
   },
 
   consolidatedStudentMarksReport: {
-    departments: "api/v1/conso_student_marks_report/departments",
-    curriculums: "api/v1/conso_student_marks_report/curriculums",
-    terms: "api/v1/conso_student_marks_report/terms",
-    sections: "api/v1/conso_student_marks_report/sections",
-    courses: "api/v1/conso_student_marks_report/courses",
-    report: "api/v1/conso_student_marks_report/report",
-    graph: "api/v1/conso_student_marks_report/graph",
-    export: "api/v1/conso_student_marks_report/export",
+    departments: "api/v1/reports/marks/departments",
+    curriculums: "api/v1/reports/marks/curriculums",
+    terms: "api/v1/reports/marks/terms",
+    sections: "api/v1/reports/marks/sections",
+    courses: "api/v1/reports/marks/courses",
+    report: "api/v1/reports/consolidated-student-marks",
+    graph: "api/v1/reports/consolidated-student-marks/graph",
+    export: "api/v1/reports/consolidated-student-marks/export",
   },
 
   studentAttendanceReport: {

@@ -21,22 +21,23 @@ export interface StudentNotificationCounts {
 
 interface ApiErrorBody {
   message?: string;
-  detail?: string;
+  detail?: unknown;
   error?: string;
 }
 
-const getStudentId = () => {
-  const authState = LocalStorageHelper.getObject<loginData>("auth_state");
-  const possibleId = (authState as loginData & { id?: number })?.user_id ?? (authState as any)?.id;
-  return typeof possibleId === "number" ? possibleId : null;
+export const getStudentId = (): number | null => {
+  const authState = LocalStorageHelper.getObject<loginData & { student_id?: number | string }>("auth_state");
+  // Match the adjacent student module's demo configuration until ERP student
+  // login supplies student_id. Never substitute the login's user_id.
+  const value = Number(authState?.student_id ?? (process.env.REACT_APP_DEMO_STUDENT_ID || 3348));
+  return Number.isSafeInteger(value) && value > 0 ? value : null;
 };
 
 const buildStudentParams = (studentId?: number | null) => {
   const resolvedStudentId = studentId ?? getStudentId();
-  if (!resolvedStudentId) {
-    throw new Error("Student identity could not be resolved from the current session.");
+  if (!Number.isSafeInteger(resolvedStudentId) || !resolvedStudentId || resolvedStudentId < 1) {
+    throw new Error("A valid student ID is required to load notifications.");
   }
-
   return { student_id: resolvedStudentId };
 };
 
@@ -78,8 +79,11 @@ const buildFileUrl = (fileUrl: string | null | undefined) => {
     return fileUrl;
   }
 
-  const baseUrl = axiosInstance.defaults.baseURL ?? "";
-  return `${baseUrl}${fileUrl.startsWith("/") ? fileUrl : `/${fileUrl}`}`;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(fileUrl) || fileUrl.startsWith("//") || fileUrl.includes("\\")) {
+    return "";
+  }
+  const baseUrl = axiosInstance.defaults.baseURL ?? window.location.origin;
+  return new URL(fileUrl, `${baseUrl.replace(/\/$/, "")}/`).href;
 };
 
 const buildErrorMessage = (error: unknown, fallback: string) => {
@@ -97,7 +101,9 @@ const buildErrorMessage = (error: unknown, fallback: string) => {
     }
 
     if (responseData && typeof responseData === "object") {
-      return responseData.message || responseData.detail || responseData.error || fallback;
+      return responseData.message ||
+        (typeof responseData.detail === "string" ? responseData.detail : undefined) ||
+        responseData.error || fallback;
     }
 
     return axiosError.message || fallback;
@@ -117,7 +123,7 @@ const normalizeNotification = (item: Record<string, unknown>): StudentNotificati
   fileUrl: buildFileUrl(String(item.file_url ?? item.notify_document_url ?? "")),
   sentOn: String(item.sent_on ?? item.created_at ?? item.delivery_date ?? ""),
   sender: String(item.sender ?? item.created_by_name ?? "System"),
-  isRead: Boolean(item.is_read ?? item.notify_seen_flag ?? item.seen_flag),
+  isRead: [true, 1, "1"].includes((item.is_read ?? item.notify_seen_flag ?? item.seen_flag) as boolean | number | string),
 });
 
 const fetchNotificationList = async (
@@ -125,9 +131,7 @@ const fetchNotificationList = async (
   studentId?: number | null
 ): Promise<StudentNotificationItem[]> => {
   try {
-    const response = await axiosInstance.get(endpoint, {
-      params: buildStudentParams(studentId),
-    });
+    const response = await axiosInstance.post(endpoint, buildStudentParams(studentId));
 
     return ensureArray<Record<string, unknown>>(extractBody(response))
       .map(normalizeNotification)
@@ -147,9 +151,7 @@ export const getNotificationCounts = async (
   studentId?: number | null
 ): Promise<StudentNotificationCounts> => {
   try {
-    const response = await axiosInstance.get(ApiEndpoint.student.notifications.counts, {
-      params: buildStudentParams(studentId),
-    });
+    const response = await axiosInstance.post(ApiEndpoint.student.notifications.counts, buildStudentParams(studentId));
     const counts = (extractBody(response) ?? {}) as Record<string, unknown>;
     const unreadCount = Number(counts.unread_count ?? 0);
     const readCount = Number(counts.read_count ?? 0);
@@ -185,12 +187,26 @@ export const markNotificationRead = async (
   try {
     await axiosInstance.post(
       ApiEndpoint.student.notifications.markRead(notificationId),
-      {},
-      {
-        params: buildStudentParams(studentId),
-      }
+      buildStudentParams(studentId)
     );
   } catch (error) {
     throw new Error(buildErrorMessage(error, "Failed to mark notification as read"));
   }
+};
+
+export const downloadNotificationAttachment = async (item: StudentNotificationItem) => {
+  if (!item.fileUrl) throw new Error("No attachment is available for this notification.");
+  // Do not send ERP credentials to document hosts. Fetching a Blob makes the
+  // download attribute work even when the API runs on a different origin.
+  const response = await fetch(item.fileUrl, { credentials: "omit" });
+  if (!response.ok) throw new Error("The attachment could not be downloaded. Please try again.");
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = item.fileName || decodeURIComponent(new URL(item.fileUrl).pathname.split("/").pop() || "attachment");
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 };

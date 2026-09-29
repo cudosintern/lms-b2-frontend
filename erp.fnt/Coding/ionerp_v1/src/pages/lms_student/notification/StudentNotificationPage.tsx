@@ -1,9 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "react-toastify";
 import {
   StudentNotificationItem,
   getNotificationBuckets,
+  getStudentId,
   markNotificationRead,
+  downloadNotificationAttachment,
 } from "./studentNotificationService";
 
 type NotificationTab = "unread" | "read";
@@ -34,19 +36,22 @@ const StudentNotificationPage: React.FC = () => {
   const [unreadNotifications, setUnreadNotifications] = useState<StudentNotificationItem[]>([]);
   const [readNotifications, setReadNotifications] = useState<StudentNotificationItem[]>([]);
   const [counts, setCounts] = useState({ unreadCount: 0, readCount: 0, totalCount: 0 });
-  const [loading, setLoading] = useState(true);
+  const [studentId] = useState<number | null>(getStudentId);
+  const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedIds, setExpandedIds] = useState<number[]>([]);
   const [markingId, setMarkingId] = useState<number | null>(null);
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
 
-  const loadNotifications = async () => {
+  const loadNotifications = useCallback(async () => {
+    if (!studentId) return;
     try {
       setLoading(true);
       setErrorMessage("");
-      const response = await getNotificationBuckets();
+      const response = await getNotificationBuckets(studentId);
       setUnreadNotifications(response.unread);
       setReadNotifications(response.read);
       setCounts(response.counts);
@@ -57,11 +62,31 @@ const StudentNotificationPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [studentId]);
 
   useEffect(() => {
-    loadNotifications();
-  }, []);
+    let active = true;
+    setUnreadNotifications([]);
+    setReadNotifications([]);
+    setCounts({ unreadCount: 0, readCount: 0, totalCount: 0 });
+    setCurrentPage(1);
+    setExpandedIds([]);
+    setErrorMessage("");
+    if (!studentId) {
+      setErrorMessage("Student identity is unavailable in the current session.");
+      return;
+    }
+    setLoading(true);
+    getNotificationBuckets(studentId).then((response) => {
+      if (!active) return;
+      setUnreadNotifications(response.unread);
+      setReadNotifications(response.read);
+      setCounts(response.counts);
+    }).catch((error) => {
+      if (active) setErrorMessage(error instanceof Error ? error.message : "Failed to load notifications");
+    }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [studentId]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -96,35 +121,15 @@ const StudentNotificationPage: React.FC = () => {
     );
   };
 
-  const syncNotificationReadState = (notificationId: number) => {
-    setUnreadNotifications((currentUnread) => {
-      const matchedNotification = currentUnread.find((item) => item.id === notificationId);
-      if (!matchedNotification) {
-        return currentUnread;
-      }
-
-      const updatedItem = { ...matchedNotification, isRead: true };
-      setReadNotifications((currentRead) =>
-        [updatedItem, ...currentRead].sort(
-          (left, right) =>
-            new Date(right.sentOn || "").getTime() - new Date(left.sentOn || "").getTime()
-        )
-      );
-      setCounts((currentCounts) => ({
-        unreadCount: Math.max(0, currentCounts.unreadCount - 1),
-        readCount: currentCounts.readCount + 1,
-        totalCount: currentCounts.totalCount,
-      }));
-
-      return currentUnread.filter((item) => item.id !== notificationId);
-    });
-  };
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages));
+  }, [totalPages]);
 
   const handleMarkAsRead = async (notificationId: number) => {
     try {
       setMarkingId(notificationId);
-      await markNotificationRead(notificationId);
-      syncNotificationReadState(notificationId);
+      await markNotificationRead(notificationId, studentId);
+      await loadNotifications();
       toast.success("Notification marked as read.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to mark notification as read";
@@ -135,12 +140,14 @@ const StudentNotificationPage: React.FC = () => {
   };
 
   const handleOpenFile = async (item: StudentNotificationItem) => {
-    if (item.fileUrl) {
-      window.open(item.fileUrl, "_blank", "noopener,noreferrer");
-    }
-
-    if (!item.isRead) {
-      await handleMarkAsRead(item.id);
+    try {
+      setDownloadingId(item.id);
+      await downloadNotificationAttachment(item);
+      if (!item.isRead) await handleMarkAsRead(item.id);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to download attachment");
+    } finally {
+      setDownloadingId(null);
     }
   };
 
@@ -181,13 +188,6 @@ const StudentNotificationPage: React.FC = () => {
               </button>
             </div>
 
-            <button
-              type="button"
-              onClick={loadNotifications}
-              className="px-3 py-2 text-sm border border-gray-300 rounded text-gray-600 hover:bg-gray-50"
-            >
-              Refresh
-            </button>
           </div>
 
           <div className="flex flex-wrap justify-between items-center gap-3">
@@ -280,7 +280,7 @@ const StudentNotificationPage: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => handleMarkAsRead(item.id)}
-                                disabled={markingId === item.id}
+                                disabled={markingId !== null}
                                 className="text-xs text-blue-600 hover:underline disabled:opacity-50"
                               >
                                 {markingId === item.id ? "Marking..." : "Mark as Read"}
@@ -289,16 +289,17 @@ const StudentNotificationPage: React.FC = () => {
                           </div>
                         </td>
                         <td className="px-3 py-3 min-w-[220px]">
-                          {item.fileName ? (
+                          {item.fileUrl ? (
                             <button
                               type="button"
                               onClick={() => handleOpenFile(item)}
+                              disabled={markingId !== null || downloadingId !== null}
                               className="text-blue-600 hover:underline break-all text-left"
                             >
-                              {`View File (${item.fileName})`}
+                              {downloadingId === item.id ? "Downloading..." : item.fileName ? `Download (${item.fileName})` : "Download attachment"}
                             </button>
                           ) : (
-                            ""
+                            item.fileName || "No attachment"
                           )}
                         </td>
                         <td className="px-3 py-3 whitespace-nowrap">{formatSentOn(item.sentOn)}</td>

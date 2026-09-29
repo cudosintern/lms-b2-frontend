@@ -57,6 +57,11 @@ axiosInstance.interceptors.response.use(
         return Promise.reject(error);
       }
       if (error.response.status === 401) {
+        // Some pages handle authentication failures inline without ending the
+        // user's session (for example a report opened from a demo session).
+        if (error.config?.preserveSessionOnUnauthorized === true) {
+          return Promise.reject(error);
+        }
         LocalStorageHelper.removeAll();
         window.location.href = "/login";
         return Promise.reject(error);

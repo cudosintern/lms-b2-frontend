@@ -32,16 +32,28 @@ import studentRecordPage from "../pages/lms/studentRecord/StudentRecordPage";
 import StudentAttendanceReport from "../pages/lms/studentAttendanceReport/StudentAttendanceReport";
 import AttendanceStatusReportPage from "../pages/lms/attendanceStatusReport/AttendanceStatusReportPage";
 import StudentQuiz from "../pages/lms/reports/student_StudentQuiz";
-// import ConsolidatedStudentMarksReport from "../../pages/lms/ConsolidatedStudentMarksReport/ConsolidatedStudentMarksReport";
+import ConsolidatedStudentMarksReport from "../pages/lms/consolidatedStudentMarksReport/ConsolidatedStudentMarksReport";
 import consolidatedAbsenteesReport from "../pages/lms/consolidatedAbsenteesReport/ConsolidatedAbsenteesReport";
+import student_StudentRegistrationReport from "../pages/lms/reports/student_StudentRegistrationReport";
+import StudentRegistrationOEReport from "../pages/lms/studentRegistrationOEReport/StudentRegistrationOEReport";
 
 import MyAssignmentPage from "../pages/lms_student/my_assignment/MyAssignmentPage";
 import MyClass from "../pages/lms_student/student_myClass/MyClass";
 import MyQuizPage from "../pages/lms_student/myQuiz/MyQuizPage";
 import StudentAssignmentReport from "../pages/lms/studentAssignmentReport/StudentAssignmentReport";
 import TopicCoverageAndTracking from "../pages/lms/TopicCoverageAndTracking/TopicCoverageAndTracking"
+import StudentNotificationPage from "../pages/lms_student/notification/StudentNotificationPage";
+import StudentIssuesObservationsPage from "../pages/lms_student/issues_observations_report/StudentIssuesObservationsPage";
+import StudentMentoringSessionPage from "../pages/lms_student/mentoring_session/StudentMentoringSessionPage";
 
 export const MAINROUTE = [
+  {
+    name: "Student Issues & Observations",
+    href: "/student/issues-observations",
+    element: StudentIssuesObservationsPage,
+    roles: [],
+    subItems: [],
+  },
   {
     name: "Home",
     href: "/",
@@ -207,13 +219,13 @@ export const MAINROUTE = [
         roles: [],
         subItems: [],
       },
-      // {
-      //   name: "Consolidated Student Marks Report",
-      //   href: "consolidated-student-marks-report",
-      //   element: ConsolidatedStudentMarksReport,
-      //   roles: [],
-      //   subItems: [],
-      // },
+      {
+        name: "Consolidated Student Marks Report",
+        href: "consolidated-student-marks-report",
+        element: ConsolidatedStudentMarksReport,
+        roles: [],
+        subItems: [],
+      },
       {
         name: "Attendance Status Report",
         href: "attendance-status-report",
@@ -221,8 +233,52 @@ export const MAINROUTE = [
         roles: [],
         subItems: [],
       },
+      {
+        name: "Open-Elective (OE) Report",
+        href: "student-registration-oe-report",
+        element: StudentRegistrationOEReport,
+        roles: [],
+        subItems: [],
+      },
+      {
+        name: "Student Registration Report",
+        href: "student-registration-report",
+        element: student_StudentRegistrationReport,
+        roles: [],
+        subItems: [],
+      }
 
       
+    ]
+  },
+  {
+    name: "LMS_Student",
+    href: "/lms_student/issues_observations_report/StudentIssuesObservationsPage",
+    element: StudentIssuesObservationsPage,
+    icon: React.createElement("div", { className: "w-6 h-6 rounded bg-emerald-600 flex items-center justify-center text-white mr-1.5" }, React.createElement(FaUsers, { size: 11 })),
+    roles: [],
+    subItems: [
+      {
+        name: "Student Mentoring Session",
+        href: "student-mentoring-session",
+        element: StudentMentoringSessionPage,
+        roles: [],
+        subItems: [],
+      },
+      {
+        name: "Student Issues & Observations Report",
+        href: "student-issues-observation-report",
+        element: StudentIssuesObservationsPage,
+        roles: [],
+        subItems: [],
+      },
+      {
+        name: "Student notification",
+        href: "student-notification",
+        element: StudentNotificationPage,
+        roles: [],
+        subItems: [],
+      }
     ]
   },
   {

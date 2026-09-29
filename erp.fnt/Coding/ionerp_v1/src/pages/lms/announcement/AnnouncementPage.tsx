@@ -12,6 +12,7 @@ const SEND_API = {
   curriculums: "/api/v1/announcements/announcements/send/curriculums",
   recipients: "/api/v1/announcements/announcements/send/recipients",
   create: "/api/v1/announcements/announcements/send/create",
+  createWithAttachment: "/api/v1/announcements/announcements/send/create-with-attachment",
   sent: "/api/v1/announcements/announcements/send/sent",
   receivedStudent: (uid: number) => `/api/v1/announcements/announcements/received/student/${uid}`,
   receivedFaculty: (uid: number) => `/api/v1/announcements/announcements/received/faculty/${uid}`,
@@ -864,6 +865,10 @@ const renderGroupedRecipientsWithAccordion = (groups: GroupedRecipient[], depth:
       }
     }
 
+    if (attachFile && (!/\.(pdf|jpe?g|png)$/i.test(attachFile.name) || attachFile.size > 5 * 1024 * 1024 || attachFile.size === 0)) {
+      toast.error("Choose a non-empty PDF, JPEG or PNG file up to 5 MB.");
+      return;
+    }
     setSubmitting(true);
     let anySuccess = false;
     const errors: string[] = [];
@@ -900,9 +905,17 @@ const renderGroupedRecipientsWithAccordion = (groups: GroupedRecipient[], depth:
       }
 
       try {
-        const res: any = await axiosInstance.post(SEND_API.create, payload, {
-          headers: { "Content-Type": "application/json" },
-        });
+        let res: any;
+        if (attachFile) {
+          const formData = new FormData();
+          formData.append("payload", JSON.stringify(payload));
+          formData.append("attachment", attachFile);
+          res = await axiosInstance.post(SEND_API.createWithAttachment, formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+        } else {
+          res = await axiosInstance.post(SEND_API.create, payload);
+        }
         if (res.data?.status === false) {
           errors.push(res.data?.message || `Failed to send to ${userType}`);
         } else {
